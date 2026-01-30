@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>SQLD Community - Exam Prep Portal</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Lexend -->
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen text-[#0d141b] transition-colors duration-200">
+<!-- Header Section -->
+<header class="sticky top-0 z-50 w-full bg-white dark:bg-background-dark border-b border-solid border-[#e7edf3] dark:border-slate-800">
+<div class="max-w-[1280px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-4">
+<!-- Logo & Main Nav -->
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-2 text-primary">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined !text-2xl">database</span>
+</div>
+<h2 class="text-[#0d141b] dark:text-white text-xl font-bold leading-tight tracking-tight hidden sm:block">SQLD Community</h2>
+</div>
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-[#4c739a] hover:text-primary dark:text-slate-400 dark:hover:text-primary text-sm font-semibold transition-colors" href="#">NOTICE</a>
+<a class="text-[#4c739a] hover:text-primary dark:text-slate-400 dark:hover:text-primary text-sm font-semibold transition-colors" href="#">SQLD STUDY</a>
+<a class="text-[#4c739a] hover:text-primary dark:text-slate-400 dark:hover:text-primary text-sm font-semibold transition-colors" href="#">JOIN GREETING</a>
+</nav>
+</div>
+<!-- Search Bar (Header Version) -->
+<div class="flex-1 max-w-md hidden md:block">
+<label class="relative flex items-center">
+<div class="absolute left-3 text-[#4c739a] pointer-events-none">
+<span class="material-symbols-outlined !text-xl">search</span>
+</div>
+<input class="w-full h-10 pl-10 pr-4 rounded-lg border-none bg-[#e7edf3] dark:bg-slate-800 text-[#0d141b] dark:text-white placeholder:text-[#4c739a] focus:ring-2 focus:ring-primary text-sm" placeholder="Search exam tips or queries..."/>
+</label>
+</div>
+<!-- Auth Buttons -->
+<div class="flex items-center gap-2">
+<button class="hidden sm:flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-transparent border border-transparent text-[#0d141b] dark:text-white text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-800">
+<span>Login</span>
+</button>
+<button class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold shadow-md hover:bg-blue-600 transition-all">
+<span>Sign up</span>
+</button>
+<button class="lg:hidden p-2 text-[#0d141b] dark:text-white">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+</div>
+</header>
+<main class="max-w-[1280px] mx-auto px-4 md:px-10 py-8">
+<!-- Welcome Hero Section -->
+<section class="mb-10 px-4 py-10 rounded-xl bg-gradient-to-r from-primary to-blue-400 text-white shadow-lg relative overflow-hidden">
+<div class="relative z-10 max-w-2xl">
+<h1 class="text-3xl md:text-4xl font-bold mb-4">Master your SQLD Exam</h1>
+<p class="text-blue-50 text-lg mb-6 opacity-90 font-light">Join over 10,000 developers sharing mock exams, subquery tips, and study strategies.</p>
+<div class="flex gap-3">
+<button class="bg-white text-primary px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-blue-50 transition-colors">Start Learning</button>
+<button class="bg-primary/20 backdrop-blur-md border border-white/30 text-white px-6 py-2.5 rounded-lg font-bold text-sm hover:bg-primary/30 transition-colors">Exam Schedule</button>
+</div>
+</div>
+<!-- Decorative abstract pattern -->
+<div class="absolute top-0 right-0 h-full w-1/3 opacity-20 hidden md:block">
+<svg class="h-full w-full" viewbox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+<path d="M44.7,-76.4C58.2,-69.2,70.1,-58.5,78.2,-45.4C86.3,-32.3,90.7,-16.1,89.5,-0.7C88.3,14.7,81.5,29.4,72.4,42.2C63.3,55.1,51.8,66.1,38.5,73.1C25.2,80.1,10.1,83.1,-4.2,90.4C-18.5,97.7,-32.1,109.2,-43.5,106.8C-54.9,104.3,-64.1,87.9,-71.4,73.5C-78.7,59.1,-84.1,46.7,-88.1,33.5C-92.1,20.3,-94.7,6.3,-91.3,-6.4C-87.9,-19,-78.5,-30.3,-69.1,-40.8C-59.7,-51.3,-50.2,-61,-38.9,-69.4C-27.6,-77.8,-14.4,-84.9,0.8,-86.3C16,-87.7,31.2,-83.5,44.7,-76.4Z" fill="#FFFFFF" transform="translate(100 100)"></path>
+</svg>
+</div>
+</section>
+<!-- Boards Grid Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Notice Board -->
+<div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-[#cfdbe7] dark:border-slate-800 shadow-sm overflow-hidden">
+<div class="flex items-center justify-between px-5 py-4 border-b border-[#e7edf3] dark:border-slate-800">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">campaign</span>
+<h3 class="text-lg font-bold text-[#0d141b] dark:text-white">Notice</h3>
+</div>
+<a class="text-primary hover:bg-primary/10 p-1 rounded transition-colors" href="#">
+<span class="material-symbols-outlined">add</span>
+</a>
+</div>
+<div class="flex flex-col divide-y divide-[#e7edf3] dark:divide-slate-800">
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">[Notice] 2024 Exam Schedule Announced</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-15</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">System Maintenance Notice</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-12</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Guide to SQLD Certification Prep</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-10</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Top 10 FAQ for SQLD Candidates</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-08</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">New Study Materials Uploaded</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-05</span>
+</a>
+</div>
+</div>
+<!-- SQLD Study Board -->
+<div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-[#cfdbe7] dark:border-slate-800 shadow-sm overflow-hidden">
+<div class="flex items-center justify-between px-5 py-4 border-b border-[#e7edf3] dark:border-slate-800">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">menu_book</span>
+<h3 class="text-lg font-bold text-[#0d141b] dark:text-white">SQLD Study</h3>
+</div>
+<a class="text-primary hover:bg-primary/10 p-1 rounded transition-colors" href="#">
+<span class="material-symbols-outlined">add</span>
+</a>
+</div>
+<div class="flex flex-col divide-y divide-[#e7edf3] dark:divide-slate-800">
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Difference between UNION and UNION ALL</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-18</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">How to optimize subqueries?</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-17</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Self-join examples for beginners</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-16</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Window functions explained with rows</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-15</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">My SQLD mock exam results today</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-14</span>
+</a>
+</div>
+</div>
+<!-- Join Greetings Board -->
+<div class="flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-[#cfdbe7] dark:border-slate-800 shadow-sm overflow-hidden">
+<div class="flex items-center justify-between px-5 py-4 border-b border-[#e7edf3] dark:border-slate-800">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">waving_hand</span>
+<h3 class="text-lg font-bold text-[#0d141b] dark:text-white">Join Greetings</h3>
+</div>
+<a class="text-primary hover:bg-primary/10 p-1 rounded transition-colors" href="#">
+<span class="material-symbols-outlined">add</span>
+</a>
+</div>
+<div class="flex flex-col divide-y divide-[#e7edf3] dark:divide-slate-800">
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Hello! Ready to study for the March exam.</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-19</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Newbie developer here, nice to meet you!</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-19</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Aiming for 100% on the SQLD certification.</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-18</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Starting my SQL journey today.</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-18</span>
+</a>
+<a class="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group" href="#">
+<span class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary truncate">Joining from Seoul, SQLD study buddy?</span>
+<span class="text-xs text-[#4c739a] mt-1">2024-01-17</span>
+</a>
+</div>
+</div>
+</div>
+<!-- Quick Links / Search Mobile -->
+<div class="mt-12 block md:hidden">
+<h3 class="text-lg font-bold mb-4 px-2">Quick Search</h3>
+<label class="relative flex items-center px-2">
+<div class="absolute left-5 text-[#4c739a] pointer-events-none">
+<span class="material-symbols-outlined">search</span>
+</div>
+<input class="w-full h-12 pl-12 pr-4 rounded-xl border border-[#cfdbe7] bg-white text-[#0d141b] placeholder:text-[#4c739a] focus:ring-2 focus:ring-primary text-base" placeholder="Search for exam tips..."/>
+</label>
+</div>
+<!-- Call to Action Banner -->
+<section class="mt-12 p-8 bg-slate-100 dark:bg-slate-900/40 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+<div class="text-center md:text-left">
+<h4 class="text-xl font-bold mb-1">Want more study resources?</h4>
+<p class="text-[#4c739a] dark:text-slate-400">Join our community and get access to exclusive mock exams.</p>
+</div>
+<button class="w-full md:w-auto px-8 py-3 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20">
+                Join Community
+            </button>
+</section>
+</main>
+<!-- Footer -->
+<footer class="mt-20 border-t border-[#e7edf3] dark:border-slate-800 bg-white dark:bg-background-dark">
+<div class="max-w-[1280px] mx-auto px-4 md:px-10 py-12">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+<div class="col-span-1 md:col-span-2">
+<div class="flex items-center gap-2 text-primary mb-4">
+<span class="material-symbols-outlined">database</span>
+<span class="text-lg font-bold text-[#0d141b] dark:text-white">SQLD Community</span>
+</div>
+<p class="text-sm text-[#4c739a] dark:text-slate-400 leading-relaxed max-w-sm">
+                        The leading community for aspiring SQL Developers. We provide the tools, mock exams, and peer support needed to pass your certification.
+                    </p>
+</div>
+<div>
+<h5 class="font-bold mb-4 text-[#0d141b] dark:text-white">Quick Links</h5>
+<ul class="space-y-2 text-sm text-[#4c739a] dark:text-slate-400">
+<li><a class="hover:text-primary" href="#">Notice</a></li>
+<li><a class="hover:text-primary" href="#">SQLD Study</a></li>
+<li><a class="hover:text-primary" href="#">Mock Exams</a></li>
+<li><a class="hover:text-primary" href="#">FAQ</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold mb-4 text-[#0d141b] dark:text-white">Legal</h5>
+<ul class="space-y-2 text-sm text-[#4c739a] dark:text-slate-400">
+<li><a class="hover:text-primary" href="#">Privacy Policy</a></li>
+<li><a class="hover:text-primary" href="#">Terms of Service</a></li>
+<li><a class="hover:text-primary" href="#">Cookie Policy</a></li>
+</ul>
+</div>
+</div>
+<div class="mt-12 pt-8 border-t border-[#e7edf3] dark:border-slate-800 text-center text-xs text-[#4c739a]">
+                © 2024 SQLD Community. All rights reserved. Designed for excellence.
+            </div>
+</div>
+</footer>
+</body></html>
