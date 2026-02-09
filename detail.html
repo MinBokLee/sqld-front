@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Practice Exams - SQLD Community</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style type="text/tailwindcss">
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            font-family: 'Lexend', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark min-h-screen text-[#0d141b] transition-colors duration-200">
+<header class="sticky top-0 z-50 w-full bg-white dark:bg-background-dark border-b border-solid border-[#e7edf3] dark:border-slate-800">
+<div class="max-w-[1280px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-4">
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-2 text-primary">
+<div class="size-8 bg-primary rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined !text-2xl">database</span>
+</div>
+<h2 class="text-[#0d141b] dark:text-white text-xl font-bold leading-tight tracking-tight hidden sm:block">SQLD Community</h2>
+</div>
+<nav class="hidden lg:flex items-center gap-6">
+<a class="text-[#4c739a] hover:text-primary dark:text-slate-400 dark:hover:text-primary text-sm font-semibold transition-colors" href="#">NOTICE</a>
+<a class="text-primary dark:text-primary text-sm font-semibold transition-colors" href="#">SQLD STUDY</a>
+<a class="text-[#4c739a] hover:text-primary dark:text-slate-400 dark:hover:text-primary text-sm font-semibold transition-colors" href="#">JOIN GREETING</a>
+</nav>
+</div>
+<div class="flex-1 max-w-md hidden md:block">
+<label class="relative flex items-center">
+<div class="absolute left-3 text-[#4c739a] pointer-events-none">
+<span class="material-symbols-outlined !text-xl">search</span>
+</div>
+<input class="w-full h-10 pl-10 pr-4 rounded-lg border-none bg-[#e7edf3] dark:bg-slate-800 text-[#0d141b] dark:text-white placeholder:text-[#4c739a] focus:ring-2 focus:ring-primary text-sm" placeholder="Search exam tips or queries..."/>
+</label>
+</div>
+<div class="flex items-center gap-2">
+<button class="hidden sm:flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-transparent border border-transparent text-[#0d141b] dark:text-white text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-800">
+<span>Login</span>
+</button>
+<button class="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold shadow-md hover:bg-blue-600 transition-all">
+<span>Sign up</span>
+</button>
+<button class="lg:hidden p-2 text-[#0d141b] dark:text-white">
+<span class="material-symbols-outlined">menu</span>
+</button>
+</div>
+</div>
+</header>
+<main class="max-w-[1280px] mx-auto px-4 md:px-10 py-8">
+<nav aria-label="Breadcrumb" class="flex items-center gap-2 text-sm text-[#4c739a] dark:text-slate-400 mb-6">
+<a class="hover:text-primary transition-colors flex items-center gap-1" href="#">
+<span class="material-symbols-outlined !text-lg">home</span> Home
+        </a>
+<span class="material-symbols-outlined !text-sm">chevron_right</span>
+<a class="hover:text-primary transition-colors" href="#">SQLD Study</a>
+<span class="material-symbols-outlined !text-sm">chevron_right</span>
+<span class="font-semibold text-primary">Practice Exams</span>
+</nav>
+<div class="mb-8">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+<div>
+<h1 class="text-3xl font-bold text-[#0d141b] dark:text-white">SQLD Practice Exams</h1>
+<p class="text-[#4c739a] dark:text-slate-400 mt-1">Practice with real-world questions and session-based mock tests.</p>
+</div>
+<button class="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md">
+<span class="material-symbols-outlined !text-xl">edit_square</span>
+                Write Post
+            </button>
+</div>
+<div class="bg-white dark:bg-slate-900 p-4 rounded-xl border border-[#cfdbe7] dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4">
+<div class="flex-1 flex gap-2">
+<select class="h-10 px-3 rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-[#f6f7f8] dark:bg-slate-800 text-sm font-medium focus:ring-primary focus:border-primary">
+<option>All Exams</option>
+<option>52nd Exam</option>
+<option>51st Exam</option>
+<option>50th Exam</option>
+<option>49th Exam</option>
+</select>
+<div class="flex-1 relative">
+<div class="absolute inset-y-0 left-3 flex items-center pointer-events-none text-[#4c739a]">
+<span class="material-symbols-outlined !text-xl">search</span>
+</div>
+<input class="w-full h-10 pl-10 pr-4 rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-[#f6f7f8] dark:bg-slate-800 text-sm focus:ring-primary focus:border-primary" placeholder="Search within exams..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="h-10 px-4 bg-[#e7edf3] dark:bg-slate-800 text-[#0d141b] dark:text-white text-sm font-semibold rounded-lg hover:bg-[#d1dce7] transition-colors">Apply Filter</button>
+<button class="h-10 w-10 flex items-center justify-center bg-[#e7edf3] dark:bg-slate-800 text-[#0d141b] dark:text-white rounded-lg hover:bg-[#d1dce7]">
+<span class="material-symbols-outlined">refresh</span>
+</button>
+</div>
+</div>
+</div>
+<div class="bg-white dark:bg-slate-900 rounded-xl border border-[#cfdbe7] dark:border-slate-800 shadow-sm overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-[#f6f7f8] dark:bg-slate-800/50 border-b border-[#e7edf3] dark:border-slate-800">
+<th class="px-6 py-4 text-xs font-bold text-[#4c739a] uppercase tracking-wider w-16">No.</th>
+<th class="px-6 py-4 text-xs font-bold text-[#4c739a] uppercase tracking-wider">Title</th>
+<th class="px-6 py-4 text-xs font-bold text-[#4c739a] uppercase tracking-wider w-32 text-center">Author</th>
+<th class="px-6 py-4 text-xs font-bold text-[#4c739a] uppercase tracking-wider w-32 text-center">Date</th>
+<th class="px-6 py-4 text-xs font-bold text-[#4c739a] uppercase tracking-wider w-20 text-center">Views</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#e7edf3] dark:divide-slate-800">
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group bg-blue-50/30 dark:bg-blue-900/10">
+<td class="px-6 py-4">
+<span class="flex items-center justify-center w-8 h-8 rounded bg-primary/10 text-primary">
+<span class="material-symbols-outlined !text-sm">push_pin</span>
+</span>
+</td>
+<td class="px-6 py-4">
+<a class="text-sm font-bold text-[#0d141b] dark:text-white hover:text-primary flex items-center gap-2" href="#">
+                                [Required] 52nd SQLD Exam Mock Test Full Set (PDF)
+                                <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 text-[10px] font-bold">HOT</span>
+</a>
+</td>
+<td class="px-6 py-4 text-sm text-center font-medium">Admin</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-20</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">1,245</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+<td class="px-6 py-4 text-sm text-[#4c739a] text-center">124</td>
+<td class="px-6 py-4">
+<a class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary transition-colors" href="#">
+                                Reviewing Subject 1: Data Modeling Fundamentals (52nd Exam)
+                                <span class="text-primary font-bold text-[11px] ml-1">[12]</span>
+</a>
+</td>
+<td class="px-6 py-4 text-sm text-center">SQLMaster</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-20</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">342</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+<td class="px-6 py-4 text-sm text-[#4c739a] text-center">123</td>
+<td class="px-6 py-4">
+<a class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary transition-colors" href="#">
+                                Difficult subquery questions from the 51st exam session
+                                <span class="text-primary font-bold text-[11px] ml-1">[5]</span>
+</a>
+</td>
+<td class="px-6 py-4 text-sm text-center">DB_Lover</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-19</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">561</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+<td class="px-6 py-4 text-sm text-[#4c739a] text-center">122</td>
+<td class="px-6 py-4">
+<a class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary transition-colors" href="#">
+                                My approach to Window Functions - 52nd Mock Exam
+                            </a>
+</td>
+<td class="px-6 py-4 text-sm text-center">DataScientist</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-19</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">289</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+<td class="px-6 py-4 text-sm text-[#4c739a] text-center">121</td>
+<td class="px-6 py-4">
+<a class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary transition-colors" href="#">
+                                Comparison of Join performance in 50th exam questions
+                                <span class="text-primary font-bold text-[11px] ml-1">[8]</span>
+</a>
+</td>
+<td class="px-6 py-4 text-sm text-center">QueryOptimizer</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-18</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">412</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+<td class="px-6 py-4 text-sm text-[#4c739a] text-center">120</td>
+<td class="px-6 py-4">
+<a class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary transition-colors" href="#">
+                                Useful SQL tips for the upcoming 53rd session
+                            </a>
+</td>
+<td class="px-6 py-4 text-sm text-center">PassSQLD</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-18</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">876</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+<td class="px-6 py-4 text-sm text-[#4c739a] text-center">119</td>
+<td class="px-6 py-4">
+<a class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary transition-colors" href="#">
+                                Practice Questions for 'Hierarchical Queries'
+                                <span class="text-primary font-bold text-[11px] ml-1">[21]</span>
+</a>
+</td>
+<td class="px-6 py-4 text-sm text-center">Tutor_Kim</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-17</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">1,029</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+<td class="px-6 py-4 text-sm text-[#4c739a] text-center">118</td>
+<td class="px-6 py-4">
+<a class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary transition-colors" href="#">
+                                49th Exam session post-mortem and analysis
+                            </a>
+</td>
+<td class="px-6 py-4 text-sm text-center">ExpertDB</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-17</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">540</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+<td class="px-6 py-4 text-sm text-[#4c739a] text-center">117</td>
+<td class="px-6 py-4">
+<a class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary transition-colors" href="#">
+                                Summary of NULL handling functions (NVL, COALESCE)
+                                <span class="text-primary font-bold text-[11px] ml-1">[3]</span>
+</a>
+</td>
+<td class="px-6 py-4 text-sm text-center">SQL_Newbie</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-16</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">215</td>
+</tr>
+<tr class="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+<td class="px-6 py-4 text-sm text-[#4c739a] text-center">116</td>
+<td class="px-6 py-4">
+<a class="text-sm font-medium text-[#0d141b] dark:text-slate-200 group-hover:text-primary transition-colors" href="#">
+                                Difference between RANK and DENSE_RANK explained
+                            </a>
+</td>
+<td class="px-6 py-4 text-sm text-center">AnalyticalMind</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">2024-01-15</td>
+<td class="px-6 py-4 text-sm text-[#4c739a] dark:text-slate-400 text-center">763</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="px-6 py-4 bg-[#f6f7f8] dark:bg-slate-800/50 border-t border-[#e7edf3] dark:border-slate-800 flex items-center justify-between">
+<div class="text-sm text-[#4c739a] dark:text-slate-400 hidden sm:block">
+                Showing <span class="font-semibold text-[#0d141b] dark:text-white">1</span> to <span class="font-semibold text-[#0d141b] dark:text-white">10</span> of <span class="font-semibold text-[#0d141b] dark:text-white">124</span> results
+            </div>
+<div class="flex items-center gap-1">
+<button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-white dark:bg-slate-900 text-[#4c739a] hover:bg-slate-50 disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined">first_page</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-white dark:bg-slate-900 text-[#4c739a] hover:bg-slate-50 disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg bg-primary text-white font-bold shadow-md">1</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-white dark:bg-slate-900 text-[#4c739a] hover:bg-slate-50">2</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-white dark:bg-slate-900 text-[#4c739a] hover:bg-slate-50">3</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-white dark:bg-slate-900 text-[#4c739a] hover:bg-slate-50">4</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-white dark:bg-slate-900 text-[#4c739a] hover:bg-slate-50">5</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-white dark:bg-slate-900 text-[#4c739a] hover:bg-slate-50">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-lg border border-[#cfdbe7] dark:border-slate-800 bg-white dark:bg-slate-900 text-[#4c739a] hover:bg-slate-50">
+<span class="material-symbols-outlined">last_page</span>
+</button>
+</div>
+</div>
+</div>
+<section class="mt-12 p-8 bg-blue-50 dark:bg-slate-900/40 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6 border border-primary/20">
+<div class="flex items-center gap-4">
+<div class="size-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+<span class="material-symbols-outlined !text-3xl">lightbulb</span>
+</div>
+<div>
+<h4 class="text-xl font-bold mb-1">Check out the Exam Guidelines</h4>
+<p class="text-[#4c739a] dark:text-slate-400 text-sm">Make sure you are familiar with the 2024 updated exam format and scoring system.</p>
+</div>
+</div>
+<button class="w-full md:w-auto px-6 py-2.5 bg-white dark:bg-slate-800 text-primary font-bold rounded-lg border border-primary/20 hover:bg-blue-50 transition-all">
+            Read Guidelines
+        </button>
+</section>
+</main>
+<footer class="mt-20 border-t border-[#e7edf3] dark:border-slate-800 bg-white dark:bg-background-dark">
+<div class="max-w-[1280px] mx-auto px-4 md:px-10 py-12">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+<div class="col-span-1 md:col-span-2">
+<div class="flex items-center gap-2 text-primary mb-4">
+<span class="material-symbols-outlined">database</span>
+<span class="text-lg font-bold text-[#0d141b] dark:text-white">SQLD Community</span>
+</div>
+<p class="text-sm text-[#4c739a] dark:text-slate-400 leading-relaxed max-w-sm">
+                    The leading community for aspiring SQL Developers. We provide the tools, mock exams, and peer support needed to pass your certification.
+                </p>
+</div>
+<div>
+<h5 class="font-bold mb-4 text-[#0d141b] dark:text-white">Quick Links</h5>
+<ul class="space-y-2 text-sm text-[#4c739a] dark:text-slate-400">
+<li><a class="hover:text-primary" href="#">Notice</a></li>
+<li><a class="hover:text-primary" href="#">SQLD Study</a></li>
+<li><a class="hover:text-primary" href="#">Mock Exams</a></li>
+<li><a class="hover:text-primary" href="#">FAQ</a></li>
+</ul>
+</div>
+<div>
+<h5 class="font-bold mb-4 text-[#0d141b] dark:text-white">Legal</h5>
+<ul class="space-y-2 text-sm text-[#4c739a] dark:text-slate-400">
+<li><a class="hover:text-primary" href="#">Privacy Policy</a></li>
+<li><a class="hover:text-primary" href="#">Terms of Service</a></li>
+<li><a class="hover:text-primary" href="#">Cookie Policy</a></li>
+</ul>
+</div>
+</div>
+<div class="mt-12 pt-8 border-t border-[#e7edf3] dark:border-slate-800 text-center text-xs text-[#4c739a]">
+            © 2024 SQLD Community. All rights reserved. Designed for excellence.
+        </div>
+</div>
+</footer>
+
+</body></html>
