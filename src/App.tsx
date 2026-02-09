@@ -1,26 +1,21 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { useState, useEffect } from "react";
 import { Megaphone, BookOpen, Hand, Search } from 'lucide-react';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import Board from './components/Board';
 import Footer from './components/Footer';
+import ExamDetailPage from './pages/ExamDetailPage';
 import PracticeExams from './pages/PracticeExams';
 
 function Home() {
+  const [studyPosts, setStudyPosts] = useState<{ title: string; date: string; }[]>([]);
   const notices = [
     { title: "[Notice] 2024 Exam Schedule Announced", date: "2024-01-15" },
     { title: "System Maintenance Notice", date: "2024-01-12" },
     { title: "Guide to SQLD Certification Prep", date: "2024-01-10" },
     { title: "Top 10 FAQ for SQLD Candidates", date: "2024-01-08" },
     { title: "New Study Materials Uploaded", date: "2024-01-05" },
-  ];
-
-  const studyPosts = [
-    { title: "Difference between UNION and UNION ALL", date: "2024-01-18" },
-    { title: "How to optimize subqueries?", date: "2024-01-17" },
-    { title: "Self-join examples for beginners", date: "2024-01-16" },
-    { title: "Window functions explained with rows", date: "2024-01-15" },
-    { title: "My SQLD mock exam results today", date: "2024-01-14" },
   ];
 
   const greetings = [
@@ -30,6 +25,28 @@ function Home() {
     { title: "Starting my SQL journey today.", date: "2024-01-18" },
     { title: "Joining from Seoul, SQLD study buddy?", date: "2024-01-17" },
   ];
+
+  useEffect(() => {
+    fetch(`/api/board/list`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return res.json();
+      })
+      .then((data) => {
+        const filteredData = data.result.data.filter((item: any) => item.boardType === 'TYPE_A');
+        const formattedData = filteredData.map((item: any) => ({
+          title: item.title,
+          date: new Date(item.createAt).toLocaleDateString(),
+        }));
+        setStudyPosts(formattedData);
+      })
+      .catch(error => {
+        console.error("Failed to fetch study posts:", error);
+        // Optionally, set an error state here to display a message to the user
+      });
+  }, []);
 
   return (
     <main className="max-w-[1280px] mx-auto px-4 md:px-10 py-8">
@@ -82,6 +99,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/practice-exams" element={<PracticeExams />} />
+          <Route path="/exam/:id" element={<ExamDetailPage />} />
         </Routes>
         <Footer />
       </div>
