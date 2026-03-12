@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<title>SQLD Login</title>
+</head>
+<body class="font-display bg-background-light dark:bg-background-dark min-h-screen flex items-center justify-center p-4">
+<!-- Modal Overlay Backdrop (Visual representation of a modal state) -->
+<div class="fixed inset-0 bg-primary/10 dark:bg-black/60 backdrop-blur-sm"></div>
+<!-- Login Modal Container -->
+<div class="relative w-full max-w-md bg-white dark:bg-slate-900 shadow-xl rounded-xl overflow-hidden border border-primary/10">
+<!-- Header Section -->
+<div class="pt-10 pb-6 px-8 text-center">
+<div class="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
+<span class="material-icons text-primary text-3xl">database</span>
+</div>
+<h1 class="text-2xl font-bold text-slate-800 dark:text-white">로그인 (Login)</h1>
+<p class="text-sm text-slate-500 dark:text-slate-400 mt-2">SQLD 자격증 합격을 위한 첫 걸음</p>
+</div>
+<!-- Form Section -->
+<div class="px-8 pb-8">
+<form action="#" class="space-y-5" method="POST">
+<!-- ID Input -->
+<div class="space-y-1.5">
+<label class="text-sm font-medium text-slate-700 dark:text-slate-300" for="username">아이디 (ID)</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+<span class="material-icons text-sm">person</span>
+</span>
+<input class="block w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-slate-900 dark:text-white" id="username" name="username" placeholder="아이디를 입력하세요" type="text"/>
+</div>
+</div>
+<!-- Password Input -->
+<div class="space-y-1.5">
+<label class="text-sm font-medium text-slate-700 dark:text-slate-300" for="password">비밀번호 (Password)</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400">
+<span class="material-icons text-sm">lock</span>
+</span>
+<input class="block w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all text-slate-900 dark:text-white" id="password" name="password" placeholder="비밀번호를 입력하세요" type="password"/>
+</div>
+</div>
+<!-- Action Row -->
+<div class="flex items-center justify-between text-xs">
+<label class="flex items-center cursor-pointer group">
+<input class="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary/40 bg-white" type="checkbox"/>
+<span class="ml-2 text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors">로그인 상태 유지</span>
+</label>
+<a class="text-primary hover:underline font-medium" href="#">아이디/비밀번호 찾기</a>
+</div>
+<!-- Login Button -->
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-lg shadow-md shadow-primary/20 transition-all active:scale-[0.98]" type="submit">
+                    로그인
+                </button>
+</form>
+<!-- Social Login Divider -->
+<div class="relative my-8">
+<div class="absolute inset-0 flex items-center">
+<div class="w-full border-t border-slate-200 dark:border-slate-700"></div>
+</div>
+<div class="relative flex justify-center text-xs uppercase">
+<span class="bg-white dark:bg-slate-900 px-4 text-slate-400">SNS 로그인</span>
+</div>
+</div>
+<!-- Social Buttons -->
+<div class="grid grid-cols-2 gap-3">
+<button class="flex items-center justify-center py-2.5 px-4 rounded-lg bg-[#FEE500] hover:bg-[#FEE500]/90 text-[#3C1E1E] transition-colors">
+<div class="w-5 h-5 mr-2 flex items-center justify-center">
+<span class="material-icons text-lg">chat_bubble</span>
+</div>
+<span class="text-xs font-bold">카카오 로그인</span>
+</button>
+<button class="flex items-center justify-center py-2.5 px-4 rounded-lg bg-[#03C75A] hover:bg-[#03C75A]/90 text-white transition-colors">
+<div class="w-5 h-5 mr-2 flex items-center justify-center">
+<span class="text-[10px] font-black italic">N</span>
+</div>
+<span class="text-xs font-bold">네이버 로그인</span>
+</button>
+</div>
+</div>
+<!-- Footer Section -->
+<div class="bg-slate-50 dark:bg-slate-800/50 py-4 px-8 border-t border-slate-100 dark:border-slate-800 text-center">
+<p class="text-sm text-slate-500 dark:text-slate-400">
+                계정이 없으신가요? 
+                <a class="text-primary font-bold ml-1 hover:underline" href="#">회원가입</a>
+</p>
+</div>
+</div>
+<!-- Background Decoration (Optional for visual depth) -->
+<div class="absolute bottom-10 right-10 opacity-10 pointer-events-none hidden lg:block">
+<img alt="Abstract blue data nodes and connections" class="w-64" data-alt="Abstract blue data nodes and connections" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3Bl0IKlNxW6c48-5ryxw0TKzI2cwGqTjp_2r8WP4bqRw-OBHwz0pZAKu3qIIL87H37Uyu3tpHpBIhCvoldnNZnx2AxURRYOAmtxjfvPcT6ighS6BDShqNwpqNg5vRcym3DpcpuUc635f6rsGYR0GNakvRihNyQJfRzKnm1A_Jpu146vZjg-T4JObOFu1inkomw1X9Qz-Qz6RTngXH5ulviWFygLtQ_H7ra2LbLc51koWDEYp6JbcoR--JAkFfaLvvPCpRQu-RdjY"/>
+</div>
+</body></html>

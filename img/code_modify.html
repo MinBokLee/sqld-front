@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@100..900&amp;family=Noto+Sans+KR:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "Noto Sans KR", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Lexend', 'Noto Sans KR', sans-serif; }
+        .ck-editor-mock {
+            min-height: 400px;
+            border: 1px solid #cfdbe7;
+            border-radius: 0.5rem;
+            background: white;
+        }
+        .ck-toolbar-mock {
+            border-bottom: 1px solid #cfdbe7;
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            background: #f8fafc;
+            border-top-left-radius: 0.5rem;
+            border-top-right-radius: 0.5rem;
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen">
+<!-- Navigation Bar -->
+<header class="sticky top-0 z-50 bg-white/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+<div class="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="text-primary">
+<span class="material-symbols-outlined text-3xl">forum</span>
+</div>
+<h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">커뮤니티</h1>
+</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">홈</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">게시판</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">스터디</a>
+<a class="text-sm font-medium hover:text-primary transition-colors" href="#">공지사항</a>
+</nav>
+<div class="flex items-center gap-3">
+<button class="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+<span class="material-symbols-outlined text-primary">person</span>
+</div>
+</div>
+</div>
+</header>
+<main class="max-w-4xl mx-auto px-4 py-8">
+<!-- Header Section -->
+<div class="mb-8">
+<h2 class="text-3xl font-black text-slate-900 dark:text-white mb-2">글 수정하기</h2>
+<p class="text-slate-500 dark:text-slate-400">기존 게시글의 내용을 자유롭게 수정하고 업데이트할 수 있습니다.</p>
+</div>
+<div class="space-y-6 bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+<!-- Category Selection -->
+<div class="space-y-3">
+<label class="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">카테고리</label>
+<div class="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg w-full sm:w-fit">
+<label class="relative flex-1 sm:flex-none cursor-pointer">
+<input class="peer sr-only" name="category" type="radio" value="Notice"/>
+<div class="px-6 py-2 rounded-md text-sm font-medium text-slate-500 peer-checked:bg-white peer-checked:text-primary peer-checked:shadow-sm transition-all text-center">Notice</div>
+</label>
+<label class="relative flex-1 sm:flex-none cursor-pointer">
+<input checked="" class="peer sr-only" name="category" type="radio" value="SQLD Study"/>
+<div class="px-6 py-2 rounded-md text-sm font-medium text-slate-500 peer-checked:bg-white peer-checked:text-primary peer-checked:shadow-sm transition-all text-center">SQLD Study</div>
+</label>
+<label class="relative flex-1 sm:flex-none cursor-pointer">
+<input class="peer sr-only" name="category" type="radio" value="Join Greeting"/>
+<div class="px-6 py-2 rounded-md text-sm font-medium text-slate-500 peer-checked:bg-white peer-checked:text-primary peer-checked:shadow-sm transition-all text-center">Join Greeting</div>
+</label>
+</div>
+</div>
+<!-- Title Input -->
+<div class="space-y-2">
+<label class="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">제목</label>
+<input class="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-lg font-medium" placeholder="제목을 입력하세요" type="text" value="SQLD 기출문제 52회 풀이 및 해설"/>
+</div>
+<!-- Editor Area (CKEditor Mockup) -->
+<div class="space-y-2">
+<label class="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">내용</label>
+<div class="ck-editor-mock flex flex-col dark:bg-slate-800 dark:border-slate-700">
+<div class="ck-toolbar-mock dark:bg-slate-900 dark:border-slate-700">
+<span class="material-symbols-outlined p-1 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 rounded">format_bold</span>
+<span class="material-symbols-outlined p-1 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 rounded">format_italic</span>
+<div class="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1"></div>
+<span class="material-symbols-outlined p-1 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-primary">image</span>
+<span class="material-symbols-outlined p-1 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 rounded">link</span>
+<span class="material-symbols-outlined p-1 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 rounded">code</span>
+<div class="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1"></div>
+<span class="material-symbols-outlined p-1 cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 rounded">format_list_bulleted</span>
+</div>
+<div class="p-6 overflow-y-auto prose dark:prose-invert max-w-none">
+<h3 class="text-xl font-bold mb-4">제 52회 SQLD 기출문제 해설</h3>
+<p>이번 회차에서는 JOIN 연산과 서브쿼리의 성능 최적화 문제가 다수 출제되었습니다.</p>
+<div class="bg-slate-100 dark:bg-slate-900 p-4 rounded-lg my-4 font-mono text-sm border border-slate-200 dark:border-slate-700">
+                            SELECT A.COL1, B.COL2 <br/>
+                            FROM TABLE_A A <br/>
+                            LEFT OUTER JOIN TABLE_B B ON A.KEY = B.KEY <br/>
+                            WHERE A.STATUS = 'ACTIVE';
+                        </div>
+<p>위 쿼리에서 성능 향상을 위해 인덱스 설계를 할 때 주의할 점은...</p>
+<p class="text-slate-400 italic mt-4 text-sm">마지막 수정: 2시간 전</p>
+</div>
+</div>
+</div>
+<!-- Image Attachments -->
+<div class="space-y-3">
+<label class="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">첨부 이미지 (2/5)</label>
+<div class="flex flex-wrap gap-4">
+<!-- Existing Image 1 -->
+<div class="relative group w-32 h-32 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+<img alt="SQL syntax diagram" class="w-full h-full object-cover" data-alt="Technical diagram showing SQL syntax rules" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC0bXIszr9LZptWR0iXkn5fgqhc1Hadp-kEeyvt9BiJsVLQxdFymyeFRr8gqEfQY2o9grCc0XlB03WMeLZ0GgLB_u09t6APr4OKVVRZh-B2XM0Rqy8g1Vic3OLPI2ouOXPeVaXVrS1A3uKRxZ-2MXPAgt2fUTp69HAbmdsq6czxt1btYgGCN8a-eKI_ZJIRSSz9KCmFBNcqRT76UyKw4FieZDT-lJnpy-Dw1WoYTgOtKyCwEu_iFpbDlxZ0TEcAZC1Ose4MA8rL3mo"/>
+<button class="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined text-sm leading-none">close</span>
+</button>
+</div>
+<!-- Existing Image 2 -->
+<div class="relative group w-32 h-32 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700">
+<img alt="Database analytics chart" class="w-full h-full object-cover" data-alt="Data analytics dashboard with charts and tables" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqQCK5KQ0esCq2JRf6p3A6Ro_CDTUNCw_2cJApgO7MbOXW_YaH5hbO7QUh3Lx_3-UBzKyiTui9X75bdMXKjJ9UPE7HoRSndzFMaf8MCDGFk9r_4PidwOWjq2ganHAA4pluDTtJ77OYpRS1j0QrfkYd-Sa50B7ISD8nU6PuYD5Ldscb31YYtkWnxua4LVLMuhjWCZHvtUHX3AH9iodEnUkfHMeggIla7UBelmWUJSq0pgFSYjxq3L0DSy4e9Al1r3QYJG_9x17dBbY"/>
+<button class="absolute top-1 right-1 bg-black/50 hover:bg-red-500 text-white p-1 rounded-full transition-colors">
+<span class="material-symbols-outlined text-sm leading-none">close</span>
+</button>
+</div>
+<!-- Add Button -->
+<button class="w-32 h-32 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center gap-2 text-slate-400 hover:border-primary hover:text-primary transition-all group">
+<span class="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">add_a_photo</span>
+<span class="text-xs font-medium">추가하기</span>
+</button>
+</div>
+</div>
+<!-- Tag Input -->
+<div class="space-y-3">
+<label class="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">태그</label>
+<div class="flex flex-wrap items-center gap-2 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
+<span class="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary text-sm font-bold rounded-full">
+                        #SQLD
+                        <button class="hover:text-primary/70"><span class="material-symbols-outlined text-sm">close</span></button>
+</span>
+<span class="inline-flex items-center gap-1 px-3 py-1 bg-primary/10 text-primary text-sm font-bold rounded-full">
+                        #기출문제
+                        <button class="hover:text-primary/70"><span class="material-symbols-outlined text-sm">close</span></button>
+</span>
+<input class="flex-1 bg-transparent border-none focus:ring-0 text-sm py-1 placeholder:text-slate-400 min-w-[150px]" placeholder="태그 입력 후 Enter" type="text"/>
+</div>
+</div>
+<!-- Action Buttons -->
+<div class="pt-6 flex items-center justify-end gap-4 border-t border-slate-100 dark:border-slate-800">
+<button class="px-6 py-3 rounded-lg text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                    취소
+                </button>
+<button class="px-8 py-3 rounded-lg bg-primary text-white font-bold hover:bg-primary/90 shadow-lg shadow-primary/20 active:scale-95 transition-all">
+                    수정 완료
+                </button>
+</div>
+</div>
+</main>
+<footer class="mt-12 py-8 border-t border-slate-200 dark:border-slate-800">
+<div class="max-w-4xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4 text-slate-400 text-sm">
+<p>© 2024 SQL Study Community. All rights reserved.</p>
+<div class="flex gap-6">
+<a class="hover:text-primary transition-colors" href="#">이용약관</a>
+<a class="hover:text-primary transition-colors" href="#">개인정보처리방침</a>
+<a class="hover:text-primary transition-colors" href="#">고객센터</a>
+</div>
+</div>
+</footer>
+</body></html>

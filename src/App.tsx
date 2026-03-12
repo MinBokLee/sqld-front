@@ -1,109 +1,150 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { useState, useEffect } from "react";
-import { Megaphone, BookOpen, Hand, Search } from 'lucide-react';
-import Header from './components/Header';
-import Hero from './components/Hero';
+import { useState, useEffect, useContext } from "react";
+import { Megaphone, BookOpen, Hand } from 'lucide-react';
 import Board from './components/Board';
+import type { BoardItem } from './components/Board';
+import Hero from './components/Hero';
+import Header from './components/Header';
 import Footer from './components/Footer';
-import ExamDetailPage from './pages/ExamDetailPage';
+import SignUpModal from './components/SignUpModal';
+import LoginModal from './components/LoginModal';
+import PasswordResetModal from './components/PasswordResetModal'; 
+import ExamScheduleModal from './components/ExamScheduleModal'; 
+import { UserProvider } from './contexts/UserContext';
+import { LanguageProvider, LanguageContext } from './contexts/LanguageContext';
 import PracticeExams from './pages/PracticeExams';
+import ExamDetailPage from './pages/ExamDetailPage';
+import WritePostPage from './pages/WritePostPage';
+import AdminMemberPage from './pages/AdminMemberPage'; 
 
-function Home() {
-  const [studyPosts, setStudyPosts] = useState<{ title: string; date: string; }[]>([]);
-  const notices = [
-    { title: "[Notice] 2024 Exam Schedule Announced", date: "2024-01-15" },
-    { title: "System Maintenance Notice", date: "2024-01-12" },
-    { title: "Guide to SQLD Certification Prep", date: "2024-01-10" },
-    { title: "Top 10 FAQ for SQLD Candidates", date: "2024-01-08" },
-    { title: "New Study Materials Uploaded", date: "2024-01-05" },
-  ];
-
-  const greetings = [
-    { title: "Hello! Ready to study for the March exam.", date: "2024-01-19" },
-    { title: "Newbie developer here, nice to meet you!", date: "2024-01-19" },
-    { title: "Aiming for 100% on the SQLD certification.", date: "2024-01-18" },
-    { title: "Starting my SQL journey today.", date: "2024-01-18" },
-    { title: "Joining from Seoul, SQLD study buddy?", date: "2024-01-17" },
-  ];
+function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
+  const languageContext = useContext(LanguageContext);
+  const getText = languageContext ? languageContext.getText : (key: string) => key;
+  const [noticesPosts, setNoticesPosts] = useState<BoardItem[]>([]);
+  const [sqldStudyPosts, setSqldStudyPosts] = useState<BoardItem[]>([]);
+  const [greetingsPosts, setGreetingsPosts] = useState<BoardItem[]>([]);
 
   useEffect(() => {
+    // Fetch normal posts
     fetch(`/api/board/list`)
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error('Network response was not ok');
-        }
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Network response was not ok: ${res.status}`);
         return res.json();
       })
       .then((data) => {
-        const filteredData = data.result.data.filter((item: any) => item.boardType === 'TYPE_A');
-        const formattedData = filteredData.map((item: any) => ({
-          title: item.title,
-          date: new Date(item.createAt).toLocaleDateString(),
-        }));
-        setStudyPosts(formattedData);
+        if (data.result && data.result.data) {
+          const allPosts = data.result.data.map((item: any) => ({
+            title: item.title,
+            createAt: item.createAt,
+            viewCount: item.viewCount,
+            likeCount: item.likeCount,
+            id: item.boardId,
+            author: item.userName,
+            authorImage: item.profileImage, 
+            boardType: item.boardType,
+            category: item.category,
+          }));
+
+          setNoticesPosts(allPosts.filter((item: BoardItem) => item.boardType === 'N').slice(0, 5));
+          setSqldStudyPosts(allPosts.filter((item: BoardItem) => item.boardType === 'S').slice(0, 5));
+          setGreetingsPosts(allPosts.filter((item: BoardItem) => item.boardType === 'G').slice(0, 5));
+        }
       })
-      .catch(error => {
-        console.error("Failed to fetch study posts:", error);
-        // Optionally, set an error state here to display a message to the user
-      });
+      .catch(error => console.error("Failed to fetch posts:", error));
   }, []);
 
   return (
     <main className="max-w-[1280px] mx-auto px-4 md:px-10 py-8">
-      <Hero />
-
-      {/* Boards Grid Layout */}
+      <Hero getText={getText} onOpenSchedule={onOpenSchedule} />
+      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Board title="Notice" icon={Megaphone} items={notices} />
-        <Board title="SQLD Study" icon={BookOpen} items={studyPosts} />
-        <Board title="Join Greetings" icon={Hand} items={greetings} />
+        <Board title={getText('board.notice')} icon={Megaphone} items={noticesPosts} boardType="N" />
+        <Board title={getText('board.sqld_study')} icon={BookOpen} items={sqldStudyPosts} boardType="S" />
+        <Board title={getText('board.join_greetings')} icon={Hand} items={greetingsPosts} boardType="G" />
       </div>
-
-      {/* Quick Links / Search Mobile */}
-      <div className="mt-12 block md:hidden">
-        <h3 className="text-lg font-bold mb-4 px-2">Quick Search</h3>
-        <label className="relative flex items-center px-2">
-          <div className="absolute left-5 text-[#4c739a] pointer-events-none">
-            <Search className="w-5 h-5" />
-          </div>
-          <input
-            type="text"
-            className="w-full h-12 pl-12 pr-4 rounded-xl border border-[#cfdbe7] bg-white text-[#0d141b] placeholder:text-[#4c739a] focus:ring-2 focus:ring-primary text-base"
-            placeholder="Search for exam tips..."
-          />
-        </label>
-      </div>
-
-      {/* Call to Action Banner */}
-      <section className="mt-12 p-8 bg-slate-100 dark:bg-slate-900/40 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="text-center md:text-left">
-          <h4 className="text-xl font-bold mb-1">Want more study resources?</h4>
-          <p className="text-[#4c739a] dark:text-slate-400">
-            Join our community and get access to exclusive mock exams.
-          </p>
-        </div>
-        <button className="w-full md:w-auto px-8 py-3 bg-primary text-white font-bold rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 cursor-pointer">
-          Join Community
-        </button>
-      </section>
     </main>
   );
 }
 
+function AppContent() {
+  const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [isPasswordResetModalOpen, setIsPasswordResetModalOpen] = useState(false);
+
+  const languageContext = useContext(LanguageContext);
+  const getText = languageContext ? languageContext.getText : (key: string) => key;
+
+  const openSignUpModal = () => setIsSignUpModalOpen(true);
+  const closeSignUpModal = () => setIsSignUpModalOpen(false);
+  const openLoginModal = () => setIsLoginModalOpen(true);
+  const closeLoginModal = () => setIsLoginModalOpen(false);
+  const openScheduleModal = () => setIsScheduleModalOpen(true);
+  const closeScheduleModal = () => setIsScheduleModalOpen(false);
+  const openPasswordResetModal = () => setIsPasswordResetModalOpen(true);
+  const closePasswordResetModal = () => setIsPasswordResetModalOpen(false);
+
+  const openSignUpFromLogin = () => {
+    closeLoginModal();
+    openSignUpModal();
+  };
+
+  const openPasswordResetFromLogin = () => {
+    closeLoginModal();
+    openPasswordResetModal();
+  };
+
+  return (
+    <Router>
+      <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white font-sans overflow-x-hidden transition-colors duration-200">
+        <Header 
+          onOpenSignUpModal={openSignUpModal} 
+          onOpenLoginModal={openLoginModal} 
+          onOpenPasswordReset={openPasswordResetModal}
+          getText={getText} 
+        />
+        
+        <div className="flex-1 relative z-0">
+          <Routes>
+            <Route path="/" element={<Home onOpenSchedule={openScheduleModal} />} />
+            <Route path="/practice-exams" element={<PracticeExams />} />
+            <Route path="/exam/:id" element={<ExamDetailPage />} />
+            <Route path="/write-post" element={<WritePostPage />} />
+            <Route path="/admin/members" element={<AdminMemberPage />} />
+          </Routes>
+        </div>
+
+        <Footer getText={getText} />
+        
+        {isSignUpModalOpen && <SignUpModal isOpen={isSignUpModalOpen} onClose={closeSignUpModal} getText={getText} />}
+        {isLoginModalOpen && (
+          <LoginModal 
+            isOpen={isLoginModalOpen} 
+            onClose={closeLoginModal} 
+            getText={getText} 
+            onOpenSignUpFromLogin={openSignUpFromLogin}
+            onOpenPasswordReset={openPasswordResetFromLogin}
+          />
+        )}
+        {isScheduleModalOpen && <ExamScheduleModal isOpen={isScheduleModalOpen} onClose={closeScheduleModal} />}
+        {isPasswordResetModalOpen && (
+          <PasswordResetModal 
+            isOpen={isPasswordResetModalOpen} 
+            onClose={closePasswordResetModal} 
+          />
+        )}
+      </div>
+    </Router>
+  );
+}
 
 function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-background-light dark:bg-background-dark text-[#0d141b] dark:text-white font-sans transition-colors duration-200">
-        <Header />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/practice-exams" element={<PracticeExams />} />
-          <Route path="/exam/:id" element={<ExamDetailPage />} />
-        </Routes>
-        <Footer />
-      </div>
-    </Router>
+    <LanguageProvider>
+      <UserProvider>
+        <AppContent />
+      </UserProvider>
+    </LanguageProvider>
   );
 }
 

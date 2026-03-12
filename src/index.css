@@ -9,3 +9,53 @@
 body {
   @apply bg-background-light dark:bg-background-dark text-slate-900 dark:text-white transition-colors duration-200;
 }
+
+/* --- CKEditor 5 & Content Rendering Styles --- */
+/* This is critical for images to show up properly */
+.ck-content, .content-area {
+  font-family: 'Noto Sans KR', sans-serif;
+  line-height: 1.8;
+}
+
+/* Force images inside content to be visible and responsive */
+.ck-content figure.image, 
+.content-area figure.image {
+  margin: 2rem auto;
+  display: table;
+  clear: both;
+  text-align: center;
+}
+
+.ck-content figure.image img, 
+.content-area figure.image img,
+.ck-content img,
+.content-area img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  min-width: 100px;
+  min-height: 100px;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  margin: 0 auto;
+}
+
+.ck-content figure.image figcaption,
+.content-area figure.image figcaption {
+  display: table-caption;
+  caption-side: bottom;
+  padding: 0.6rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+/* Editor Height */
+.ck-editor__editable_inline {
+  min-height: 450px !important;
+  padding: 1.5rem !important;
+}
+
+.dark .ck-editor__editable_inline {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+}

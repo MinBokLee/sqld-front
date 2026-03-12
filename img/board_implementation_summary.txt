@@ -1,0 +1,58 @@
+[게시판 글 작성 및 이미지 업로드 구현 요약]
+
+1. 개요
+   - 프론트엔드(React + CKEditor 5)와 연동 가능한 게시판 백엔드 기능 구현.
+   - 게시글 등록과 첨부 파일 업로드를 동시에 처리하며, 에디터 전용 이미지 업로드 API를 별도로 제공.
+
+2. 환경 설정 (application.yml)
+   - 파일 저장 경로: /Users/minboklee/Documents/upload
+   - 접근 URL: /uploads/** (정적 리소스 핸들러 등록됨)
+   - 용량 제한: 단일 파일 10MB / 전체 요청 50MB
+   - 보안: 테스트 편의를 위해 /api/board/** 경로의 시큐리티 필터 우회 설정 (WebSecurityCustomizer 적용)
+
+3. 데이터베이스 및 모델 구조 (A안: 정석 방식 적용)
+   - board 테이블: 
+     * USER_ID 컬럼을 직접 저장하지 않고 MEMBER_ID(FK)만 저장하여 데이터 중복 제거.
+     * TAG_NAME 컬럼을 통해 게시글 태그 정보 관리.
+   - 조회 시 처리: 
+     * MEMBER_INFO 테이블과 LEFT JOIN하여 작성자의 USER_ID를 실시간으로 가져옴.
+   - board_file 테이블: 첨부 파일 정보 저장 (원본명, 저장명, 경로 등).
+
+4. 주요 API 가이드
+   ① 게시글 등록 (글 + 여러 파일 한 번에 전송)
+      - URL: POST /api/board/list/write
+      - 방식: multipart/form-data (@ModelAttribute 사용)
+      - 파라미터: title, content, memberId, boardType, tagName, files(List<MultipartFile>)
+      - 특징: 
+        * 이제 userId를 직접 보내지 않고 memberId만 전송하면 됩니다.
+        * Swagger UI에서 [Add item] 버튼으로 여러 파일을 간편하게 추가할 수 있습니다.
+
+   ② 게시글 수정 (글 수정 + 파일 추가)
+      - URL: PUT /api/board/list/{boardId}
+      - 방식: multipart/form-data (@ModelAttribute 사용)
+      - 파라미터: title, content, boardType, tagName, files(List<MultipartFile>)
+      - 특징: 기존 제목과 본문을 수정하며, 파일을 추가로 업로드할 수 있습니다.
+
+   ③ CKEditor 5 전용 이미지 업로드 (실시간)
+      - URL: POST /api/board/upload
+      - 방식: multipart/form-data
+      - 파라미터: upload (단일 이미지 파일)
+      - 응답: { "url": "/uploads/UUID_파일명.jpg" }
+
+   ③ 게시글 조회 (목록 및 단건)
+      - URL: GET /api/board/list 및 /api/board/list/{boardId}
+      - 특징: 응답 데이터에 작성자 아이디(userId)와 태그명(tagName)이 포함되어 반환됩니다.
+
+5. 테스트 방법 (Swagger UI)
+   - 접속 주소: http://localhost:8881/demo-ui.html
+   - 방법: 
+     1. [Try it out] 클릭
+     2. 필수 필드 입력 (memberId는 실제 회원 번호 입력)
+     3. files 항목 옆의 [Add item] 버튼을 활용하여 파일 첨부 테스트.
+
+6. 작업 파일 목록
+   - 컨트롤러: BoardController.java
+   - 서비스: BoardService.java
+   - 매퍼: BoardMapper.java, Board.xml (JOIN 쿼리 적용)
+   - 모델/DTO: Board.java, BoardFile.java, BoardRequest.java, BoardResponse.java
+   - 설정: CustomSecurityConfig.java, CustomServletConfig.java, mybatis-config.xml, application.yml, exception.properties

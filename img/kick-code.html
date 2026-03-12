@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+
+<html lang="ko"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<title>SQLD Community - Account Deletion</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<div class="relative flex h-screen w-full flex-col overflow-x-hidden">
+<div class="layout-container flex h-full grow flex-col">
+<!-- Navigation Bar -->
+<header class="flex items-center justify-between whitespace-nowrap border-b border-solid border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 lg:px-40 py-3">
+<div class="flex items-center gap-4 text-primary">
+<div class="size-8">
+<svg fill="none" viewbox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+<path clip-rule="evenodd" d="M24 4H6V17.3333V30.6667H24V44H42V30.6667V17.3333H24V4Z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+<h2 class="text-slate-900 dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">SQLD Community</h2>
+</div>
+<div class="flex flex-1 justify-end gap-8">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border border-slate-200" data-alt="User profile placeholder showing a simple avatar icon" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAQ0yFgrW7jjqRLMJSkbnWbXockYYGMO-N_wG4hqUHAJkmUD1E66Sya81QqxW-0LRQudIepx2_4r6zCkGdaSHPZ67NJ__wKFjAmHH0B5YN05tMrwX5ohrNT3FftUhPJAxHB1-Hh8vdm33ZX10vmMJOGmFU5EP7ov00ukJDIPeMQw-nnghExUmfmUBsf3ifBI3pZP4Kz3aKF8fqhz9InYYj2RmBRjEfjlQekFkJquH0nDiDDa1nFX3io0iciFUnZErMwfz0kjpWDJaY");'></div>
+</div>
+</header>
+<!-- Main Content Area (Background for Modal) -->
+<main class="flex flex-1 justify-center py-10 px-6 lg:px-40 relative">
+<div class="layout-content-container flex flex-col max-w-[960px] flex-1 opacity-40">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-12" data-alt="Default user profile picture" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuB1IMFoNv5quaVa0EP9B2o_Xk16qkRKkanY_H4SFO0OVYAUkweeNEcC5zlKnHla9U54hyiqZtAkx5cCWxVp9gY-f4MsNQFAxMEgNf3XrXnktu71JhyeDwDtRrH8rQGHYWdfd7LfYCQLt4AGY8BTaUUwmhZA_vf5EdZLXQ6BDacYMLggc_apEtByA7LH7P0Akff3qJ3m8YdMbVPcz8OUS9PlVxnagxruSdhum_pvW9p-CWFTf3us2pbOMj5i8QiVQ4rnDL6-2WGUffc");'></div>
+<div class="flex flex-col">
+<h1 class="text-slate-900 dark:text-white text-lg font-bold">SQLD Master</h1>
+<p class="text-slate-500 text-sm">sqld_user@email.com</p>
+</div>
+</div>
+<div class="space-y-4">
+<div class="h-4 w-full bg-slate-200 rounded-lg"></div>
+<div class="h-4 w-3/4 bg-slate-200 rounded-lg"></div>
+<div class="h-20 w-full bg-slate-100 rounded-lg border border-dashed border-slate-300"></div>
+</div>
+</div>
+</div>
+<!-- Darkened Overlay for Modal -->
+<div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 flex items-center justify-center p-4">
+<!-- Modal Container -->
+<div class="bg-white dark:bg-slate-900 w-full max-w-md rounded-xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+<!-- Modal Header/Icon -->
+<div class="pt-8 pb-4 flex flex-col items-center">
+<div class="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
+<span class="material-symbols-outlined text-red-500 text-4xl">person_remove</span>
+</div>
+<h2 class="text-slate-900 dark:text-white text-2xl font-bold tracking-tight">회원 탈퇴 안내</h2>
+</div>
+<!-- Modal Content -->
+<div class="px-8 pb-8">
+<div class="space-y-4 text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-red-500 text-lg flex-shrink-0">report</span>
+<p>회원 탈퇴 시 계정 정보는 <span class="font-semibold text-slate-900 dark:text-white">즉시 삭제</span>되며 복구할 수 없습니다.</p>
+</div>
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-amber-500 text-lg flex-shrink-0">info</span>
+<p>작성하신 게시글 및 댓글은 삭제되지 않으며, 작성자는 <span class="inline-block px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded font-bold text-primary">"탈퇴한 회원"</span>으로 표시됩니다.</p>
+</div>
+<div class="flex gap-3">
+<span class="material-symbols-outlined text-red-500 text-lg flex-shrink-0">cancel</span>
+<p>탈퇴 후에는 동일한 계정으로 복구가 불가능합니다.</p>
+</div>
+</div>
+<div class="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800 text-center">
+<p class="text-slate-900 dark:text-white font-semibold text-lg mb-6">정말 탈퇴하시겠습니까?</p>
+<div class="flex flex-col sm:flex-row gap-3">
+<button class="flex-1 px-6 py-3 rounded-lg font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                                        취소
+                                    </button>
+<button class="flex-1 px-6 py-3 rounded-lg font-medium text-white bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/20 transition-all">
+                                        탈퇴하기
+                                    </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer for structure -->
+<footer class="px-6 lg:px-40 py-6 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 opacity-40">
+<p class="text-slate-500 text-xs">© 2024 SQLD Community. All rights reserved.</p>
+</footer>
+</div>
+</div>
+</body></html>

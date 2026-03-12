@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#137fec",
+                        "background-light": "#f6f7f8",
+                        "background-dark": "#101922",
+                    },
+                    fontFamily: {
+                        "display": ["Lexend", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<title>SQLD Community - User Profile Popover</title>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased">
+<!-- Main Layout Container -->
+<div class="relative flex min-h-screen flex-col overflow-x-hidden">
+<!-- Header / TopNavBar Section -->
+<header class="sticky top-0 z-40 w-full border-b border-slate-200 bg-white/80 backdrop-blur-md px-4 md:px-10 lg:px-20 py-3">
+<div class="mx-auto flex max-w-7xl items-center justify-between">
+<!-- Left: Logo and Search -->
+<div class="flex items-center gap-8">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-white">
+<span class="material-symbols-outlined text-2xl">database</span>
+</div>
+<h2 class="hidden text-xl font-bold tracking-tight text-slate-900 sm:block">SQLD Community</h2>
+</div>
+<div class="hidden lg:block">
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-3 text-slate-400">search</span>
+<input class="h-10 w-64 rounded-lg border-none bg-slate-100 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary/50" placeholder="Search discussions..." type="text"/>
+</div>
+</div>
+</div>
+<!-- Right: Nav and Profile Anchor -->
+<div class="flex items-center gap-4 md:gap-6">
+<nav class="hidden items-center gap-6 md:flex">
+<a class="text-sm font-medium text-slate-600 hover:text-primary" href="#">Home</a>
+<a class="text-sm font-medium text-slate-600 hover:text-primary" href="#">Forum</a>
+<a class="text-sm font-medium text-slate-600 hover:text-primary" href="#">Resources</a>
+</nav>
+<div class="flex items-center gap-2 border-l border-slate-200 pl-4 md:pl-6">
+<button class="flex h-10 w-10 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<!-- Profile Trigger (Active State Mockup) -->
+<div class="relative">
+<button class="group flex h-10 w-10 items-center justify-center overflow-hidden rounded-full ring-2 ring-primary ring-offset-2 transition-all">
+<img class="h-full w-full object-cover" data-alt="Professional male user profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8EW5m_NSc3Suo4sAmYpkn5R5C64yil09a6Dpg79QVvrKY00DiBvd3rs8yvXD8xfexSCbSsoPcFJNu7o9QakXZrVKjhHGCP3hQDg2MUtTgCghK1Qy4_lCjZBOzFQYZOSxf7PX_piQojmDfAlWtuxbNrMhdlakDmnowPr55OlmvoowsU8_vUdIQiIqZ5ei8i5x-8d8Rz5JnjsIBiiHpP7RiAmE4OCk8eKJN6VmIcNGOvx7HS-_urGgqXBQNn7hT-Myu0Bdoko_Ptfk"/>
+</button>
+<!-- USER PROFILE POPOVER (The Requested Component) -->
+<div class="absolute right-0 mt-3 w-72 origin-top-right rounded-xl border border-slate-200 bg-white shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+<!-- Top Section: Avatar & Details -->
+<div class="p-6 text-center border-b border-slate-100">
+<div class="relative mx-auto mb-4 h-20 w-20">
+<img class="h-full w-full rounded-full object-cover border-4 border-slate-50 shadow-sm" data-alt="Close up user circular avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7-L1ELM9zBQ0SMVS9cEOTNYixmD5ljicF5bKlZ482kVXfGZ8iVsKkkPDyB8N3Dyf2pu1FfuFrL9ECi8GS5VmFl5ClVyLAcubUPZUXMG_AjWXO5ivuPmMC_Hb612j0oXVBTspMSiAwQnkP9ZOo0HQka0Gc6O8K9Iyo0vaCdY9HZuron3IFNGSHM51FaT7hiwiohTa4HpL_8EHCEDP3QDgb34l7BfzPZ7x8IjsCqjzsT5t3lqrzsO4DRM7t9cX06O-K-QcNZCAI0d0"/>
+<div class="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-white bg-green-500"></div>
+</div>
+<h3 class="text-lg font-bold text-slate-900 leading-tight">SQL_Master</h3>
+<p class="text-sm text-slate-500 font-medium">@sql_expert_2024</p>
+<!-- Metadata Badge -->
+<div class="mt-4 inline-flex items-center rounded-full bg-slate-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 border border-slate-100">
+                                        Last login: 2024-05-24 14:30
+                                    </div>
+</div>
+<!-- Navigation Menu Section -->
+<div class="py-2">
+<a class="group flex items-center px-4 py-3 text-sm font-medium text-slate-700 hover:bg-primary/5 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-slate-400 group-hover:text-primary">person</span>
+                                        My Profile
+                                    </a>
+<a class="group flex items-center px-4 py-3 text-sm font-medium text-slate-700 hover:bg-primary/5 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-slate-400 group-hover:text-primary">forum</span>
+                                        My Posts
+                                        <span class="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">12</span>
+</a>
+<a class="group flex items-center px-4 py-3 text-sm font-medium text-slate-700 hover:bg-primary/5 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined mr-3 text-slate-400 group-hover:text-primary">settings</span>
+                                        Settings
+                                    </a>
+</div>
+<!-- Footer: Logout Button -->
+<div class="border-t border-slate-100 p-2">
+<button class="flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors">
+<span class="material-symbols-outlined text-lg">logout</span>
+                                        Logout
+                                    </button>
+</div>
+</div>
+<!-- END POPOVER -->
+</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Page Content Mockup (to provide context) -->
+<main class="flex-1 px-4 py-10 md:px-20">
+<div class="mx-auto max-w-4xl space-y-8">
+<section class="rounded-2xl bg-white p-8 shadow-sm border border-slate-100">
+<h1 class="text-3xl font-extrabold text-slate-900 mb-4">Welcome back to the Community!</h1>
+<p class="text-slate-600 text-lg leading-relaxed">
+                        Stay updated with the latest SQL optimization techniques, database architecture patterns, and expert discussions. 
+                        Join our weekly workshops or browse the documentation to level up your skills.
+                    </p>
+<div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="p-4 rounded-xl bg-primary/5 border border-primary/10">
+<span class="material-symbols-outlined text-primary mb-2">trending_up</span>
+<h4 class="font-bold text-slate-800">Trending Topics</h4>
+<p class="text-sm text-slate-500">PostgreSQL 16 Features</p>
+</div>
+<div class="p-4 rounded-xl bg-amber-50 border border-amber-100">
+<span class="material-symbols-outlined text-amber-600 mb-2">school</span>
+<h4 class="font-bold text-slate-800">Learning Paths</h4>
+<p class="text-sm text-slate-500">Advanced Indexing</p>
+</div>
+<div class="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+<span class="material-symbols-outlined text-emerald-600 mb-2">groups</span>
+<h4 class="font-bold text-slate-800">User Groups</h4>
+<p class="text-sm text-slate-500">DBA Roundtable</p>
+</div>
+</div>
+</section>
+<!-- Post Cards -->
+<div class="space-y-4">
+<div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm hover:border-primary/30 transition-colors">
+<div class="flex items-center gap-3 mb-4">
+<div class="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 font-bold text-xs">JD</div>
+<div>
+<h4 class="text-sm font-bold text-slate-800">Jane Doe</h4>
+<p class="text-xs text-slate-400">2 hours ago in #Performance</p>
+</div>
+</div>
+<h3 class="text-lg font-bold text-slate-900 mb-2">How to optimize nested JOINs in large datasets?</h3>
+<p class="text-slate-600 line-clamp-2">I'm working with a schema that has over 50 tables, and some queries are taking more than 5 seconds. Looking for best practices on query planners...</p>
+<div class="mt-4 flex gap-4">
+<span class="text-xs font-medium text-slate-400 flex items-center gap-1"><span class="material-symbols-outlined text-sm">thumb_up</span> 24</span>
+<span class="text-xs font-medium text-slate-400 flex items-center gap-1"><span class="material-symbols-outlined text-sm">comment</span> 8</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="mt-10 border-t border-slate-200 bg-slate-50 py-10 px-4">
+<div class="mx-auto max-w-7xl flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-2 text-slate-400">
+<span class="material-symbols-outlined">database</span>
+<span class="text-sm font-semibold tracking-tight">SQLD Community © 2024</span>
+</div>
+<div class="flex gap-8">
+<a class="text-xs font-medium text-slate-500 hover:text-primary" href="#">Privacy Policy</a>
+<a class="text-xs font-medium text-slate-500 hover:text-primary" href="#">Terms of Service</a>
+<a class="text-xs font-medium text-slate-500 hover:text-primary" href="#">Contact Support</a>
+</div>
+</div>
+</footer>
+</div>
+</body></html>
