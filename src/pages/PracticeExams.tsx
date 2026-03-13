@@ -86,7 +86,9 @@ export default function PracticeExams() {
       if (filterMemberId) params.memberId = filterMemberId;
       else if (filterUserId) params.memberId = filterUserId;
 
-      const response = await api.get(`/api/board/list/paging`, { params });
+      // 검색어 유무에 따른 API 주소 결정
+      const apiUrl = searchKeyword ? '/api/board/searchContent' : '/api/board/list/paging';
+      const response = await api.get(apiUrl, { params });
       const data = response.data;
 
       if (data.success && data.result && data.result.data) {
@@ -130,12 +132,19 @@ export default function PracticeExams() {
   }, []);
 
   const handleSearch = () => {
+    if (!inputKeyword.trim()) {
+      let message = "검색어를 입력해 주세요! ✨";
+      if (typeCode === 'N') message = "확인하실 공지사항 키워드를 입력해 주세요! 📢";
+      else if (typeCode === 'S') message = "찾으시는 공부 내용이나 궁금한 키워드를 입력해 주세요! ✍️";
+      else if (typeCode === 'G') message = "찾으시는 회원님이나 인사말 키워드를 입력해 주세요! 😊";
+      
+      alert(message);
+      return;
+    }
     const newParams = new URLSearchParams();
     newParams.set('type', typeCode);
     newParams.set('page', '1');
-    if (inputKeyword.trim()) {
-      newParams.set('keyword', inputKeyword.trim());
-    }
+    newParams.set('keyword', inputKeyword.trim());
     navigate(`/practice-exams?${newParams.toString()}`);
   };
 
@@ -427,8 +436,8 @@ export default function PracticeExams() {
             )}
           </div>
 
-          <aside className="lg:col-span-3 space-y-8">
-            <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 sticky top-8">
+          <aside className="lg:col-span-3 lg:sticky lg:top-40 lg:self-start space-y-8">
+            <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-6">
               <div className="flex items-center gap-2 mb-6">
                 <TrendingUp className="text-primary" size={18} />
                 <h4 className="text-lg font-black dark:text-white">인기 게시글</h4>
@@ -460,7 +469,12 @@ export default function PracticeExams() {
                 <div className="relative z-10">
                   <h5 className="font-black text-base mb-1">SQLD Pass Kit</h5>
                   <p className="text-[10px] opacity-90 leading-relaxed mb-4">완벽한 합격 전략을 <br/>확인해보세요.</p>
-                  <button className="w-full py-2 bg-white text-primary rounded-2xl text-[10px] font-black hover:bg-blue-50 transition-colors">무료 혜택 받기</button>
+                  <button 
+                    onClick={() => alert("SQLD Pass Kit은 현재 준비중 입니다.")}
+                    className="w-full py-2 bg-white text-primary rounded-2xl text-[10px] font-black hover:bg-blue-50 transition-colors"
+                  >
+                    무료 혜택 받기
+                  </button>
                 </div>
                 <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
                   <ThumbsUp size={80} />

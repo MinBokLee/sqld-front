@@ -3,8 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { useState, useRef, useEffect } from 'react';
 import ProfileDropdown from './ProfileDropdown';
-
-// const API_BASE_URL = "http://localhost:8881";
+import WithdrawalModal from './WithdrawalModal'; 
 
 interface HeaderProps {
   onOpenSignUpModal: () => void;
@@ -18,8 +17,11 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
   const location = useLocation();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile Menu State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
   const [headerKeyword, setHeaderKeyword] = useState(''); 
+  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false); 
+  const [isWithdrawing, setIsWithdrawing] = useState(false); 
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const searchParams = new URLSearchParams(location.search);
@@ -27,7 +29,6 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
   
   const isTargetPage = ['/practice-exams', '/exam', '/write-post'].some(path => location.pathname.startsWith(path));
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -41,7 +42,6 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isMobileMenuOpen]);
 
-  // Close menus when route changes
   useEffect(() => {
     setIsProfileOpen(false);
     setIsMobileMenuOpen(false);
@@ -53,6 +53,30 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
       navigate(`/practice-exams?type=S&page=1&keyword=${encodeURIComponent(headerKeyword.trim())}`);
       setHeaderKeyword('');
       setIsMobileMenuOpen(false);
+    }
+  };
+
+  const handleWithdrawalConfirm = async () => {
+    if (!user) return;
+    setIsWithdrawing(true);
+    try {
+      const response = await fetch(`/api/member/${user.memberId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+      });
+
+      if (response.ok) {
+        alert("회원 탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.");
+        setIsWithdrawalModalOpen(false);
+        logout(); 
+      } else {
+        alert("탈퇴 처리 중 오류가 발생했습니다.");
+      }
+    } catch (error) {
+      console.error("Withdrawal error:", error);
+      alert("서버 통신 오류가 발생했습니다.");
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -82,7 +106,6 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
     <>
       <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-900 border-b border-solid border-[#e7edf3] dark:border-slate-800">
         <div className="max-w-[1280px] mx-auto px-4 md:px-10 py-3 flex items-center justify-between gap-4">
-          {/* Logo & Main Nav */}
           <div className="flex items-center gap-8">
             <Link to="/" className="flex items-center gap-2 text-primary">
               <div className="size-8 bg-primary rounded-lg flex items-center justify-center text-white">
@@ -110,7 +133,6 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
             </nav>
           </div>
 
-          {/* Search Bar (Desktop) */}
           <div className="flex-1 max-w-md hidden md:block">
             <form onSubmit={handleHeaderSearch} className="relative flex items-center">
               <div className="absolute left-3 text-[#4c739a] pointer-events-none">
@@ -126,7 +148,6 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
             </form>
           </div>
 
-          {/* Auth & Profile */}
           <div className="flex items-center gap-2">
             {user ? (
               <div className="relative" ref={dropdownRef}>
@@ -154,6 +175,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
                   user={user} 
                   onLogout={logout} 
                   getText={getText} 
+                  onOpenWithdrawalModal={() => setIsWithdrawalModalOpen(true)}
                 />
               </div>
             ) : (
@@ -173,7 +195,6 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
               </div>
             )}
             
-            {/* Mobile Menu Trigger */}
             <button 
               onClick={() => setIsMobileMenuOpen(true)}
               className="lg:hidden p-2 text-[#0d141b] dark:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
@@ -201,7 +222,6 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
               </button>
             </div>
 
-            {/* Mobile Search */}
             <form onSubmit={handleHeaderSearch} className="mb-8 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
@@ -284,6 +304,14 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
           </div>
         </div>
       </div>
+
+      {/* Withdrawal Modal - Moved for independence */}
+      <WithdrawalModal 
+        isOpen={isWithdrawalModalOpen}
+        onClose={() => setIsWithdrawalModalOpen(false)}
+        onConfirm={handleWithdrawalConfirm}
+        isLoading={isWithdrawing}
+      />
     </>
   );
 }

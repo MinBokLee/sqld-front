@@ -561,8 +561,8 @@ export default function ExamDetailPage() {
             )}
           </div>
 
-          <aside className="lg:col-span-3 space-y-8">
-            <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 sticky top-8">
+          <aside className="lg:col-span-3 lg:sticky lg:top-28 lg:self-start space-y-8">
+            <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-6">
               <div className="flex items-center gap-2 mb-6">
                 <TrendingUp className="text-primary" size={18} />
                 <h4 className="text-lg font-black dark:text-white">인기 게시글</h4>

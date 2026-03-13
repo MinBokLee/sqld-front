@@ -16,6 +16,7 @@ import PracticeExams from './pages/PracticeExams';
 import ExamDetailPage from './pages/ExamDetailPage';
 import WritePostPage from './pages/WritePostPage';
 import AdminMemberPage from './pages/AdminMemberPage'; 
+import LegalPage from './pages/LegalPage';
 
 function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
   const languageContext = useContext(LanguageContext);
@@ -96,7 +97,7 @@ function AppContent() {
 
   return (
     <Router>
-      <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white font-sans overflow-x-hidden transition-colors duration-200">
+      <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white font-sans transition-colors duration-200">
         <Header 
           onOpenSignUpModal={openSignUpModal} 
           onOpenLoginModal={openLoginModal} 
@@ -111,6 +112,7 @@ function AppContent() {
             <Route path="/exam/:id" element={<ExamDetailPage />} />
             <Route path="/write-post" element={<WritePostPage />} />
             <Route path="/admin/members" element={<AdminMemberPage />} />
+            <Route path="/legal" element={<LegalPage />} />
           </Routes>
         </div>
 

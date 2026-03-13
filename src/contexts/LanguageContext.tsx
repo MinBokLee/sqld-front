@@ -58,7 +58,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'hero.exam_schedule': '시험 일정',
     'hero.next_exam': '다음 시험',
     'quick_search.title': '빠른 검색',
-    'quick_search.placeholder': '시험 팁이나 쿼리를 검색해 주세요...', // More polite
+    'quick_search.placeholder': 'SQLD 학습 게시판 전용 검색창 입니다.', // Updated
     'cta.title': '더 많은 학습 자료를 원하시나요?',
     'cta.subtitle': '저희 커뮤니티에 가입하고 독점 모의고사를 이용해 보세요.', // More polite
     'footer.title': 'SQLD Community',
@@ -68,7 +68,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'footer.sqld_study_link': 'SQLD 학습',
     'footer.mock_exams': '모의고사',
     'footer.faq': '자주 묻는 질문',
-    'footer.legal': '법률',
+    'footer.legal': '운영 정책',
     'footer.privacy_policy': '개인정보처리방침',
     'footer.terms_of_service': '서비스 약관',
     'footer.cookie_policy': '쿠키 정책',
@@ -129,7 +129,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'hero.exam_schedule': 'Exam Schedule',
     'hero.next_exam': 'Next Exam',
     'quick_search.title': 'Quick Search',
-    'quick_search.placeholder': 'Search exam tips or queries...',
+    'quick_search.placeholder': 'Search results optimized for SQLD study board. ✍️', // Updated English
     'cta.title': 'Want more study resources?',
     'cta.subtitle': 'Join our community and get access to exclusive mock exams.',
     'footer.title': 'SQLD Community',
@@ -171,15 +171,23 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
   };
 
   useEffect(() => {
-    // Optionally, load language from localStorage or user settings
-    const storedLang = localStorage.getItem('language') as Language;
-    if (storedLang && ['ko', 'en'].includes(storedLang)) {
-      setLanguage(storedLang);
+    try {
+      // Optionally, load language from localStorage or user settings
+      const storedLang = localStorage.getItem('language') as Language;
+      if (storedLang && ['ko', 'en'].includes(storedLang)) {
+        setLanguage(storedLang);
+      }
+    } catch (e) {
+      console.warn('Unable to access localStorage for language settings');
     }
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('language', language);
+    try {
+      localStorage.setItem('language', language);
+    } catch (e) {
+      console.warn('Unable to save language settings to localStorage');
+    }
   }, [language]);
 
   return (

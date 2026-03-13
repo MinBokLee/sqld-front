@@ -63,33 +63,6 @@ export default function WritePostPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const checkGreetingsAccess = async () => {
-      if (!user || user.userRole === 'ADMIN' || editingBoardId) return;
-      
-      if (boardType === 'S') {
-        if (user.userStatus === 'Y') return;
-
-        try {
-          const response = await fetch(`/api/board/list/paging?userId=${user.userId}&boardType=G&size=1`);
-          const data = await response.json();
-          const greetingCount = data.result?.totalCount || 0;
-
-          if (greetingCount === 0) {
-            alert("학습 게시판은 가입인사 게시판에 글을 1개 이상 작성해야 이용 가능합니다.\n가입인사 작성 페이지로 이동합니다.");
-            setBoardType('G');
-            navigate('/write-post?type=G', { replace: true });
-          } else {
-            updateUser({ userStatus: 'Y' });
-          }
-        } catch (error) {
-          console.error("Greetings check failed:", error);
-        }
-      }
-    };
-    checkGreetingsAccess();
-  }, [boardType, user, editingBoardId, navigate, updateUser]);
-
-  useEffect(() => {
     if (editingBoardId) {
        fetch(`/api/board/list/${editingBoardId}`)
        .then(res => res.json())
@@ -318,7 +291,7 @@ export default function WritePostPage() {
                         toolbar: [
                           'heading', '|', 
                           'bold', 'italic', 'link', 'blockQuote', 'code', '|', 
-                          'bulletedList', 'numberedList', 'insertTable', '|', 
+                          'bulletedList', 'numberedList', 'insertTable', 'uploadImage', '|', 
                           'undo', 'redo'
                         ],
                         table: {

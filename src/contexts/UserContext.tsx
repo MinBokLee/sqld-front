@@ -31,15 +31,23 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const clearUser = useCallback(() => {
     setUser(null);
-    sessionStorage.removeItem('user');
-    localStorage.removeItem('rememberMe');
+    try {
+      sessionStorage.removeItem('user');
+      localStorage.removeItem('rememberMe');
+    } catch (e) {
+      console.warn('Storage access failed during clearUser');
+    }
   }, []);
 
   const updateUser = useCallback((data: Partial<User>) => {
     setUser(prev => {
       if (!prev) return null;
       const updated = { ...prev, ...data };
-      sessionStorage.setItem('user', JSON.stringify(updated));
+      try {
+        sessionStorage.setItem('user', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Storage access failed during updateUser');
+      }
       return updated;
     });
   }, []);
@@ -64,7 +72,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           userStatus: rawData.userStatus,
         };
         setUser(newUser);
-        sessionStorage.setItem('user', JSON.stringify(newUser));
+        try {
+          sessionStorage.setItem('user', JSON.stringify(newUser));
+        } catch (e) {
+          console.warn('Storage access failed during refreshSession');
+        }
         return true;
       }
       return false;
@@ -75,11 +87,22 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const initializeUser = async () => {
-      const storedUser = sessionStorage.getItem('user');
-      const isRemembered = localStorage.getItem('rememberMe') === 'true';
+      let storedUser = null;
+      let isRemembered = false;
+
+      try {
+        storedUser = sessionStorage.getItem('user');
+        isRemembered = localStorage.getItem('rememberMe') === 'true';
+      } catch (e) {
+        console.warn('Initial storage access failed');
+      }
 
       if (storedUser) {
-        setUser(JSON.parse(storedUser));
+        try {
+          setUser(JSON.parse(storedUser));
+        } catch (e) {
+          console.error('Failed to parse stored user data');
+        }
       } else if (isRemembered) {
         const success = await refreshSession();
         if (!success) clearUser();
@@ -115,12 +138,16 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         };
 
         setUser(newUser);
-        sessionStorage.setItem('user', JSON.stringify(newUser));
-        
-        if (rememberMe) {
-          localStorage.setItem('rememberMe', 'true');
-        } else {
-          localStorage.removeItem('rememberMe');
+        try {
+          sessionStorage.setItem('user', JSON.stringify(newUser));
+          
+          if (rememberMe) {
+            localStorage.setItem('rememberMe', 'true');
+          } else {
+            localStorage.removeItem('rememberMe');
+          }
+        } catch (e) {
+          console.warn('Storage access failed during login save');
         }
         return true;
       }
