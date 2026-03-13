@@ -5,8 +5,7 @@ import { useUser } from "../contexts/UserContext";
 import { LanguageContext } from "../contexts/LanguageContext";
 import { formatRelativeTime } from "../utils/dateUtils";
 import Board, { type BoardItem } from "../components/Board";
-
-const API_BASE_URL = "http://localhost:8881";
+import api from "../utils/api"; // Axios 인스턴스 임입
 
 interface BoardFile {
   fileId: number;
@@ -28,14 +27,6 @@ interface Post {
   category?: string;
   files: BoardFile[];
   tagName?: string;
-}
-
-interface PopularPost {
-  id: number;
-  title: string;
-  date: string;
-  views: number;
-  likeCount: number;
 }
 
 export default function PracticeExams() {
@@ -62,8 +53,8 @@ export default function PracticeExams() {
 
   const fetchPopularPosts = async () => {
     try {
-      const response = await fetch(`/api/board/popularBoards`);
-      const data = await response.json();
+      const response = await api.get(`/api/board/popularBoards`);
+      const data = response.data;
       if (data.success && data.result && Array.isArray(data.result.data)) {
         setPopularPosts(data.result.data.map((item: any) => ({
           id: item.boardId,
@@ -83,26 +74,25 @@ export default function PracticeExams() {
   const fetchExams = useCallback(async () => {
     setIsLoading(true);
     try {
-      const query = new URLSearchParams({
+      const params: any = {
         boardType: typeCode,
-        page: currentPage.toString(),
-        size: pageSize.toString(),
-      });
-      
-      if (currentCategory !== 'all') query.set('category', currentCategory);
-      if (searchKeyword) query.set('keyword', searchKeyword);
-      
-      // 내 활동 관리 필터링 지원: 파라미터 키를 memberId로 통일
-      if (filterMemberId) query.set('memberId', filterMemberId);
-      else if (filterUserId) query.set('memberId', filterUserId);
+        page: currentPage,
+        size: pageSize,
+      };
 
-      const response = await fetch(`/api/board/list/paging?${query.toString()}`);
-      const data = await response.json();
-      
+      if (currentCategory !== 'all') params.category = currentCategory;
+      if (searchKeyword) params.keyword = searchKeyword;
+
+      if (filterMemberId) params.memberId = filterMemberId;
+      else if (filterUserId) params.memberId = filterUserId;
+
+      const response = await api.get(`/api/board/list/paging`, { params });
+      const data = response.data;
+
       if (data.success && data.result && data.result.data) {
         const resultData = data.result.data;
         const safeList = Array.isArray(resultData.list) ? resultData.list : [];
-        
+
         setPosts(safeList.map((item: any) => ({
           seqNumber: item.seqNumber,
           id: item.boardId,
@@ -125,12 +115,11 @@ export default function PracticeExams() {
       }
     } catch (error) {
       console.error("Fetch exams error:", error);
-      alert("일시적인 오류로 정보를 가져올 수 없습니다.");
       setPosts([]);
     } finally {
       setIsLoading(false);
     }
-  }, [searchParams, filterMemberId, filterUserId, typeCode, currentPage, currentCategory, searchKeyword]);
+  }, [typeCode, currentPage, currentCategory, searchKeyword, filterMemberId, filterUserId]);
 
   useEffect(() => {
     fetchExams();
@@ -249,7 +238,7 @@ export default function PracticeExams() {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] transition-colors duration-300">
       <main className="max-w-[1440px] mx-auto px-4 md:px-10 py-8 font-sans">
-        
+
         <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm text-slate-400 mb-8">
           <Link className="hover:text-primary transition-colors flex items-center gap-1.5 font-bold" to="/">
             <Home size={16} /> {getText('common.home')}
@@ -466,7 +455,7 @@ export default function PracticeExams() {
                   <div className="text-xs text-slate-400 text-center py-4">인기 게시글이 없습니다.</div>
                 )}
               </div>
-              
+
               <div className="mt-8 p-5 bg-gradient-to-br from-primary to-blue-600 rounded-2xl text-white shadow-lg overflow-hidden relative group">
                 <div className="relative z-10">
                   <h5 className="font-black text-base mb-1">SQLD Pass Kit</h5>
@@ -484,3 +473,4 @@ export default function PracticeExams() {
     </div>
   );
 }
+

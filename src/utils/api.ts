@@ -1,19 +1,20 @@
 import axios from 'axios';
 
 /**
- * Backend API standard configuration
- * - withCredentials: true is essential for CORS environments where the backend 
- *   requires credentials (cookies, auth headers) as per setAllowCredentials(true).
+ * Backend API standard configuration for Unified Hosting (Nginx + Cloudflare)
+ * - baseURL: Empty string ('') is crucial. It forces the browser to use the 
+ *   current origin (e.g., https://xxx.trycloudflare.com), allowing Nginx 
+ *   to intercept and proxy the request to the backend without CORS issues.
  */
 const api = axios.create({
-  baseURL: '', // Vite 프록시를 사용하기 위해 비워둠
+  baseURL: '', 
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Response interceptor for consistent error handling (optional but recommended)
+// Response interceptor for consistent error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
