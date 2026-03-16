@@ -51,7 +51,34 @@ export default function PracticeExams() {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [inputKeyword, setInputKeyword] = useState(searchKeyword);
+  const [readPosts, setReadPosts] = useState<number[]>([]);
   const pageSize = 10;
+
+  // 읽은 글 목록 불러오기
+  useEffect(() => {
+    try {
+      const storedRead = localStorage.getItem('readPosts');
+      if (storedRead) setReadPosts(JSON.parse(storedRead));
+    } catch (e) {
+      console.error("Failed to load read posts history");
+    }
+  }, []);
+
+  const markAsRead = (postId: number) => {
+    setReadPosts(prev => {
+      if (prev.includes(postId)) return prev;
+      const next = [postId, ...prev].slice(0, 500); // 최대 500개까지만 기록 보존
+      localStorage.setItem('readPosts', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const isNewPost = (dateString: string) => {
+    const postDate = new Date(dateString).getTime();
+    const now = new Date().getTime();
+    const hours24 = 24 * 60 * 60 * 1000;
+    return (now - postDate) < hours24;
+  };
 
   const fetchPopularPosts = async () => {
     try {
@@ -352,6 +379,9 @@ export default function PracticeExams() {
                     ) : posts.length > 0 ? (
                       posts.map((post, index) => {
                         const displayNum = post.seqNumber ?? (totalCount - ((currentPage - 1) * pageSize) - index);
+                        const isNew = isNewPost(post.date);
+                        const isRead = readPosts.includes(post.id);
+
                         return (
                           <tr key={post.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group">
                             <td className="px-8 py-6 text-sm font-bold text-slate-400 leading-none">
@@ -359,9 +389,16 @@ export default function PracticeExams() {
                             </td>
                             <td className="px-8 py-6">
                               <div className="flex flex-col gap-2">
-                                <Link className="text-base font-black text-slate-900 dark:text-white group-hover:text-primary transition-colors leading-snug" to={`/exam/${post.id}?type=${typeCode}`}>
+                                <Link 
+                                  className={`text-base group-hover:text-primary transition-colors leading-snug flex items-center gap-2 ${isRead ? 'font-medium text-slate-500 dark:text-slate-400' : 'font-black text-slate-900 dark:text-white'}`} 
+                                  to={`/exam/${post.id}?type=${typeCode}`}
+                                  onClick={() => markAsRead(post.id)}
+                                >
                                   {post.title}
-                                  {post.commentsCount > 0 && <span className="text-primary font-black text-xs ml-2 bg-primary/5 px-2 py-0.5 rounded-full">+{post.commentsCount}</span>}
+                                  {isNew && (
+                                    <span className="flex-shrink-0 size-4 bg-red-500 text-[9px] font-black text-white flex items-center justify-center rounded-[4px] animate-pulse">N</span>
+                                  )}
+                                  {post.commentsCount > 0 && <span className="text-primary font-black text-xs bg-primary/5 px-2 py-0.5 rounded-full">+{post.commentsCount}</span>}
                                 </Link>
                                 <div className="flex items-center gap-2">
                                   {post.tagName && <span className="text-[10px] font-black text-slate-400 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md uppercase tracking-tighter">#{post.tagName}</span>}

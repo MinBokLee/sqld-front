@@ -343,23 +343,25 @@ export default function AdminMemberPage() {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex items-center justify-center gap-3">
                         {member.userRole === 'USER' && (
                           <button
                             onClick={() => handleGrantAdmin(member.memberId)}
-                            className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-xl transition-all border border-transparent hover:border-emerald-100 shadow-sm"
-                            title="관리자 권한 부여"
+                            className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-black text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 rounded-xl transition-all border border-emerald-100/50 shadow-sm group"
+                            title="해당 사용자를 관리자로 승격시킵니다."
                           >
-                            <ShieldAlert size={20} />
+                            <ShieldAlert size={16} className="group-hover:scale-110 transition-transform" />
+                            <span>권한 부여</span>
                           </button>
                         )}
                         <button 
                           onClick={() => handleKick(member.memberId, member.userId)}
                           disabled={member.userRole === 'ADMIN'}
-                          className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all disabled:opacity-0 border border-transparent hover:border-red-100 shadow-sm"
-                          title="강제 탈퇴"
+                          className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-black text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 rounded-xl transition-all border border-red-100/50 shadow-sm disabled:opacity-0 group"
+                          title="해당 사용자를 강제로 탈퇴시킵니다."
                         >
-                          <Trash2 size={20} />
+                          <Trash2 size={16} className="group-hover:scale-110 transition-transform" />
+                          <span>강퇴</span>
                         </button>
                       </div>
                     </td>

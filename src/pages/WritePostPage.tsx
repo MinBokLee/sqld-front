@@ -1,7 +1,43 @@
 import React, { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { CKEditor } from '@ckeditor/ckeditor5-react';
-import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
+import {
+	ClassicEditor,
+	Alignment,
+	Autoformat,
+	AutoImage,
+	Autosave,
+	BlockQuote,
+	Bold,
+	CloudServices,
+	Code,
+	CodeBlock,
+	Essentials,
+	Heading,
+	Highlight,
+	HorizontalLine,
+	Image,
+	ImageCaption,
+	ImageInsert,
+	ImageResize,
+	ImageStyle,
+	ImageToolbar,
+	ImageUpload,
+	Indent,
+	Italic,
+	Link as CKLink,
+	List,
+	Paragraph,
+	Table,
+	TableToolbar,
+	TextTransformation,
+	Undo,
+  FileRepository,
+  type EditorConfig
+} from 'ckeditor5';
+
+import 'ckeditor5/ckeditor5.css';
+
 import { useUser } from '../contexts/UserContext';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
@@ -145,7 +181,20 @@ export default function WritePostPage() {
           updateUser({ userStatus: 'Y' });
         }
         showAlert({ type: 'success', message: "처리가 완료되었습니다. ✅ 입력하신 내용이 안전하게 등록되었습니다." });
-        navigate(editingBoardId ? `/exam/${editingBoardId}?type=${boardType}` : `/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`);
+        
+        // [1번 방식 적용] 뒤로가기 시 무조건 목록으로 가도록 히스토리 강제 주입
+        const listUrl = `/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`;
+        
+        if (editingBoardId) {
+          const detailUrl = `/exam/${editingBoardId}?type=${boardType}`;
+          // 1. 현재의 '수정 페이지'를 '목록 페이지' 기록으로 대체합니다.
+          navigate(listUrl, { replace: true });
+          // 2. 그 위에 '상세 페이지'를 새로 쌓습니다. (사용자가 목록에서 들어온 것처럼 속임)
+          setTimeout(() => navigate(detailUrl), 0);
+        } else {
+          // 신규 작성 시에는 현재의 '작성 페이지'를 '목록 페이지'로 대체하여 목록으로 보냅니다.
+          navigate(listUrl, { replace: true });
+        }
       } else {
         throw new Error('저장 실패');
       }
@@ -161,6 +210,38 @@ export default function WritePostPage() {
     { id: 'tip', label: getText('board.category.tip'), icon: Lightbulb },
     { id: 'faq', label: getText('board.category.faq'), icon: HelpCircle },
   ];
+
+  const editorConfig: EditorConfig = {
+    plugins: [
+      Essentials, Paragraph, Heading, Bold, Italic, CKLink, List, BlockQuote, Image, 
+      ImageUpload, FileRepository, Table, TableToolbar, Autoformat, AutoImage, 
+      ImageCaption, ImageInsert, ImageResize, ImageStyle, ImageToolbar, Indent, 
+      TextTransformation, Undo, Code, CodeBlock, Alignment, Highlight, HorizontalLine, CloudServices
+    ],
+    toolbar: [
+      'heading', '|', 
+      'bold', 'italic', 'link', 'bulletedList', 'numberedList', '|',
+      'alignment', 'highlight', 'horizontalLine', '|',
+      'blockQuote', 'codeBlock', 'insertTable', 'uploadImage', '|', 
+      'undo', 'redo'
+    ],
+    image: {
+      toolbar: ['imageStyle:inline', 'imageStyle:block', 'imageStyle:side', '|', 'toggleImageCaption', 'imageTextAlternative']
+    },
+    table: {
+      contentToolbar: ['tableColumn', 'tableRow', 'mergeTableCells']
+    },
+    codeBlock: {
+      languages: [
+        { language: 'sql', label: 'SQL (SQLD)' },
+        { language: 'javascript', label: 'JavaScript' },
+        { language: 'python', label: 'Python' },
+        { language: 'plaintext', label: 'Plain text' }
+      ]
+    },
+    placeholder: '내용을 입력하세요...',
+    licenseKey: 'GPL',
+  };
 
   return (
     <div className="bg-slate-50 dark:bg-[#0d141b] min-h-screen font-sans">
@@ -231,7 +312,7 @@ export default function WritePostPage() {
 
                 <div className="space-y-3">
                   <label className="text-xs font-black uppercase tracking-widest text-slate-400">
-                    내용 (SQL 코드는 <span className="text-primary font-black underline">" (인용구)</span> 버튼을 사용하세요)
+                    내용 (SQL 코드는 <span className="text-primary font-black underline">" {`</>`} (코드 블록)</span> 버튼을 사용하세요)
                   </label>
                   <div className="ck-editor-container border-none dark:text-slate-900">
                     <style dangerouslySetInnerHTML={{ __html: `
@@ -245,35 +326,43 @@ export default function WritePostPage() {
                       .ck-toolbar { border: none !important; background: #f1f5f9 !important; border-radius: 1.5rem 1.5rem 0 0 !important; padding: 0.5rem 1rem !important; }
                       
                       .ck-content blockquote {
-                        background: #0f172a !important; 
-                        color: #38bdf8 !important;    
+                        background: #f1f5f9 !important;
+                        color: #475569 !important;
+                        padding: 1.2rem 1.5rem !important;
+                        border-radius: 1rem !important;
+                        border-left: 6px solid #cbd5e1 !important;
+                        margin: 1.5rem 0 !important;
+                        font-style: italic !important;
+                        height: auto !important;
+                        display: block !important;
+                      }
+                      .dark .ck-content blockquote {
+                        background: #334155 !important;
+                        color: #e2e8f0 !important;
+                        border-left-color: #475569 !important;
+                      }
+
+                      .ck-content pre {
+                        background: #1e293b !important;
+                        color: #38bdf8 !important;
                         font-family: 'Fira Code', 'JetBrains Mono', monospace !important;
                         padding: 1.5rem !important;
                         border-radius: 1rem !important;
                         border-left: 4px solid #3b82f6 !important;
                         margin: 1.5rem 0 !important;
-                        font-style: normal !important;
-                        box-shadow: inset 0 2px 10px rgba(0,0,0,0.3) !important;
+                        box-shadow: inset 0 2px 10px rgba(0,0,0,0.2) !important;
                         height: auto !important;
                         display: block !important;
                         position: relative !important;
                       }
-                      
-                      .ck-content blockquote p {
-                        margin: 0 !important;
-                        line-height: 1.7 !important;
-                        min-height: 1.7em !important;
-                      }
-
-                      .ck-content blockquote::before {
-                        content: 'SQL EDITOR' !important;
+                      .ck-content pre::before {
+                        content: 'SQL CODE' !important;
                         display: block !important;
-                        font-size: 9px !important;
+                        font-size: 10px !important;
                         font-weight: 900 !important;
                         color: #64748b !important;
                         margin-bottom: 0.8rem !important;
-                        letter-spacing: 0.15em !important;
-                        text-transform: uppercase;
+                        letter-spacing: 0.1em !important;
                       }
 
                       .ck-content code {
@@ -295,22 +384,7 @@ export default function WritePostPage() {
                     `}} />
                     <CKEditor
                       editor={ClassicEditor}
-                      config={{
-                        placeholder: '내용을 입력하세요...',
-                        toolbar: [
-                          'heading', '|', 
-                          'bold', 'italic', 'link', 'bulletedList', 'numberedList', '|',
-                          'blockQuote', 'insertTable', 'uploadImage', '|', 
-                          'undo', 'redo'
-                        ],
-                        table: {
-                          contentToolbar: [
-                            'tableColumn',
-                            'tableRow',
-                            'mergeTableCells'
-                          ]
-                        }
-                      }}
+                      config={editorConfig}
                       data={editorData}
                       onReady={(editor) => {
                         editor.plugins.get('FileRepository').createUploadAdapter = (loader) => new MyUploadAdapter(loader, user?.accessToken || '');

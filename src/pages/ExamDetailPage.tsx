@@ -568,7 +568,13 @@ export default function ExamDetailPage() {
                     </div>
                     {user && (user.memberId === exam.authorId || user.userRole === 'ADMIN') && !isAuthorUnknown && (
                       <div className="flex items-center gap-2">
-                        <Link to={`/write-post?boardId=${exam.id}&type=${exam.boardType}`} title="글 수정" className="p-3 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Pencil size={22} /></Link>
+                        <button 
+                          onClick={() => navigate(`/write-post?boardId=${exam.id}&type=${exam.boardType}`, { replace: true })}
+                          title="글 수정" 
+                          className="p-3 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"
+                        >
+                          <Pencil size={22} />
+                        </button>
                         <button onClick={handleDelete} title="글 삭제" className="p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"><Trash2 size={22} /></button>
                       </div>
                     )}
