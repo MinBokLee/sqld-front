@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Mail, Lock, CheckCircle2, ShieldCheck, Clock, Send, AlertCircle, Check } from 'lucide-react';
+import { useAlert } from '../contexts/AlertContext';
 
 interface SignUpModalProps {
   isOpen: boolean;
@@ -7,9 +8,8 @@ interface SignUpModalProps {
   getText: (key: string) => string;
 }
 
-// const API_BASE_URL = "http://localhost:8881";
-
 export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalProps) {
+  const { showAlert } = useAlert();
   const [formData, setSignUpData] = useState({
     userId: '',
     userName: '',
@@ -40,46 +40,34 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Unified Validation Effect with Clear Logic
   useEffect(() => {
     const newErrors = { ...errors };
-
-    // 1. User ID Validation
     if (formData.userId && !/^[a-z0-9]{4,20}$/.test(formData.userId)) {
       newErrors.userId = '아이디는 4~20자의 영문 소문자, 숫자만 가능합니다.';
     } else {
-      newErrors.userId = ''; // Ensure error is cleared when valid
+      newErrors.userId = '';
     }
-    
-    // 2. User Name Validation (Fix for the reported bug)
     if (formData.userName && !/^[a-zA-Z가-힣ㄱ-ㅎㅏ-ㅣ\s]{2,20}$/.test(formData.userName)) {
       newErrors.userName = '이름은 2~20자의 한글 또는 영문만 가능합니다.';
     } else {
-      newErrors.userName = ''; // Clear error when input becomes valid
+      newErrors.userName = '';
     }
-
-    // 3. Email Validation
     if (formData.userEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.userEmail)) {
       newErrors.userEmail = '올바른 이메일 형식이 아닙니다.';
     } else {
       newErrors.userEmail = ''; 
     }
-
-    // 4. Password Validation
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{8,}$/;
     if (formData.userPassword && !passwordRegex.test(formData.userPassword)) {
       newErrors.userPassword = '8자 이상, 영문/숫자/특수문자를 모두 포함해야 합니다.';
     } else {
       newErrors.userPassword = '';
     }
-
-    // 5. Confirm Password Validation
     if (formData.confirmPassword && formData.userPassword !== formData.confirmPassword) {
       newErrors.confirmPassword = '비밀번호가 일치하지 않습니다.';
     } else {
       newErrors.confirmPassword = '';
     }
-
     setErrors(newErrors);
   }, [formData.userId, formData.userName, formData.userEmail, formData.userPassword, formData.confirmPassword]);
 
@@ -132,7 +120,10 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
   };
 
   const handleSendCode = async () => {
-    if (errors.userEmail || !formData.userEmail) return alert("올바른 이메일을 입력하세요.");
+    if (errors.userEmail || !formData.userEmail) {
+      showAlert({ type: 'warning', message: "올바른 이메일을 입력해 주세요. ✍️" });
+      return;
+    }
     setIsSending(true);
     try {
       const response = await fetch(`/api/common/send-code`, {
@@ -142,34 +133,33 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
       });
       const data = await response.json();
       
-      // Fix: Check both response.ok AND data.success to prevent triggering code input on business errors
       if (response.ok && data.success) {
         setIsCodeSent(true);
         setTimeLeft(300);
-        alert(data.msg || "인증번호가 발송되었습니다.");
+        showAlert({ type: 'success', message: "인증번호가 발송되었습니다. ✅ 메일함을 확인해 주세요." });
       } else {
-        // Ensure UI doesn't transition to 'code sent' state
         setIsCodeSent(false);
-        
-        // Handle specific security error codes from backend
         if (data.code === 'existsMemberException') {
-          alert("이미 가입된 회원입니다. 로그인하시거나 다른 이메일을 사용해 주세요.");
+          showAlert({ type: 'info', message: "이미 가입된 회원입니다. 👤 로그인하시거나 다른 이메일을 사용해 주세요." });
           setErrors(prev => ({ ...prev, userEmail: "이미 가입된 회원입니다." }));
         } else if (data.code === 'existMailException') {
-          alert("이미 인증이 완료된 이메일입니다. 가입을 진행해 주세요.");
+          showAlert({ type: 'info', message: "이미 인증이 완료된 이메일입니다. ✨ 가입을 진행해 주세요." });
         } else {
-          alert(data.msg || "발송 실패");
+          showAlert({ type: 'error', message: "인증번호 발송에 문제가 생겼어요. ⏳ 잠시 후 다시 시도해 주세요." });
         }
       }
     } catch (error) { 
-      alert("서버 오류가 발생했습니다."); 
+      showAlert({ type: 'error', message: "통신이 잠시 원활하지 않아요. 🌐 네트워크 상태를 확인해 주세요." }); 
     } finally { 
       setIsSending(false); 
     }
   };
 
   const handleVerifyCode = async () => {
-    if (verificationCode.length !== 6) return alert("6자리 인증번호를 입력하세요.");
+    if (verificationCode.length !== 6) {
+      showAlert({ type: 'warning', message: "6자리 인증번호를 정확히 입력해 주세요. ✍️" });
+      return;
+    }
     setIsVerifying(true);
     try {
       const response = await fetch(`/api/common/verify-code`, {
@@ -180,14 +170,21 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
       const data = await response.json();
       if (response.ok) {
         setIsVerified(true);
-        alert("이메일 인증이 완료되었습니다.");
-      } else { alert(data.msg || "인증번호 오류"); }
-    } catch (error) { alert("서버 오류"); } finally { setIsVerifying(false); }
+        showAlert({ type: 'success', message: "이메일 인증이 완료되었습니다. ✅" });
+      } else { 
+        showAlert({ type: 'warning', message: "인증번호가 일치하지 않아요. ✍️ 다시 한번 확인해 주시겠어요?" }); 
+      }
+    } catch (error) { 
+      showAlert({ type: 'error', message: "확인 중에 문제가 발생했어요. ⏳ 잠시 후 다시 시도해 주세요." }); 
+    } finally { setIsVerifying(false); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!idChecked || !nameChecked || !isVerified) return alert("중복 확인 및 이메일 인증을 완료해주세요.");
+    if (!idChecked || !nameChecked || !isVerified) {
+      showAlert({ type: 'warning', message: "필수 확인 및 인증 절차를 완료해 주세요. ⚠️" });
+      return;
+    }
 
     try {
       const response = await fetch(`/api/common/signUp`, {
@@ -197,15 +194,19 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
           userId: formData.userId,
           userName: formData.userName,
           userEmail: formData.userEmail,
-          userPass: formData.userPassword, // Changed to userPass to match backend spec
+          userPass: formData.userPassword,
         })
       });
       const data = await response.json();
       if (response.ok) {
-        alert("회원가입이 완료되었습니다!");
+        showAlert({ type: 'success', message: "회원가입이 완료되었습니다! ✨ 환영합니다." });
         onClose();
-      } else { alert(`회원가입 실패: ${data.msg}`); }
-    } catch (error) { alert("서버 오류"); }
+      } else { 
+        showAlert({ type: 'error', message: "가입 처리 중에 문제가 발생했어요. ⏳ 잠시 후 다시 시도해 주세요." }); 
+      }
+    } catch (error) { 
+      showAlert({ type: 'error', message: "통신이 잠시 원활하지 않아요. 🌐 네트워크 상태를 확인해 주세요." }); 
+    }
   };
 
   if (!isOpen) return null;

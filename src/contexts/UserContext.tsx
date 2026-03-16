@@ -1,5 +1,6 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
 import api from '../utils/api'; // Axios 인스턴스 임입
+import { useAlert } from './AlertContext'; // Added
 
 interface User {
   userId: string;
@@ -26,6 +27,7 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const { showAlert } = useAlert(); // Added
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -109,7 +111,18 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       setIsLoading(false);
     };
+
+    // Axios 인터셉터에서 토큰 갱신 성공 시 상태 동기화
+    const handleRefreshed = (e: any) => {
+      if (e.detail) {
+        setUser(e.detail);
+      }
+    };
+
+    window.addEventListener('auth-token-refreshed', handleRefreshed);
     initializeUser();
+
+    return () => window.removeEventListener('auth-token-refreshed', handleRefreshed);
   }, [clearUser]);
 
   const login = useCallback(async (username: string, password: string, rememberMe: boolean): Promise<boolean> => {
@@ -155,18 +168,22 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error: any) {
       console.error("Login Error:", error);
       if (error.response?.status === 401) {
-        alert("계정 정보가 일치하지 않습니다.");
+        showAlert({ 
+          type: 'info', 
+          title: "로그인 안내",
+          message: "입력하신 정보가 등록된 내용과 조금 달라요. ✍️ 아이디와 비밀번호를 다시 한번 확인해 주시겠어요?" 
+        });
       } else if (error.response?.status === 500) {
-        alert("서버 내부 오류가 발생했습니다. 백엔드 설정을 확인해 주세요.");
+        showAlert({ type: 'error', message: "서버 내부 오류가 발생했습니다. ❌ 잠시 후 다시 시도해 주세요." });
       } else {
-        alert("일시적인 오류로 로그인을 처리할 수 없습니다.");
+        showAlert({ type: 'error', message: "일시적인 오류로 로그인을 처리할 수 없습니다. ❌ 네트워크 상태를 확인해 주세요." });
       }
       clearUser();
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [clearUser]);
+  }, [clearUser, showAlert]);
 
   const logout = useCallback(async () => {
     setIsLoading(true);

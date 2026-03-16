@@ -56,7 +56,7 @@ export default function Hero({ getText, onOpenSchedule }: HeroProps) {
 
       <div className="relative z-10 flex flex-col lg:flex-row items-center justify-between gap-10 p-4 md:p-6">
         <div className="flex-1 text-center lg:text-left">
-          <h1 className="text-3xl md:text-4xl lg:text-5xl font-black mb-6 tracking-tight leading-tight whitespace-nowrap overflow-hidden text-ellipsis">
+          <h1 className="text-2xl md:text-4xl lg:text-5xl font-black mb-6 tracking-tight leading-tight lg:whitespace-nowrap">
             {getText('hero.title')}
           </h1>
           <p className="text-blue-50 text-base md:text-lg mb-8 opacity-95 font-medium leading-relaxed">

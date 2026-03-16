@@ -1,6 +1,7 @@
 import { Database, Menu, Search, User as UserIcon, ChevronDown, ShieldCheck, X, LogOut, FileText, Smile, Megaphone } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
+import { useAlert } from '../contexts/AlertContext'; // Added
 import { useState, useRef, useEffect } from 'react';
 import ProfileDropdown from './ProfileDropdown';
 import WithdrawalModal from './WithdrawalModal'; 
@@ -14,6 +15,7 @@ interface HeaderProps {
 
 export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPasswordReset, getText }: HeaderProps) {
   const { user, logout } = useUser();
+  const { showAlert } = useAlert(); // Added
   const location = useLocation();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -60,21 +62,20 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
     if (!user) return;
     setIsWithdrawing(true);
     try {
-      const response = await fetch(`/api/member/${user.memberId}`, {
-        method: 'DELETE',
+      const response = await api.delete(`/api/member/deleteMember/${user.memberId}`, {
         headers: { 'Authorization': `Bearer ${user.accessToken}` }
       });
 
-      if (response.ok) {
-        alert("회원 탈퇴가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.");
+      if (response.status === 200 || response.data.success) {
+        showAlert({ type: 'success', message: "회원 탈퇴가 완료되었습니다. ✅ 그동안 이용해 주셔서 감사합니다." });
         setIsWithdrawalModalOpen(false);
         logout(); 
       } else {
-        alert("탈퇴 처리 중 오류가 발생했습니다.");
+        showAlert({ type: 'error', message: "탈퇴 처리 중 오류가 발생했습니다. ❌ 잠시 후 다시 시도해 주세요." });
       }
     } catch (error) {
       console.error("Withdrawal error:", error);
-      alert("서버 통신 오류가 발생했습니다.");
+      showAlert({ type: 'error', message: "서버 통신 오류가 발생했습니다. ❌ 네트워크 상태를 확인해 주세요." });
     } finally {
       setIsWithdrawing(false);
     }
@@ -305,7 +306,6 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
         </div>
       </div>
 
-      {/* Withdrawal Modal - Moved for independence */}
       <WithdrawalModal 
         isOpen={isWithdrawalModalOpen}
         onClose={() => setIsWithdrawalModalOpen(false)}

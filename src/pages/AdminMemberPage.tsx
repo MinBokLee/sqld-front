@@ -1,12 +1,16 @@
-import React, { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useEffect, useState, useCallback, useContext } from "react";
 import { 
-  Users, Trash2, Search, UserMinus, ShieldAlert, 
-  Calendar, Mail, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  ArrowLeft
-} from 'lucide-react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useUser } from '../contexts/UserContext';
-import { LanguageContext } from '../contexts/LanguageContext';
+  Users, Shield, Trash2, Search, Filter, 
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  MoreVertical, CheckCircle2, AlertCircle, UserMinus, UserCheck, Mail, Calendar, LogIn,
+  ShieldAlert, ArrowLeft
+} from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useUser } from "../contexts/UserContext";
+import { useAlert } from "../contexts/AlertContext";
+import { LanguageContext } from "../contexts/LanguageContext";
+import api from "../utils/api";
+import ConfirmModal from "../components/ConfirmModal";
 
 /**
  * [인터페이스] 회원 정보 데이터 구조
@@ -18,70 +22,65 @@ interface Member {
   userRole: string;    
   userStatus: string;  
   lastLoginAt: string; 
+  lastLogAt?: string;
   createAt: string;    
+  memberId: string;    
 }
 
 export default function AdminMemberPage() {
-  const { user } = useUser(); 
+  const { user } = useUser();
+  const { showAlert } = useAlert();
   const navigate = useNavigate();
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
 
-  const [members, setMembers] = useState<Member[]>([]); 
-  const [loading, setLoading] = useState(true); 
-  const [selectedUsers, setSelectedUsers] = useState<string[]>([]); 
-  const [searchTerm, setSearchTerm] = useState(''); 
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]); // memberIds
 
-  /**
-   *  회원 권한 변경 (USER -> ADMIN)
-   */
-  const handleGrantAdmin = async (memberId: string) => {
-    if(!window.confirm("해당 사용자를 관리자로 변경하시겠습니까?")) return;
-    
-    try{
-      const response = await fetch(`/api/admin/changeRoleAdmin/${memberId}`,{
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization' : `Bearer ${user?.accessToken}` 
-        }
-      });
-      const result = await response.json();
+  // 모달 상태 관리
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type: 'danger' | 'warning' | 'info';
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    type: 'info',
+    isLoading: false
+  });
 
-      if(response.ok && result.status === 200) {
-        alert(result.message);
-        fetchMembers();
-      } else {
-        alert(result.message || "권한 변경에 실패했습니다.")
-      }
-    } catch(error){
-      console.error("권한 변경 중 오류 발생:", error);
-      alert("서버와 통신 중 오류가 발생했습니다.");
-    }
-  };
+  const closeConfirmModal = () => setConfirmModal(prev => ({ ...prev, isOpen: false }));
 
   /**
    * [API 호출] 전체 회원 목록 조회
    */
   const fetchMembers = useCallback(async () => {
     if (!user || user.userRole !== 'ADMIN') return;
-
+    
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/getMemberList`, {
+      const response = await api.get(`/api/admin/getMemberList`, {
         headers: { 'Authorization': `Bearer ${user.accessToken}` }
       });
-      const data = await response.json();
+      const data = response.data;
       
       if (data.success) {
         setMembers(data.result?.data || []);
       }
     } catch (error) {
       console.error("Failed to fetch members:", error);
+      showAlert({ type: 'error', message: "회원 목록을 가져오는 중에 문제가 생겼어요. 🌐" });
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, showAlert]);
 
   useEffect(() => {
     if (!user) {
@@ -89,238 +88,290 @@ export default function AdminMemberPage() {
       return;
     }
     if (user.userRole !== 'ADMIN') {
-      alert("권한이 없습니다.");
+      showAlert({ type: 'warning', message: "접근 권한이 없습니다. 관리자만 이용 가능합니다. ⚠️" });
       navigate('/');
-    }
-  }, [user, navigate]);
-
-  useEffect(() => {
-    if (user?.userRole === 'ADMIN') {
+    } else {
       fetchMembers();
     }
-  }, [fetchMembers, user?.userRole]);
+  }, [user, navigate, fetchMembers, showAlert]);
+
+  /**
+   * 회원 권한 변경 (USER -> ADMIN)
+   */
+  const handleGrantAdmin = (targetMemberId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: '관리자 권한 부여',
+      message: '해당 사용자를 관리자로 변경하시겠습니까?\n변경 후에는 관리자 센터의 모든 기능을 이용할 수 있게 됩니다.',
+      type: 'info',
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        try {
+          const response = await api.patch(`/api/admin/changeRoleAdmin/${targetMemberId}`, null, {
+            headers: { 'Authorization' : `Bearer ${user?.accessToken}` }
+          });
+          if(response.data.status === 200 || response.data.success) {
+            showAlert({ type: 'success', message: "관리자 권한 부여가 완료되었습니다. ✅" });
+            fetchMembers();
+            closeConfirmModal();
+          } else {
+            showAlert({ type: 'error', message: response.data.message || "권한 변경을 처리하지 못했어요. ⏳" });
+          }
+        } catch(error) {
+          showAlert({ type: 'error', message: "통신이 원활하지 않아요. 🌐 네트워크 상태를 확인해 주세요." });
+        } finally {
+          setConfirmModal(prev => ({ ...prev, isLoading: false }));
+        }
+      }
+    });
+  };
 
   /**
    * 회원 개별 강퇴
    */
-  const handleKick = async (userId: string) => {
-    if (!window.confirm(`${userId} 회원을 강제 탈퇴시키겠습니까?`)) return;
-
-    try {
-      const response = await fetch(`/api/member/deleteMember/${userId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${user?.accessToken}` }
-      });
-
-      if (response.ok) {
-        alert("처리가 완료되었습니다.");
-        fetchMembers();
-        setSelectedUsers(prev => prev.filter(id => id !== userId));
-      } else {
-        alert("처리 중 오류가 발생했습니다.");
+  const handleKick = (targetMemberId: string, targetUserId: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: '회원 강제 탈퇴',
+      message: `${targetUserId} 회원을 강제 탈퇴시키겠습니까?\n이 작업은 되돌릴 수 없으며, 모든 계정 정보가 즉시 삭제됩니다.`,
+      type: 'danger',
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        try {
+          const response = await api.delete(`/api/member/deleteMember/${targetMemberId}`, {
+            headers: { 'Authorization': `Bearer ${user?.accessToken}` }
+          });
+          if (response.status === 200 || response.data.success) {
+            showAlert({ type: 'success', message: "강제 탈퇴 처리가 완료되었습니다. ✅" });
+            fetchMembers();
+            setSelectedUsers(prev => prev.filter(id => id !== targetMemberId));
+            closeConfirmModal();
+          } else {
+            showAlert({ type: 'error', message: "처리가 원활하지 않아요. ⏳ 잠시 후 다시 시도해 주세요." });
+          }
+        } catch (error) {
+          showAlert({ type: 'error', message: "통신 문제로 처리에 실패했습니다. 🌐" });
+        } finally {
+          setConfirmModal(prev => ({ ...prev, isLoading: false }));
+        }
       }
-    } catch (error) {
-      alert("서버 통신 오류");
-    }
+    });
   };
 
   /**
    * 회원 일괄 강퇴
    */
-  const handleBulkKick = async () => {
+  const handleBulkKick = () => {
     if (selectedUsers.length === 0) {
-      alert("삭제할 회원을 선택해 주세요.")
+      showAlert({ type: 'warning', message: "삭제할 회원을 선택해 주세요. ⚠️" });
       return;
     }
 
-    if (!window.confirm(`선택한 ${selectedUsers.length}명의 회원을 모두 강제 탈퇴시키겠습니까?`)) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/admin/deleteMembersByAdmin`, {
-        method: 'POST', 
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user?.accessToken}`
-        },
-        body: JSON.stringify({ userIds: selectedUsers })
-      });
-      
-      const result = await response.json();
-        
-      if(result.code === 200 || response.ok){
-        alert(result.msg || "일괄 처리가 완료되었습니다.");
-        setSelectedUsers([]);
-        fetchMembers();
-      } else {
-        alert(result.msg || "처리 중 오류가 발생했습니다.");
+    setConfirmModal({
+      isOpen: true,
+      title: '일괄 강제 탈퇴',
+      message: `선택한 ${selectedUsers.length}명의 회원을 모두 강제 탈퇴시키겠습니까?\n이 작업은 대량으로 처리되며 복구가 불가능합니다.`,
+      type: 'danger',
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        try {
+          const response = await api.post(`/api/admin/deleteMembersByAdmin`, { 
+            memberIds: selectedUsers 
+          }, {
+            headers: { 'Authorization': `Bearer ${user?.accessToken}` }
+          });
+          if(response.data.code === 200 || response.status === 200 || response.data.success){
+            showAlert({ type: 'success', message: "일괄 처리가 완료되었습니다. ✅" });
+            setSelectedUsers([]);
+            fetchMembers();
+            closeConfirmModal();
+          } else {
+            showAlert({ type: 'error', message: "일괄 처리 중에 문제가 발생했어요. ⏳" });
+          }
+        } catch (error) {
+          showAlert({ type: 'error', message: "통신 문제로 처리에 실패했습니다. 🌐" });
+        } finally {
+          setConfirmModal(prev => ({ ...prev, isLoading: false }));
+        }
       }
-    } catch (error) {
-      console.error("Bulk delete error", error)
-      alert("서버 통신 중 오류가 발생했습니다.")
-    }
+    });
   };
 
   const toggleSelectAll = () => {
     if (selectedUsers.length === filteredMembers.length) {
       setSelectedUsers([]);
     } else {
-      setSelectedUsers(filteredMembers.map(m => m.userId));
+      setSelectedUsers(filteredMembers.map(m => m.memberId));
     }
   };
 
-  const toggleSelectUser = (userId: string) => {
+  const toggleSelectUser = (memberId: string) => {
     setSelectedUsers(prev => 
-      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+      prev.includes(memberId) ? prev.filter(id => id !== memberId) : [...prev, memberId]
     );
   };
 
+  /**
+   * 클라이언트 측 검색 필터링 (원본 로직 보존)
+   */
   const filteredMembers = members.filter(m => 
-    m.userId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.userEmail.toLowerCase().includes(searchTerm.toLowerCase())
+    m.userId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    m.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    m.userEmail?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] transition-colors duration-300">
-      <main className="max-w-[1440px] mx-auto px-4 md:px-10 py-8">
+      <main className="max-w-[1440px] mx-auto px-4 md:px-10 py-10 font-sans">
         
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-          <div>
-            <Link to="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-primary mb-4 transition-colors font-bold">
-              <ArrowLeft size={16} /> 메인으로 돌아가기
-            </Link>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-2 h-8 bg-red-500 rounded-full" />
-              <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight">회원 관리 시스템</h1>
-            </div>
-            <p className="text-slate-500 dark:text-slate-400 font-medium">커뮤니티 회원 목록을 관리하고 부적절한 사용자를 제재합니다.</p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="bg-white dark:bg-[#1a222c] px-6 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-              <div className="text-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">전체 회원</p>
-                <p className="text-xl font-black text-primary">{members.length}</p>
+        {/* Header Section */}
+        <header className="mb-12">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+              <Link to="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-primary mb-4 transition-colors font-bold group">
+                <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> 메인으로 돌아가기
+              </Link>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-2 h-8 bg-red-500 rounded-full" />
+                <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Admin Center</h1>
               </div>
-              <div className="w-px h-8 bg-slate-100 dark:bg-slate-800" />
-              <div className="text-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">선택됨</p>
-                <p className="text-xl font-black text-red-500">{selectedUsers.length}</p>
+              <p className="text-slate-500 dark:text-slate-400 font-medium text-lg">커뮤니티 회원 관리 및 권한 설정 시스템</p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 text-center min-w-[120px]">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Members</p>
+                <p className="text-2xl font-black text-primary">{members.length}</p>
+              </div>
+              <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 text-center min-w-[120px]">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Selected</p>
+                <p className="text-2xl font-black text-red-500">{selectedUsers.length}</p>
               </div>
             </div>
           </div>
-        </div>
+        </header>
 
-        <div className="bg-white dark:bg-[#1a222c] p-4 rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 mb-8">
+        {/* Search & Actions Bar */}
+        <section className="bg-white dark:bg-[#1a222c] p-5 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row gap-4 mb-10">
           <div className="flex-1 relative group">
-            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
+            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={22} />
             <input 
-              type="text"
-              placeholder="아이디, 이름, 이메일로 검색..."
+              type="text" 
+              placeholder="이름, 아이디, 이메일로 검색..." 
+              className="w-full h-14 pl-14 pr-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-base font-bold focus:ring-2 focus:ring-primary/20 outline-none transition-all dark:text-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full h-12 pl-14 pr-6 rounded-xl bg-slate-50 dark:bg-slate-800 border-none outline-none font-bold text-sm focus:ring-2 focus:ring-primary/20 transition-all"
             />
           </div>
           <button 
             onClick={handleBulkKick}
             disabled={selectedUsers.length === 0}
-            className="h-12 px-8 bg-red-500 text-white font-black rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/20 disabled:opacity-30 disabled:shadow-none flex items-center justify-center gap-2"
+            className="h-14 px-10 bg-red-500 text-white text-base font-black rounded-2xl hover:bg-red-600 transition-all shadow-xl shadow-red-500/20 disabled:opacity-30 disabled:shadow-none flex items-center justify-center gap-2 active:scale-95"
           >
-            <UserMinus size={18} /> 일괄 강퇴
+            <UserMinus size={20} /> 일괄 강퇴
           </button>
-        </div>
+        </section>
 
-        <div className="bg-white dark:bg-[#1a222c] rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden transition-all">
+        {/* Members Table */}
+        <div className="bg-white dark:bg-[#1a222c] rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden mb-10">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
+            <table className="w-full text-left min-w-[1100px]">
               <thead>
                 <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                  <th className="px-6 py-5 w-16 text-center">
+                  <th className="px-8 py-6 w-20 text-center">
                     <input 
                       type="checkbox" 
-                      className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary/20" 
-                      checked={selectedUsers.length > 0 && selectedUsers.length === filteredMembers.length}
-                      onChange={toggleSelectAll}
+                      className="w-5 h-5 rounded-md border-2 border-slate-200 text-primary focus:ring-primary/20 cursor-pointer" 
+                      checked={selectedUsers.length > 0 && selectedUsers.length === filteredMembers.length} 
+                      onChange={toggleSelectAll} 
                     />
                   </th>
-                  <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest">사용자 정보</th>
-                  <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">권한</th>
-                  <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">상태</th>
-                  <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">최근 접속</th>
-                  <th className="px-6 py-5 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">관리</th>
+                  <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">사용자 정보</th>
+                  <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">권한</th>
+                  <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">상태</th>
+                  <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">최근 접속</th>
+                  <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">작업</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
                 {loading ? (
-                  <tr>
-                    <td colSpan={6} className="py-20 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
-                        <p className="text-slate-400 font-bold">회원 목록을 불러오는 중...</p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filteredMembers.length > 0 ? filteredMembers.map((m) => (
-                  <tr key={m.userId} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group">
-                    <td className="px-6 py-5 text-center">
+                  [...Array(5)].map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td colSpan={6} className="px-8 py-8"><div className="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl w-full" /></td>
+                    </tr>
+                  ))
+                ) : filteredMembers.length > 0 ? filteredMembers.map((member) => (
+                  <tr key={member.memberId} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${selectedUsers.includes(member.memberId) ? 'bg-primary/5 dark:bg-primary/5' : ''}`}>
+                    <td className="px-8 py-6 text-center">
                       <input 
                         type="checkbox" 
-                        className="w-5 h-5 rounded border-slate-300 text-primary focus:ring-primary/20" 
-                        checked={selectedUsers.includes(m.userId)}
-                        onChange={() => toggleSelectUser(m.userId)}
+                        className="w-5 h-5 rounded-md border-2 border-slate-200 text-primary focus:ring-primary/20 cursor-pointer" 
+                        checked={selectedUsers.includes(member.memberId)} 
+                        onChange={() => toggleSelectUser(member.memberId)} 
                       />
                     </td>
-                    <td className="px-6 py-5">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-black text-slate-900 dark:text-white">{m.userName}</span>
-                        <span className="text-xs text-slate-400 font-bold">{m.userId} • {m.userEmail}</span>
+                    <td className="px-8 py-6">
+                      <div className="flex items-center gap-4">
+                        <div className="size-12 rounded-2xl bg-primary/10 flex items-center justify-center font-black text-primary border border-primary/5 shadow-inner uppercase">{member.userName?.[0] || 'U'}</div>
+                        <div>
+                          <p className="text-base font-black text-slate-900 dark:text-white leading-none mb-1.5">{member.userName}</p>
+                          <p className="text-xs text-slate-400 font-bold tracking-tight">{member.userId} • {member.userEmail}</p>
+                        </div>
                       </div>
                     </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${
-                        m.userRole === 'ADMIN' ? 'bg-red-500 text-white' : 'bg-primary text-white'
+                    <td className="px-8 py-6 text-center">
+                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${
+                        member.userRole === 'ADMIN' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-primary text-white'
                       }`}>
-                        {m.userRole}
+                        {member.userRole}
                       </span>
                     </td>
-                    <td className="px-6 py-5 text-center">
-                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${
-                        m.userStatus === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                    <td className="px-8 py-6 text-center">
+                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black ${
+                        member.userStatus === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
                       }`}>
-                        {m.userStatus === 'Y' ? '승인' : '미승인'}
+                        {member.userStatus === 'Y' ? '승인' : '미승인'}
                       </span>
                     </td>
-                    <td className="px-6 py-5 text-center text-xs font-bold text-slate-500">
-                      {m.lastLoginAt || '-'}
+                    <td className="px-8 py-6 text-center">
+                      <div className="flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400 font-bold">
+                        <span className="text-xs">{member.lastLoginAt || member.lastLogAt || '-'}</span>
+                        <span className="text-[10px] opacity-50 font-medium italic">Joined: {member.createAt ? new Date(member.createAt).toLocaleDateString() : '-'}</span>
+                      </div>
                     </td>
-                    <td className="px-6 py-5 text-center">
+                    <td className="px-8 py-6 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {m.userRole === 'USER' && (
+                        {member.userRole === 'USER' && (
                           <button
-                            onClick={() => handleGrantAdmin(m.userId)}
-                            className="p-2 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-xl transition-all"
+                            onClick={() => handleGrantAdmin(member.memberId)}
+                            className="p-2.5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-xl transition-all border border-transparent hover:border-emerald-100 shadow-sm"
                             title="관리자 권한 부여"
                           >
-                            <ShieldAlert size={18} />
+                            <ShieldAlert size={20} />
                           </button>
                         )}
                         <button 
-                          onClick={() => handleKick(m.userId)}
-                          disabled={m.userRole === 'ADMIN'}
-                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all disabled:opacity-0"
+                          onClick={() => handleKick(member.memberId, member.userId)}
+                          disabled={member.userRole === 'ADMIN'}
+                          className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all disabled:opacity-0 border border-transparent hover:border-red-100 shadow-sm"
                           title="강제 탈퇴"
                         >
-                          <Trash2 size={18} />
+                          <Trash2 size={20} />
                         </button>
                       </div>
                     </td>
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={6} className="py-20 text-center text-slate-400 font-bold">검색 결과가 없습니다.</td>
+                    <td colSpan={6} className="py-32 text-center">
+                      <div className="flex flex-col items-center gap-4 text-slate-300 dark:text-slate-700">
+                        <Users size={64} strokeWidth={1} />
+                        <p className="text-xl font-black">검색 결과가 없습니다.</p>
+                      </div>
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -328,6 +379,16 @@ export default function AdminMemberPage() {
           </div>
         </div>
       </main>
+
+      <ConfirmModal 
+        isOpen={confirmModal.isOpen}
+        onClose={closeConfirmModal}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+        isLoading={confirmModal.isLoading}
+      />
     </div>
   );
 }

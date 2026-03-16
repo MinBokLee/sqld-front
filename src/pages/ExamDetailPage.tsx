@@ -5,8 +5,10 @@ import {
   ThumbsUp, ThumbsDown, Bookmark, Heart, TrendingUp, Check, X
 } from "lucide-react";
 import { useUser } from "../contexts/UserContext";
+import { useAlert } from "../contexts/AlertContext";
 import { formatRelativeTime } from "../utils/dateUtils";
-import api from "../utils/api"; // Axios 인스턴스 임입
+import api from "../utils/api";
+import ConfirmModal from "../components/ConfirmModal";
 
 interface BoardFile {
   fileId: number;
@@ -173,7 +175,7 @@ const CommentItem = memo(({
             <textarea 
               value={localReplyContent}
               onChange={(e) => setLocalReplyContent(e.target.value)}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary/20 h-[100px] outline-none text-slate-900 dark:text-white shadow-sm resize-none"
+              className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary/20 h-[120px] outline-none text-slate-900 dark:text-white shadow-sm resize-none"
               placeholder="답글을 입력하세요..."
               autoFocus
             />
@@ -264,6 +266,7 @@ const PostContent = memo(({ content }: { content: string }) => {
 export default function ExamDetailPage() {
   const { id } = useParams();
   const { user } = useUser();
+  const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [exam, setExam] = useState<Exam | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
@@ -274,6 +277,25 @@ export default function ExamDetailPage() {
   const [mainCommentContent, setMainCommentContent] = useState('');
   const [isSubmittingMainComment, setIsSubmittingMainComment] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<number | null>(null);
+
+  // 모달 상태 관리
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type: 'danger' | 'warning' | 'info';
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    type: 'info',
+    isLoading: false
+  });
+
+  const closeConfirmModal = () => setConfirmModal(prev => ({ ...prev, isOpen: false }));
 
   const fixImagePath = (path: string) => {
     if (!path) return '';
@@ -373,7 +395,10 @@ export default function ExamDetailPage() {
   }, [id, fetchPostDetail, fetchComments, fetchPopularPosts]);
 
   const handleCommentSubmit = async (content: string, parentId: number | null = null) => {
-    if (!user) { alert("로그인이 필요합니다."); return; }
+    if (!user) { 
+      showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅ 로그인 후 다시 시도해 주세요." });
+      return; 
+    }
     if (!content.trim()) return;
     if (parentId === null) setIsSubmittingMainComment(true);
     try {
@@ -407,20 +432,39 @@ export default function ExamDetailPage() {
     } catch (error) { console.error(error); }
   };
 
-  const handleCommentDelete = async (commentId: number) => {
-    if (!window.confirm("댓글을 삭제하시겠습니까?")) return;
-    try {
-      await api.delete(`/api/board/deleteComment`, {
-        params: { commentId, memberId: user?.memberId || '' },
-        headers: { 'Authorization': `Bearer ${user?.accessToken}` }
-      });
-      await fetchComments(); 
-      setExam(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null);
-    } catch (error) { console.error(error); }
+  const handleCommentDelete = (commentId: number) => {
+    setConfirmModal({
+      isOpen: true,
+      title: '댓글 삭제',
+      message: '작성하신 댓글을 정말 삭제하시겠습니까?\n삭제된 댓글은 복구할 수 없습니다.',
+      type: 'danger',
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        try {
+          await api.delete(`/api/board/deleteComment`, {
+            params: { commentId, memberId: user?.memberId || '' },
+            headers: { 'Authorization': `Bearer ${user?.accessToken}` }
+          });
+          await fetchComments(); 
+          setExam(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null);
+          showAlert({ type: 'success', message: "댓글이 삭제되었습니다. ✅" });
+          closeConfirmModal();
+        } catch (error) { 
+          console.error(error);
+          showAlert({ type: 'error', message: "댓글 삭제 중에 문제가 생겼어요. ⏳" });
+        } finally {
+          setConfirmModal(prev => ({ ...prev, isLoading: false }));
+        }
+      }
+    });
   };
 
   const handleLikeAction = async (actionType: 'like' | 'unlike') => {
-    if (!user) { alert("로그인이 필요합니다."); return; }
+    if (!user) { 
+      showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅ 로그인 후 다시 시도해 주세요." });
+      return; 
+    }
     if (isLiking || !exam) return;
     setIsLiking(true);
     try {
@@ -434,17 +478,32 @@ export default function ExamDetailPage() {
     } catch (error) { console.error(error); } finally { setIsLiking(false); }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm("정말 이 게시글을 삭제하시겠습니까?")) return;
-    try {
-      const response = await api.delete(`/api/board/list/${id}`, {
-        headers: { 'Authorization': `Bearer ${user?.accessToken}` }
-      });
-      if (response.status === 200) {
-        alert("게시글이 성공적으로 삭제되었습니다.");
-        navigate(`/practice-exams?type=${exam?.boardType || 'S'}`);
+  const handleDelete = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: '게시글 삭제',
+      message: '정말 이 게시글을 삭제하시겠습니까?\n함께 나눈 소중한 지식과 댓글이 모두 사라지게 됩니다.',
+      type: 'danger',
+      isLoading: false,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        try {
+          const response = await api.delete(`/api/board/list/${id}`, {
+            headers: { 'Authorization': `Bearer ${user?.accessToken}` }
+          });
+          if (response.status === 200) {
+            showAlert({ type: 'success', message: "게시글이 성공적으로 삭제되었습니다. ✅" });
+            closeConfirmModal();
+            navigate(`/practice-exams?type=${exam?.boardType || 'S'}`);
+          }
+        } catch (error) { 
+          console.error("Delete error:", error); 
+          showAlert({ type: 'error', message: "게시글 삭제 중에 문제가 생겼어요. ⏳" });
+        } finally {
+          setConfirmModal(prev => ({ ...prev, isLoading: false }));
+        }
       }
-    } catch (error) { console.error("Delete error:", error); }
+    });
   };
 
   if (initialLoading) return <div className="flex items-center justify-center min-h-screen bg-white dark:bg-[#0d141b]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
@@ -590,7 +649,12 @@ export default function ExamDetailPage() {
                 <div className="relative z-10">
                   <h5 className="font-black text-base mb-1">SQLD Pass Kit</h5>
                   <p className="text-[10px] opacity-90 leading-relaxed mb-4">완벽한 합격 전략을 <br/>확인해보세요.</p>
-                  <button className="w-full py-2 bg-white text-primary rounded-2xl text-[10px] font-black hover:bg-blue-50 transition-colors">무료 혜택 받기</button>
+                  <button 
+                    onClick={() => showAlert({ type: 'info', message: "현재 준비 중인 서비스입니다. ✨ SQLD 합격에 꼭 필요한 기능으로 곧 찾아뵙겠습니다." })}
+                    className="w-full py-2 bg-white text-primary rounded-2xl text-[10px] font-black hover:bg-blue-50 transition-colors"
+                  >
+                    무료 혜택 받기
+                  </button>
                 </div>
                 <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
                   <ThumbsUp size={80} />
@@ -600,6 +664,16 @@ export default function ExamDetailPage() {
           </aside>
         </div>
       </main>
+
+      <ConfirmModal 
+        isOpen={confirmModal.isOpen}
+        onClose={closeConfirmModal}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        type={confirmModal.type}
+        isLoading={confirmModal.isLoading}
+      />
     </div>
   );
 }

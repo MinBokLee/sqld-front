@@ -4,6 +4,7 @@ import { CKEditor } from '@ckeditor/ckeditor5-react';
 import ClassicEditor from '@ckeditor/ckeditor5-build-classic';
 import { useUser } from '../contexts/UserContext';
 import { LanguageContext } from '../contexts/LanguageContext';
+import { useAlert } from '../contexts/AlertContext';
 import { 
   Megaphone, BookOpen, Smile, Save, X, CloudUpload, 
   Info, ShieldCheck, Zap, ChevronsRight, MessageCircle, Lightbulb, HelpCircle
@@ -43,6 +44,7 @@ class MyUploadAdapter {
 
 export default function WritePostPage() {
   const { user, clearUser, updateUser } = useUser();
+  const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,11 +83,11 @@ export default function WritePostPage() {
 
   useEffect(() => {
     if (!user) {
-      alert("로그인이 필요합니다.");
+      showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅ 로그인 후 다시 시도해 주세요." });
       clearUser();
       navigate('/');
     }
-  }, [user, navigate, clearUser]);
+  }, [user, navigate, clearUser, showAlert]);
 
   const uploadSingleFile = async (file: File) => {
     const data = new FormData();
@@ -103,7 +105,10 @@ export default function WritePostPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !editorData.trim()) return alert("제목과 내용을 입력하세요.");
+    if (!title.trim() || !editorData.trim()) {
+      showAlert({ type: 'warning', message: "입력되지 않은 내용이 있습니다. ⚠️ 제목과 내용을 모두 작성해 주세요." });
+      return;
+    }
     setIsSubmitting(true);
 
     try {
@@ -121,7 +126,7 @@ export default function WritePostPage() {
       formData.append('boardType', boardType);
       formData.append('category', boardType === 'S' ? category : ''); 
       formData.append('tagName', tag);
-      formData.append('memberId', user?.memberId || ''); // userId -> memberId로 변경
+      formData.append('memberId', user?.memberId || '');
 
       if (selectedFiles && selectedFiles.length > 0) {
         selectedFiles.forEach(file => {
@@ -139,13 +144,13 @@ export default function WritePostPage() {
         if (boardType === 'G' && !editingBoardId) {
           updateUser({ userStatus: 'Y' });
         }
-        alert("성공적으로 저장되었습니다.");
+        showAlert({ type: 'success', message: "처리가 완료되었습니다. ✅ 입력하신 내용이 안전하게 등록되었습니다." });
         navigate(editingBoardId ? `/exam/${editingBoardId}?type=${boardType}` : `/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`);
       } else {
         throw new Error('저장 실패');
       }
     } catch (error) {
-      alert('오류가 발생했습니다. 다시 시도해주세요.');
+      showAlert({ type: 'error', message: "저장 중에 문제가 발생했어요. ⏳ 잠시 후 다시 시도해 주시겠어요?" });
     } finally {
       setIsSubmitting(false);
     }
@@ -240,31 +245,35 @@ export default function WritePostPage() {
                       .ck-toolbar { border: none !important; background: #f1f5f9 !important; border-radius: 1.5rem 1.5rem 0 0 !important; padding: 0.5rem 1rem !important; }
                       
                       .ck-content blockquote {
-                        background: #1e293b !important;
-                        color: #38bdf8 !important;
+                        background: #0f172a !important; 
+                        color: #38bdf8 !important;    
                         font-family: 'Fira Code', 'JetBrains Mono', monospace !important;
                         padding: 1.5rem !important;
                         border-radius: 1rem !important;
                         border-left: 4px solid #3b82f6 !important;
                         margin: 1.5rem 0 !important;
                         font-style: normal !important;
-                        box-shadow: inset 0 2px 10px rgba(0,0,0,0.2) !important;
+                        box-shadow: inset 0 2px 10px rgba(0,0,0,0.3) !important;
                         height: auto !important;
                         display: block !important;
+                        position: relative !important;
                       }
+                      
                       .ck-content blockquote p {
                         margin: 0 !important;
                         line-height: 1.7 !important;
                         min-height: 1.7em !important;
                       }
+
                       .ck-content blockquote::before {
-                        content: 'SQL CODE' !important;
+                        content: 'SQL EDITOR' !important;
                         display: block !important;
-                        font-size: 10px !important;
+                        font-size: 9px !important;
                         font-weight: 900 !important;
                         color: #64748b !important;
                         margin-bottom: 0.8rem !important;
-                        letter-spacing: 0.1em !important;
+                        letter-spacing: 0.15em !important;
+                        text-transform: uppercase;
                       }
 
                       .ck-content code {
@@ -290,8 +299,8 @@ export default function WritePostPage() {
                         placeholder: '내용을 입력하세요...',
                         toolbar: [
                           'heading', '|', 
-                          'bold', 'italic', 'link', 'blockQuote', 'code', '|', 
-                          'bulletedList', 'numberedList', 'insertTable', 'uploadImage', '|', 
+                          'bold', 'italic', 'link', 'bulletedList', 'numberedList', '|',
+                          'blockQuote', 'insertTable', 'uploadImage', '|', 
                           'undo', 'redo'
                         ],
                         table: {

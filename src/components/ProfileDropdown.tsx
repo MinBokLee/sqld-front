@@ -4,8 +4,8 @@ import {
   Settings, ChevronRight, Clock, Camera, Lock, UserMinus
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import WithdrawalModal from './WithdrawalModal'; 
 import { useUser } from '../contexts/UserContext';
+import { useAlert } from '../contexts/AlertContext';
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -14,7 +14,7 @@ interface ProfileDropdownProps {
   user: any;
   onLogout: () => void;
   getText: (key: string) => string;
-  onOpenWithdrawalModal: () => void; // Added
+  onOpenWithdrawalModal: () => void;
 }
 
 const ProfileDropdown: React.FC<ProfileDropdownProps> = ({ 
@@ -24,10 +24,11 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
   user, 
   onLogout, 
   getText,
-  onOpenWithdrawalModal // Added
+  onOpenWithdrawalModal
 }) => {
   const navigate = useNavigate();
   const { updateUser } = useUser();
+  const { showAlert } = useAlert();
   const [loading, setLoading] = useState(false);
   
   const [stats, setStats] = useState({ 
@@ -88,7 +89,7 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
     setUploading(true);
     const formData = new FormData();
     formData.append('upload', file);
-    formData.append('memberId', user.memberId); // 기준 식별자: memberId 사용
+    formData.append('memberId', user.memberId);
 
     try {
       const response = await fetch(`/api/board/upload`, {
@@ -106,16 +107,16 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${user.accessToken}` 
           },
-          body: JSON.stringify({ memberId: user.memberId, profileImage: imageUrl }), // 기준 식별자: memberId 사용
+          body: JSON.stringify({ memberId: user.memberId, profileImage: imageUrl }),
         });
 
         if (saveRes.ok) {
           updateUser({ profileImage: imageUrl });
-          alert("프로필 이미지가 변경되었습니다.");
+          showAlert({ type: 'success', message: "프로필 이미지가 성공적으로 변경되었습니다. ✨" });
         }
       }
     } catch (error) {
-      alert("이미지 업로드 실패");
+      showAlert({ type: 'error', message: "이미지를 올리는 중에 문제가 생겼어요. ⏳ 잠시 후 다시 시도해 주시겠어요?" });
     } finally {
       setUploading(false);
     }
@@ -134,7 +135,7 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
           <div className="relative group cursor-pointer flex-shrink-0" onClick={handleImageClick}>
             <div className="size-14 rounded-2xl overflow-hidden bg-primary/10 flex items-center justify-center border border-primary/5 shadow-sm">
               {user.profileImage ? (
-                <img src={user.profileImage.startsWith('http') ? user.profileImage : user.profileImage} alt="P" className="w-full h-full object-cover" />
+                <img src={user.profileImage} alt="P" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-xl font-black text-primary uppercase">{user.userName?.[0] || 'U'}</span>
               )}
@@ -149,7 +150,7 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
             <div className="flex items-center gap-2 mb-0.5">
               <span className="text-base font-black text-slate-900 dark:text-white truncate">{user.userName}</span>
               <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
-                user.userRole === 'ADMIN' ? 'bg-red-500 text-white' : 'bg-primary text-white'
+                user.userRole === 'ADMIN' ? 'bg-red-50 text-white' : 'bg-primary text-white'
               }`}>
                 {user.userRole || 'Member'}
               </span>

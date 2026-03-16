@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState, useCallback, useContext } from "react";
 import { useUser } from "../contexts/UserContext";
 import { LanguageContext } from "../contexts/LanguageContext";
+import { useAlert } from "../contexts/AlertContext"; 
 import { formatRelativeTime } from "../utils/dateUtils";
 import Board, { type BoardItem } from "../components/Board";
 import api from "../utils/api"; // Axios 인스턴스 임입
@@ -32,6 +33,7 @@ interface Post {
 export default function PracticeExams() {
   const { user } = useUser();
   const navigate = useNavigate();
+  const { showAlert } = useAlert();
   const [searchParams, setSearchParams] = useSearchParams();
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
@@ -84,9 +86,7 @@ export default function PracticeExams() {
       if (searchKeyword) params.keyword = searchKeyword;
 
       if (filterMemberId) params.memberId = filterMemberId;
-      else if (filterUserId) params.memberId = filterUserId;
 
-      // 검색어 유무에 따른 API 주소 결정
       const apiUrl = searchKeyword ? '/api/board/searchContent' : '/api/board/list/paging';
       const response = await api.get(apiUrl, { params });
       const data = response.data;
@@ -133,12 +133,12 @@ export default function PracticeExams() {
 
   const handleSearch = () => {
     if (!inputKeyword.trim()) {
-      let message = "검색어를 입력해 주세요! ✨";
-      if (typeCode === 'N') message = "확인하실 공지사항 키워드를 입력해 주세요! 📢";
-      else if (typeCode === 'S') message = "찾으시는 공부 내용이나 궁금한 키워드를 입력해 주세요! ✍️";
-      else if (typeCode === 'G') message = "찾으시는 회원님이나 인사말 키워드를 입력해 주세요! 😊";
+      let message = "키워드를 입력해 주세요. ⚠️ 검색어 없이 조회를 진행할 수 없습니다.";
+      if (typeCode === 'N') message = "확인하실 공지사항 키워드를 입력해 주세요. 📢";
+      else if (typeCode === 'S') message = "키워드를 입력해 주세요. ⚠️ 학습 게시판 내에서 검색어를 통해 조회가 가능합니다.";
+      else if (typeCode === 'G') message = "찾으시는 회원님이나 인사말 키워드를 입력해 주세요. 😊";
       
-      alert(message);
+      showAlert({ type: 'warning', message });
       return;
     }
     const newParams = new URLSearchParams();
@@ -449,7 +449,7 @@ export default function PracticeExams() {
                       {post.title}
                     </p>
                     <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold">
-                      <span>{formatRelativeTime(post.createAt)}</span>
+                      <span>{formatRelativeTime(post.createAt || '')}</span>
                       <div className="flex items-center gap-2">
                         <span className="flex items-center gap-1 bg-rose-50 dark:bg-rose-900/20 text-rose-500 px-1.5 py-0.5 rounded-md">
                           <Heart size={10} className="fill-rose-500" /> {post.likeCount}
@@ -470,7 +470,7 @@ export default function PracticeExams() {
                   <h5 className="font-black text-base mb-1">SQLD Pass Kit</h5>
                   <p className="text-[10px] opacity-90 leading-relaxed mb-4">완벽한 합격 전략을 <br/>확인해보세요.</p>
                   <button 
-                    onClick={() => alert("SQLD Pass Kit은 현재 준비중 입니다.")}
+                    onClick={() => showAlert({ type: 'info', message: "현재 준비 중인 서비스입니다. ✨ SQLD 합격에 꼭 필요한 기능으로 곧 찾아뵙겠습니다." })}
                     className="w-full py-2 bg-white text-primary rounded-2xl text-[10px] font-black hover:bg-blue-50 transition-colors"
                   >
                     무료 혜택 받기
@@ -487,4 +487,3 @@ export default function PracticeExams() {
     </div>
   );
 }
-
