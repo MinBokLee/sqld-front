@@ -387,7 +387,22 @@ export default function WritePostPage() {
                       config={editorConfig}
                       data={editorData}
                       onReady={(editor) => {
+                        // 이미지 업로드 어댑터 설정
                         editor.plugins.get('FileRepository').createUploadAdapter = (loader) => new MyUploadAdapter(loader, user?.accessToken || '');
+
+                        // [Notion 방식 적용] 코드 블록 내부에서 엔터 2번 시 탈출 방지
+                        editor.keystrokes.set('Enter', (data, stop) => {
+                          const selection = editor.model.document.selection;
+                          const positionParent = selection.getFirstPosition()?.parent;
+                          
+                          // 커서가 코드 블록 내부에 있는 경우
+                          if (positionParent && positionParent.name === 'codeBlock') {
+                            // 에디터의 기본 탈출 로직이 실행되지 않도록 이벤트를 중단시키고 
+                            // 오직 줄바꿈(insertContent)만 실행되도록 명령을 내립니다.
+                            editor.execute('insertCodeBlockLineBreak');
+                            stop(); // 기본 동작(탈출) 차단
+                          }
+                        }, { priority: 'high' });
                       }}
                       onChange={(event, editor) => setEditorData(editor.getData())}
                     />
