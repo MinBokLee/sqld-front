@@ -97,7 +97,7 @@ function AppContent() {
   };
 
   return (
-    <Router>
+    <> {/*// <Router> 대신 빈 태그로 변경 */}
       <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white font-sans transition-colors duration-200">
         <Header 
           onOpenSignUpModal={openSignUpModal} 
@@ -137,12 +137,13 @@ function AppContent() {
           />
         )}
       </div>
-    </Router>
+    </> // </Router> 대신 빈 태그로 변경
   );
 }
 
 function App() {
   return (
+    <Router> {/*  */}
     <LanguageProvider>
       <AlertProvider>
         <UserProvider>
@@ -150,6 +151,7 @@ function App() {
         </UserProvider>
       </AlertProvider>
     </LanguageProvider>
+    </Router>
   );
 }
 

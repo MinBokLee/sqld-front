@@ -225,34 +225,42 @@ export default function AdminMemberPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] transition-colors duration-300">
-      <main className="max-w-[1440px] mx-auto px-4 md:px-10 py-10 font-sans">
+      <main className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8  py-10 font-sans"> {/* Header Width */}
         
         {/* Header Section */}
         <header className="mb-12">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+          {/* 네비게이션 (홈 > 관리자 설정*/}
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 ">
             <div>
-              <Link to="/" className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-primary mb-4 transition-colors font-bold group">
-                <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> 메인으로 돌아가기
-              </Link>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-2 h-8 bg-red-500 rounded-full" />
-                <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Admin Center</h1>
-              </div>
-              <p className="text-slate-500 dark:text-slate-400 font-medium text-lg">커뮤니티 회원 관리 및 권한 설정 시스템</p>
-            </div>
-            
-            <div className="flex items-center gap-3">
-              <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 text-center min-w-[120px]">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Members</p>
-                <p className="text-2xl font-black text-primary">{members.length}</p>
-              </div>
-              <div className="p-4 bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 text-center min-w-[120px]">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Selected</p>
-                <p className="text-2xl font-black text-red-500">{selectedUsers.length}</p>
-              </div>
-            </div>
+              <nav className="flex items-center gap-2 text-sm text-slate-400 mb-4">
+               <Link to="/" className="hover:text-primary transition-colors font-medium">홈</Link>
+              <ChevronRight size={14} />
+           <span className="text-slate-900 dark:text-white font-bold">관리자 설정</span>
+           </nav>
+           
+           {/* 메인 타이틀 (회원 권한 관리) */}
+                   <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+            회원 권한 관리
+          </h1>
+        </div>
+     
+        {/* 3. 우측 상태 정보 (선택한 인원 표시 등) */}
+        <div className="flex items-center gap-3">
+          <div className="px-5 py-2.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-3">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-r border-slate-100 dark:border-slate-700 pr-3">Total</span>
+            <span className="text-sm font-black text-primary">{members.length}명</span>
           </div>
-        </header>
+          {selectedUsers.length > 0 && (
+            <div className="px-5 py-2.5 bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-100 dark:border-red-900/30 flex items-center gap-3 animate-in fade-in zoom-in">
+              <span className="text-[10px] font-black text-red-400 uppercase tracking-widest border-r border-red-100 dark:border-red-900/30 pr-3">Selected</span>
+              <span className="text-sm font-black text-red-500">{selectedUsers.length}명</span>
+            </div>
+             )}
+            
+            
+        </div>
+      </div>
+    </header>
 
         {/* Search & Actions Bar */}
         <section className="bg-white dark:bg-[#1a222c] p-5 rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row gap-4 mb-10">

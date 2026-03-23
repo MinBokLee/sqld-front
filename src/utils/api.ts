@@ -14,7 +14,8 @@ const api = axios.create({
 // Request Interceptor: 모든 요청에 토큰 자동 부착
 api.interceptors.request.use((config) => {
   try {
-    const userStr = sessionStorage.getItem('user');
+    // sessionStorage 또는 localStorage에서 유저 정보 확인
+    const userStr = sessionStorage.getItem('user') || localStorage.getItem('user');
     if (userStr) {
       const user = JSON.parse(userStr);
       if (user.accessToken && !config.headers.Authorization) {
@@ -46,11 +47,13 @@ api.interceptors.response.use(
     const originalRequest = error.config;
 
     // 401 에러 발생 시 (토큰 만료) 및 리프레시 요청 자체가 아닌 경우, 또한 로그인 요청이 아닌 경우
+    // 로그아웃 호출 중 에러가 발생했을 때, 자동으로 알림창을 띄우지 못하게 설정
     if (
       error.response?.status === 401 && 
       !originalRequest._retry && 
       !originalRequest.url.includes('/api/token-refresh') &&
-      !originalRequest.url.includes('/api/common/signIn')
+      !originalRequest.url.includes('/api/common/signIn')&&
+      !originalRequest.url.includes('/api/common/logout')
     ) {
       
       if (isRefreshing) {
@@ -68,17 +71,21 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // 리프레시 API 호출 (제공해주신 데이터 구조 반영)
-        // 무한 루프 방지를 위해 기본 axios 사용
+        // 리프레시 API 호출
         const res = await axios.post('/api/token-refresh', null, { withCredentials: true });
         const data = res.data;
+        const rawData = data.result?.data || data.data || data.result || data;
         
-        // 제공된 JSON 구조: result.data.accessToken
-        if (data.success && data.result?.data?.accessToken) {
-          const newUserInfo = data.result.data;
+        if (rawData && rawData.accessToken) {
+          const newUserInfo = rawData;
           
-          // 세션 저장소 갱신
-          sessionStorage.setItem('user', JSON.stringify(newUserInfo));
+          // 저장소 갱신 (Remember Me 여부에 따라 분기)
+          const isRemembered = localStorage.getItem('rememberMe') === 'true';
+          if (isRemembered) {
+            localStorage.setItem('user', JSON.stringify(newUserInfo));
+          } else {
+            sessionStorage.setItem('user', JSON.stringify(newUserInfo));
+          }
           
           // 실패했던 요청 재시도
           originalRequest.headers.Authorization = `Bearer ${newUserInfo.accessToken}`;
@@ -91,8 +98,9 @@ api.interceptors.response.use(
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // 리프레시 실패 시 로그아웃 처리 (강제 페이지 이동 제거하여 알림 모달 보존)
+        // 리프레시 실패 시 로그아웃 처리
         sessionStorage.removeItem('user');
+        localStorage.removeItem('user');
         localStorage.removeItem('rememberMe');
         return Promise.reject(refreshError);
       } finally {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
+import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { CKEditor } from '@ckeditor/ckeditor5-react';
 import {
@@ -30,9 +30,18 @@ import {
 	Paragraph,
 	Table,
 	TableToolbar,
+	TableProperties,
+	TableCellProperties,
 	TextTransformation,
 	Undo,
   FileRepository,
+  FontColor,
+  FontBackgroundColor,
+  FontSize,
+  FontFamily,
+  MediaEmbed,
+  HtmlEmbed,
+  GeneralHtmlSupport,
   type EditorConfig
 } from 'ckeditor5';
 
@@ -41,9 +50,10 @@ import 'ckeditor5/ckeditor5.css';
 import { useUser } from '../contexts/UserContext';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
+import ConfirmModal from '../components/ConfirmModal';
 import { 
   Megaphone, BookOpen, Smile, Save, X, CloudUpload, 
-  Info, ShieldCheck, Zap, ChevronsRight, MessageCircle, Lightbulb, HelpCircle
+  Info, ShieldCheck, Zap, ChevronsRight, MessageCircle, Lightbulb, HelpCircle, Hash
 } from 'lucide-react';
 
 class MyUploadAdapter {
@@ -100,6 +110,13 @@ export default function WritePostPage() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // 복구 모달 상태
+  const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
+  const [tempData, setTempData] = useState<any>(null);
+
+  // 로컬 스토리지 키
+  const STORAGE_KEY = 'sqld_temp_post';
+
   useEffect(() => {
     if (editingBoardId) {
        fetch(`/api/board/list/${editingBoardId}`)
@@ -114,8 +131,59 @@ export default function WritePostPage() {
            setTag(post.tagName || '');
          }
        });
+    } else {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.title || parsed.content) {
+            setTempData(parsed);
+            setIsRestoreModalOpen(true);
+          }
+        } catch (e) {
+          console.error('Failed to parse temp data');
+        }
+      }
     }
   }, [editingBoardId]);
+
+  // 메타 정보 자동 저장
+  useEffect(() => {
+    if (editingBoardId) return; 
+    
+    const timer = setTimeout(() => {
+      if (title || tag || boardType !== initialType) {
+        const current = localStorage.getItem(STORAGE_KEY);
+        const base = current ? JSON.parse(current) : {};
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          ...base,
+          title,
+          boardType,
+          category,
+          tag,
+          updatedAt: new Date().toISOString()
+        }));
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [title, boardType, category, tag, editingBoardId, initialType]);
+
+  const handleRestore = () => {
+    if (tempData) {
+      setTitle(tempData.title || '');
+      setBoardType(tempData.boardType || 'S');
+      setCategory(tempData.category || 'question');
+      setEditorData(tempData.content || '');
+      setTag(tempData.tag || '');
+      showAlert({ type: 'success', message: "작성 중이던 내용을 복구했습니다. ✨" });
+    }
+    setIsRestoreModalOpen(false);
+  };
+
+  const handleDiscard = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setIsRestoreModalOpen(false);
+  };
 
   useEffect(() => {
     if (!user) {
@@ -177,22 +245,17 @@ export default function WritePostPage() {
       });
 
       if (response.ok) {
+        localStorage.removeItem(STORAGE_KEY);
         if (boardType === 'G' && !editingBoardId) {
           updateUser({ userStatus: 'Y' });
         }
         showAlert({ type: 'success', message: "처리가 완료되었습니다. ✅ 입력하신 내용이 안전하게 등록되었습니다." });
-        
-        // [1번 방식 적용] 뒤로가기 시 무조건 목록으로 가도록 히스토리 강제 주입
         const listUrl = `/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`;
-        
         if (editingBoardId) {
           const detailUrl = `/exam/${editingBoardId}?type=${boardType}`;
-          // 1. 현재의 '수정 페이지'를 '목록 페이지' 기록으로 대체합니다.
           navigate(listUrl, { replace: true });
-          // 2. 그 위에 '상세 페이지'를 새로 쌓습니다. (사용자가 목록에서 들어온 것처럼 속임)
           setTimeout(() => navigate(detailUrl), 0);
         } else {
-          // 신규 작성 시에는 현재의 '작성 페이지'를 '목록 페이지'로 대체하여 목록으로 보냅니다.
           navigate(listUrl, { replace: true });
         }
       } else {
@@ -214,22 +277,42 @@ export default function WritePostPage() {
   const editorConfig: EditorConfig = {
     plugins: [
       Essentials, Paragraph, Heading, Bold, Italic, CKLink, List, BlockQuote, Image, 
-      ImageUpload, FileRepository, Table, TableToolbar, Autoformat, AutoImage, 
+      ImageUpload, FileRepository, Table, TableToolbar, TableProperties, TableCellProperties, Autoformat, AutoImage, 
       ImageCaption, ImageInsert, ImageResize, ImageStyle, ImageToolbar, Indent, 
-      TextTransformation, Undo, Code, CodeBlock, Alignment, Highlight, HorizontalLine, CloudServices
+      TextTransformation, Undo, Code, CodeBlock, Alignment, Highlight, HorizontalLine, CloudServices,
+      FontColor, FontBackgroundColor, FontSize, FontFamily, MediaEmbed, HtmlEmbed, GeneralHtmlSupport, Autosave
     ],
     toolbar: [
       'heading', '|', 
+      'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor', '|',
       'bold', 'italic', 'link', 'bulletedList', 'numberedList', '|',
       'alignment', 'highlight', 'horizontalLine', '|',
-      'blockQuote', 'codeBlock', 'insertTable', 'uploadImage', '|', 
+      'blockQuote', 'codeBlock', 'insertTable', 'uploadImage', 'mediaEmbed', '|', 
       'undo', 'redo'
     ],
+    autosave: {
+      waitingTime: 1000,
+      save(editor) {
+        if (editingBoardId) return Promise.resolve();
+        const data = editor.getData();
+        const current = localStorage.getItem(STORAGE_KEY);
+        const base = current ? JSON.parse(current) : {};
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          ...base,
+          content: data,
+          updatedAt: new Date().toISOString()
+        }));
+        return Promise.resolve();
+      }
+    },
     image: {
       toolbar: ['imageStyle:inline', 'imageStyle:block', 'imageStyle:side', '|', 'toggleImageCaption', 'imageTextAlternative']
     },
     table: {
-      contentToolbar: ['tableColumn', 'tableRow', 'mergeTableCells']
+      contentToolbar: [
+        'tableColumn', 'tableRow', 'mergeTableCells', 
+        '|', 'tableProperties', 'tableCellProperties'
+      ]
     },
     codeBlock: {
       languages: [
@@ -239,13 +322,19 @@ export default function WritePostPage() {
         { language: 'plaintext', label: 'Plain text' }
       ]
     },
+    htmlSupport: {
+      allow: [
+        { name: 'div', attributes: true, classes: true, styles: true },
+        { name: 'span', attributes: true, classes: true, styles: true }
+      ]
+    },
     placeholder: '내용을 입력하세요...',
     licenseKey: 'GPL',
   };
 
   return (
     <div className="bg-slate-50 dark:bg-[#0d141b] min-h-screen font-sans">
-      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <main className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
         
         <nav className="flex items-center gap-2 text-sm text-slate-400 mb-8">
           <Link to="/" className="hover:text-primary transition-colors font-medium">{getText('common.home')}</Link>
@@ -274,7 +363,16 @@ export default function WritePostPage() {
                       { id: 'G', label: getText('board.join_greetings'), icon: Smile, adminOnly: false },
                     ].filter(cat => !cat.adminOnly || user?.userRole === 'ADMIN').map((cat) => (
                       <label key={cat.id} className="cursor-pointer">
-                        <input className="peer sr-only" name="boardType" type="radio" checked={boardType === cat.id} onChange={() => setBoardType(cat.id)} />
+                        <input 
+                          className="peer sr-only" 
+                          name="boardType" 
+                          type="radio" 
+                          checked={boardType === cat.id} 
+                          onChange={() => {
+                            setBoardType(cat.id);
+                            if (cat.id !== 'S') setTag(''); // 'S'가 아니면 태그 초기화
+                          }} 
+                        />
                         <div className="px-6 py-3 rounded-xl text-sm font-black text-slate-500 peer-checked:bg-white dark:peer-checked:bg-slate-700 peer-checked:text-primary peer-checked:shadow-sm transition-all flex items-center gap-2">
                           <cat.icon size={16} /> {cat.label}
                         </div>
@@ -310,6 +408,29 @@ export default function WritePostPage() {
                   />
                 </div>
 
+                {/* 해시태그 입력창 - SQLD-학습(S) 게시판에서만 노출 */}
+                {boardType === 'S' && (
+                  <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                      <Hash size={14} className="text-primary" /> 해시태그 (쉼표로 구분)
+                    </label>
+                    <div className="relative group">
+                      <input 
+                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent rounded-2xl outline-none text-sm font-bold focus:border-primary/20 focus:bg-white dark:focus:bg-slate-700 transition-all dark:text-white" 
+                        placeholder="예: SQLD, 서브쿼리, JOIN (엔터나 쉼표로 구분 가능)" 
+                        type="text" 
+                        value={tag} 
+                        onChange={(e) => setTag(e.target.value)} 
+                      />
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1">
+                        {tag.split(',').filter(t => t.trim()).slice(0, 3).map((t, i) => (
+                          <span key={i} className="px-2 py-1 bg-primary/10 text-primary text-[10px] font-black rounded-md">#{t.trim()}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3">
                   <label className="text-xs font-black uppercase tracking-widest text-slate-400">
                     내용 (SQL 코드는 <span className="text-primary font-black underline">" {`</>`} (코드 블록)</span> 버튼을 사용하세요)
@@ -342,15 +463,16 @@ export default function WritePostPage() {
                         border-left-color: #475569 !important;
                       }
 
+                      /* 고가독성 코드 블록 테마 */
                       .ck-content pre {
-                        background: #1e293b !important;
-                        color: #38bdf8 !important;
+                        background: #282c34 !important; /* 깊은 밤색 */
+                        color: #abb2bf !important;    /* 부드러운 흰색 */
                         font-family: 'Fira Code', 'JetBrains Mono', monospace !important;
                         padding: 1.5rem !important;
                         border-radius: 1rem !important;
-                        border-left: 4px solid #3b82f6 !important;
+                        border-left: 4px solid #61afef !important; /* 하늘색 포인트 */
                         margin: 1.5rem 0 !important;
-                        box-shadow: inset 0 2px 10px rgba(0,0,0,0.2) !important;
+                        box-shadow: inset 0 2px 10px rgba(0,0,0,0.3) !important;
                         height: auto !important;
                         display: block !important;
                         position: relative !important;
@@ -360,17 +482,29 @@ export default function WritePostPage() {
                         display: block !important;
                         font-size: 10px !important;
                         font-weight: 900 !important;
-                        color: #64748b !important;
+                        color: #5c6370 !important;
                         margin-bottom: 0.8rem !important;
                         letter-spacing: 0.1em !important;
                       }
+                      
+                      .ck-content pre code {
+                        background: transparent !important;
+                        color: inherit !important;
+                        padding: 0 !important;
+                        border-radius: 0 !important;
+                        font-size: inherit !important;
+                      }
 
-                      .ck-content code {
+                      .ck-content :not(pre) > code {
                         background-color: #e2e8f0 !important;
                         color: #e11d48 !important;
                         padding: 0.2rem 0.4rem !important;
                         border-radius: 0.4rem !important;
                         font-size: 0.9em !important;
+                      }
+                      .dark .ck-content :not(pre) > code {
+                        background-color: #1e293b !important;
+                        color: #fb7185 !important;
                       }
 
                       .ck-content .image img { 
@@ -381,26 +515,56 @@ export default function WritePostPage() {
                         border-radius: 1rem !important;
                         box-shadow: 0 10px 30px -10px rgba(0,0,0,0.1) !important;
                       }
+
+                      .marker-yellow { background-color: #fef08a !important; color: #854d0e !important; }
+                      .marker-green { background-color: #bbf7d0 !important; color: #166534 !important; }
+                      .marker-pink { background-color: #fbcfe8 !important; color: #9d174d !important; }
+                      .marker-blue { background-color: #bfdbfe !important; color: #1e40af !important; }
                     `}} />
                     <CKEditor
                       editor={ClassicEditor}
                       config={editorConfig}
                       data={editorData}
                       onReady={(editor) => {
-                        // 이미지 업로드 어댑터 설정
                         editor.plugins.get('FileRepository').createUploadAdapter = (loader) => new MyUploadAdapter(loader, user?.accessToken || '');
 
-                        // [Notion 방식 적용] 코드 블록 내부에서 엔터 2번 시 탈출 방지
+                        editor.keystrokes.set('Tab', (data, stop) => {
+                          const selection = editor.model.document.selection;
+                          const positionParent = selection.getFirstPosition()?.parent;
+                          if (positionParent && (positionParent.name === 'tableCell' || positionParent.name === 'table')) return; 
+                          editor.execute('input', { text: '    ' });
+                          stop();
+                        }, { priority: 'high' });
+
+                        editor.keystrokes.set('shift+Tab', (data, stop) => {
+                          editor.execute('outdent');
+                          stop();
+                        }, { priority: 'high' });
+
                         editor.keystrokes.set('Enter', (data, stop) => {
                           const selection = editor.model.document.selection;
                           const positionParent = selection.getFirstPosition()?.parent;
-                          
-                          // 커서가 코드 블록 내부에 있는 경우
                           if (positionParent && positionParent.name === 'codeBlock') {
-                            // 에디터의 기본 탈출 로직이 실행되지 않도록 이벤트를 중단시키고 
-                            // 오직 줄바꿈(insertContent)만 실행되도록 명령을 내립니다.
-                            editor.execute('insertCodeBlockLineBreak');
-                            stop(); // 기본 동작(탈출) 차단
+                            editor.execute('input', { text: '\n' });
+                            stop(); 
+                          }
+                        }, { priority: 'high' });
+
+                        editor.keystrokes.set('ArrowDown', (data, stop) => {
+                          const selection = editor.model.document.selection;
+                          const position = selection.getFirstPosition();
+                          const positionParent = position?.parent;
+
+                          if (positionParent && positionParent.name === 'codeBlock') {
+                            const isAtEnd = position.isAtEnd;
+                            if (isAtEnd && !positionParent.nextSibling) {
+                              editor.model.change(writer => {
+                                const paragraph = writer.createElement('paragraph');
+                                writer.insert(paragraph, writer.createPositionAfter(positionParent));
+                                writer.setSelection(paragraph, 'on');
+                              });
+                              stop();
+                            }
                           }
                         }, { priority: 'high' });
                       }}
@@ -465,10 +629,10 @@ export default function WritePostPage() {
                 <div className="group">
                   <div className="flex items-center gap-3 mb-2">
                     <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg text-emerald-500"><Save size={18} /></div>
-                    <p className="text-sm font-black dark:text-slate-200">자동 저장</p>
+                    <p className="text-sm font-black dark:text-slate-200">자동 저장 중</p>
                   </div>
                   <p className="text-xs text-slate-500 leading-relaxed ml-11">
-                    작성 중인 내용은 안전하게 보호됩니다. 안심하고 작성해 보세요.
+                    작성 중인 내용은 브라우저에 안전하게 보호됩니다. 안심하고 작성해 보세요.
                   </p>
                 </div>
               </div>
@@ -487,6 +651,16 @@ export default function WritePostPage() {
 
         </div>
       </main>
+
+      {/* 임시 저장 데이터 복구 모달 */}
+      <ConfirmModal 
+        isOpen={isRestoreModalOpen}
+        onClose={handleDiscard}
+        onConfirm={handleRestore}
+        title="작성 중인 글 복구"
+        message={`이전에 작성하던 내용이 발견되었습니다.\n(${tempData?.updatedAt ? new Date(tempData.updatedAt).toLocaleString() : ''})\n불러와서 계속 작성하시겠습니까?`}
+        type="info"
+      />
     </div>
   );
 }

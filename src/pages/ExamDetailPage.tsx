@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback, memo } from "react";
 import { 
   ChevronsRight, MessageSquare, Share2, Eye, Pencil, Trash2, 
-  ThumbsUp, ThumbsDown, Bookmark, Heart, TrendingUp, Check, X
+  ThumbsUp, ThumbsDown, Bookmark, Heart, TrendingUp, Check, X, Hash
 } from "lucide-react";
 import { useUser } from "../contexts/UserContext";
 import { useAlert } from "../contexts/AlertContext";
@@ -44,6 +44,7 @@ interface Exam {
   boardType: string;
   files: BoardFile[];
   tagName?: string;
+  tags?: string[];
 }
 
 interface PopularPost {
@@ -207,10 +208,40 @@ const CommentItem = memo(({
 });
 
 const POST_CONTENT_STYLE = `
-  .prose-container pre { background-color: #1e293b !important; color: #e2e8f0 !important; padding: 1.5rem !important; border-radius: 1rem !important; font-family: 'Fira Code', 'JetBrains Mono', monospace !important; font-size: 0.875rem !important; line-height: 1.7 !important; margin: 2rem 0 !important; overflow-x: auto !important; border: 1px solid rgba(255,255,255,0.1) !important; box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5) !important; }
-  .prose-container code { font-family: inherit !important; background: none !important; color: inherit !important; padding: 0 !important; }
-  .prose-container :not(pre) > code { background-color: #e2e8f0 !important; color: #e11d48 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.4rem !important; font-size: 0.9em !important; }
-  .dark .prose-container :not(pre) > code { background-color: #1e293b !important; color: #fb7185 !important; }
+  /* 고가독성 코드 블록 테마 (VS Code 스타일) */
+  .prose-container pre { 
+    background-color: #282c34 !important; 
+    color: #abb2bf !important; 
+    padding: 1.5rem !important; 
+    border-radius: 1rem !important; 
+    font-family: 'Fira Code', 'JetBrains Mono', monospace !important; 
+    font-size: 0.875rem !important; 
+    line-height: 1.7 !important; 
+    margin: 2rem 0 !important; 
+    overflow-x: auto !important; 
+    border-left: 4px solid #61afef !important; 
+    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5) !important; 
+  }
+  
+  .prose-container pre code { 
+    background: transparent !important; 
+    color: inherit !important; 
+    padding: 0 !important; 
+    font-family: inherit !important;
+  }
+
+  /* 인라인 코드 강조 */
+  .prose-container :not(pre) > code { 
+    background-color: #e2e8f0 !important; 
+    color: #e11d48 !important; 
+    padding: 0.2rem 0.4rem !important; 
+    border-radius: 0.4rem !important; 
+    font-size: 0.9em !important; 
+  }
+  .dark .prose-container :not(pre) > code { 
+    background-color: #1e293b !important; 
+    color: #fb7185 !important; 
+  }
   
   .prose-container blockquote {
     background: #1e293b !important;
@@ -239,18 +270,140 @@ const POST_CONTENT_STYLE = `
   }
 
   .prose-container img { 
-    max-width: 60% !important; 
-    max-height: 500px !important; 
+    max-width: 100% !important; 
+    max-height: 800px !important; 
     height: auto !important; 
     object-fit: contain !important; 
-    margin: 2rem auto !important; 
+    margin: 2rem 0 !important; 
     border-radius: 1rem !important; 
     box-shadow: 0 20px 50px -20px rgba(0,0,0,0.2) !important; 
     display: block;
     content-visibility: auto;
   }
+
+  /* CKEditor 이미지 정렬 클래스 지원 */
+  .prose-container .image-style-align-left {
+    float: left;
+    margin-right: 2rem !important;
+    margin-bottom: 1rem !important;
+    max-width: 50% !important;
+  }
+  .prose-container .image-style-align-right {
+    float: right;
+    margin-left: 2rem !important;
+    margin-bottom: 1rem !important;
+    max-width: 50% !important;
+  }
+  .prose-container .image-style-side {
+    float: right;
+    margin-left: 2rem !important;
+    margin-bottom: 1rem !important;
+    max-width: 30% !important;
+  }
+  .prose-container .image-style-block-align-left {
+    margin-left: 0 !important;
+    margin-right: auto !important;
+  }
+  .prose-container .image-style-block-align-right {
+    margin-left: auto !important;
+    margin-right: 0 !important;
+  }
+  .prose-container .image-style-align-center,
+  .prose-container figure.image {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    display: table;
+  }
+  
+  .prose-container .image-style-align-center img,
+  .prose-container figure.image img {
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .prose-container .image::after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+
+  /* 테이블(표) 스타일 최적화 (사용자 지정 색상 반영) */
+  .prose-container figure.table {
+    margin: 1.5rem 0 !important;
+    width: auto !important;
+    max-width: 100% !important;
+    display: block !important;
+  }
+  
+  .prose-container figure.table table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    background-color: white; 
+  }
+  .dark .prose-container figure.table table {
+    background-color: #1e293b;
+  }
+  
+  .prose-container figure.table th,
+  .prose-container figure.table td {
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-color: #cbd5e1; 
+    padding: 0.75rem 1rem !important;
+    min-width: 60px;
+    background-color: inherit; 
+  }
+  .dark .prose-container figure.table th,
+  .dark .prose-container figure.table td {
+    border-color: #475569;
+  }
+  
+  .prose-container figure.table th {
+    background-color: #f1f5f9;
+    font-weight: 900 !important;
+    color: #0f172a !important;
+  }
+  .dark .prose-container figure.table th {
+    background-color: #0f172a;
+    color: #f1f5f9 !important;
+  }
+
+  /* 표 정렬 지원 */
+  .prose-container figure.table.table-align-left { margin-left: 0 !important; margin-right: auto !important; }
+  .prose-container figure.table.table-align-center { margin-left: auto !important; margin-right: auto !important; }
+  .prose-container figure.table.table-align-right { margin-left: auto !important; margin-right: 0 !important; }
+
+  /* 폰트 사이즈 연동 */
+  .prose-container .text-tiny { font-size: 0.7em; }
+  .prose-container .text-small { font-size: 0.85em; }
+  .prose-container .text-big { font-size: 1.4em; }
+  .prose-container .text-huge { font-size: 1.8em; font-weight: 900; }
+
+  /* 하이라이트(형광펜) 색상 정의 */
+  .prose-container .marker-yellow { background-color: #fef08a !important; color: #854d0e !important; padding: 0 4px; border-radius: 4px; }
+  .prose-container .marker-green { background-color: #bbf7d0 !important; color: #166534 !important; padding: 0 4px; border-radius: 4px; }
+  .prose-container .marker-pink { background-color: #fbcfe8 !important; color: #9d174d !important; padding: 0 4px; border-radius: 4px; }
+  .prose-container .marker-blue { background-color: #bfdbfe !important; color: #1e40af !important; padding: 0 4px; border-radius: 4px; }
+
+  /* 미디어 임베드(Media) 스타일 */
+  .prose-container .media {
+    margin: 2rem 0;
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 20px 50px -20px rgba(0,0,0,0.2);
+  }
+  .prose-container .media iframe {
+    width: 100% !important;
+    aspect-ratio: 16 / 9;
+    border: none;
+  }
+
   @media (max-width: 640px) {
     .prose-container img { max-width: 100% !important; }
+    .prose-container figure.table { width: 100% !important; overflow-x: auto !important; display: block !important; }
+    .prose-container figure.table table { min-width: 500px !important; }
   }
 `;
 
@@ -271,6 +424,7 @@ export default function ExamDetailPage() {
   const [exam, setExam] = useState<Exam | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [popularPosts, setPopularPosts] = useState<PopularPost[]>([]);
+  const [trendingTags, setTrendingTags] = useState<string[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isLiking, setIsLiking] = useState(false);
   
@@ -357,6 +511,30 @@ export default function ExamDetailPage() {
     }
   }, []);
 
+  const fetchTrendingTags = useCallback(async () => {
+    try {
+      const response = await api.get(`/api/board/list/paging`, {
+        params: { page: 1, size: 30, boardType: 'S' }
+      });
+      const data = response.data;
+      if (data.success && data.result?.data?.list) {
+        const allTags = data.result.data.list.flatMap((p: any) => 
+          p.tags || (p.tagName ? p.tagName.split(',').map((t: string) => t.trim()) : [])
+        );
+        const tagCounts: { [key: string]: number } = {};
+        allTags.filter((t: string) => t).forEach((t: string) => { 
+          tagCounts[t] = (tagCounts[t] || 0) + 1; 
+        });
+        const sortedTags = Object.keys(tagCounts)
+          .sort((a, b) => tagCounts[b] - tagCounts[a])
+          .slice(0, 12);
+        setTrendingTags(sortedTags);
+      }
+    } catch (error) {
+      console.error("인기 태그 로드 실패:", error);
+    }
+  }, []);
+
   const fetchPostDetail = useCallback(async (showLoading = false) => {
     if (showLoading) setInitialLoading(true);
     try {
@@ -371,7 +549,7 @@ export default function ExamDetailPage() {
           id: examData.boardId, 
           title: examData.title, 
           authorName: examData.userName,
-          authorId: examData.userId,
+          authorId: String(examData.memberId || examData.userId || ''),
           authorImage: examData.profileImage || examData.userProfileImage || examData.authorImage,
           date: examData.createAt, fullDate: new Date(examData.createAt).toLocaleString('ko-KR'),
           views: examData.viewCount, commentsCount: examData.commentCount || 0,
@@ -379,6 +557,7 @@ export default function ExamDetailPage() {
           content: fixContentHtml(examData.content), boardType: examData.boardType,
           files: (examData.files || []).map((f: any) => ({ fileId: f.fileId, originName: f.originName, filePath: fixImagePath(f.filePath || f.saveName) })),
           tagName: examData.tagName,
+          tags: examData.tags || (examData.tagName ? examData.tagName.split(',').map((t: string) => t.trim()) : []),
         });
       }
     } catch (error) { 
@@ -392,7 +571,8 @@ export default function ExamDetailPage() {
     fetchPostDetail(true);
     fetchComments();
     fetchPopularPosts();
-  }, [id, fetchPostDetail, fetchComments, fetchPopularPosts]);
+    fetchTrendingTags();
+  }, [id, fetchPostDetail, fetchComments, fetchPopularPosts, fetchTrendingTags]);
 
   const handleCommentSubmit = async (content: string, parentId: number | null = null) => {
     if (!user) { 
@@ -404,7 +584,6 @@ export default function ExamDetailPage() {
     try {
       const response = await api.post(`/api/board/writeComment`, {
         boardId: Number(id),
-        memberId: user.memberId,
         content,
         parentCommentId: parentId
       }, {
@@ -425,7 +604,7 @@ export default function ExamDetailPage() {
   const handleCommentUpdate = async (commentId: number, content: string) => {
     try {
       await api.put(`/api/board/modifyComment`, null, {
-        params: { commentId, content, memberId: user?.memberId || '' },
+        params: { commentId, content },
         headers: { 'Authorization': `Bearer ${user?.accessToken}` }
       });
       await fetchComments();
@@ -443,7 +622,7 @@ export default function ExamDetailPage() {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
           await api.delete(`/api/board/deleteComment`, {
-            params: { commentId, memberId: user?.memberId || '' },
+            params: { commentId },
             headers: { 'Authorization': `Bearer ${user?.accessToken}` }
           });
           await fetchComments(); 
@@ -508,13 +687,22 @@ export default function ExamDetailPage() {
 
   if (initialLoading) return <div className="flex items-center justify-center min-h-screen bg-white dark:bg-[#0d141b]"><div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div></div>;
 
-  const isAuthorUnknown = exam?.authorId === 'unknown';
+  const isAuthorUnknown = exam?.authorId === 'unknown' || !exam?.authorId;
   const authorProfileUrl = exam ? getProfileImageUrl(exam.authorImage, isAuthorUnknown) : null;
   const myProfileUrl = getProfileImageUrl(user?.profileImage);
 
+  // 권한 체크 로직 강화: memberId와 userId 모두 대응
+  const canEdit = user && (
+    user.userRole === 'ADMIN' || 
+    (exam?.authorId && (
+      String(user.memberId) === String(exam.authorId) || 
+      String(user.userId) === String(exam.authorId)
+    ))
+  );
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white transition-colors relative z-10">
-      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <main className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <nav className="flex items-center gap-2 text-sm text-slate-400 mb-8">
           <Link to="/" className="hover:text-primary transition-colors font-medium">홈</Link>
           <ChevronsRight size={14} />
@@ -533,7 +721,19 @@ export default function ExamDetailPage() {
                   <div className="p-6 sm:p-10 border-b border-slate-50 dark:border-slate-800">
                     <div className="flex items-center gap-2 mb-6">
                       <span className="px-3 py-1 bg-primary text-white text-[10px] font-black rounded-lg uppercase tracking-tighter">{exam.boardType === 'N' ? 'Announcement' : 'Community'}</span>
-                      {exam.tagName && <span className="text-xs text-slate-400 font-bold bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-md">#{exam.tagName}</span>}
+                      {exam.tags && exam.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {exam.tags.map((t, i) => (
+                            <Link 
+                              key={i} 
+                              to={`/practice-exams?type=${exam.boardType}&tagName=${encodeURIComponent(t)}`}
+                              className="text-[10px] text-primary font-black bg-primary/5 hover:bg-primary/10 px-2 py-1 rounded-md transition-colors flex items-center gap-1"
+                            >
+                              <Hash size={10} /> {t}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <h1 className="text-2xl sm:text-4xl font-black leading-tight mb-8">{exam.title}</h1>
                     <div className="flex flex-wrap items-center justify-between gap-6">
@@ -566,7 +766,7 @@ export default function ExamDetailPage() {
                       <button title="스크랩" className="p-3 rounded-xl text-slate-400 hover:text-orange-500 hover:bg-orange-50 transition-all"><Bookmark size={22} /></button>
                       <button title="공유하기" className="p-3 rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-all"><Share2 size={22} /></button>
                     </div>
-                    {user && (user.memberId === exam.authorId || user.userRole === 'ADMIN') && !isAuthorUnknown && (
+                    {canEdit && (
                       <div className="flex items-center gap-2">
                         <button 
                           onClick={() => navigate(`/write-post?boardId=${exam.id}&type=${exam.boardType}`, { replace: true })}
@@ -650,21 +850,27 @@ export default function ExamDetailPage() {
                   <div className="text-xs text-slate-400 text-center py-4">인기 게시글이 없습니다.</div>
                 )}
               </div>
-              
-              <div className="mt-8 p-5 bg-gradient-to-br from-primary to-blue-600 rounded-2xl text-white shadow-lg overflow-hidden relative group">
-                <div className="relative z-10">
-                  <h5 className="font-black text-base mb-1">SQLD Pass Kit</h5>
-                  <p className="text-[10px] opacity-90 leading-relaxed mb-4">완벽한 합격 전략을 <br/>확인해보세요.</p>
-                  <button 
-                    onClick={() => showAlert({ type: 'info', message: "현재 준비 중인 서비스입니다. ✨ SQLD 합격에 꼭 필요한 기능으로 곧 찾아뵙겠습니다." })}
-                    className="w-full py-2 bg-white text-primary rounded-2xl text-[10px] font-black hover:bg-blue-50 transition-colors"
+            </div>
+
+            <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-6">
+              <h3 className="text-sm font-bold text-[#0d141b] dark:text-white mb-4 flex items-center gap-2">
+                <Hash className="text-primary" size={18} />
+                실시간 급상승 태그
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {trendingTags.length > 0 ? trendingTags.map((tag, i) => (
+                  <Link 
+                    key={i} 
+                    to={`/practice-exams?type=S&tagName=${encodeURIComponent(tag)}`}
+                    className="px-3 py-1.5 rounded-lg bg-[#f6f7f8] dark:bg-slate-800 text-xs font-medium text-[#4c739a] dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-all"
                   >
-                    무료 혜택 받기
-                  </button>
-                </div>
-                <div className="absolute -right-2 -bottom-2 opacity-10 group-hover:scale-110 transition-transform duration-500">
-                  <ThumbsUp size={80} />
-                </div>
+                    #{tag}
+                  </Link>
+                )) : (
+                  <p className="text-[11px] text-slate-400 py-4 text-center w-full bg-slate-50 dark:bg-slate-800/50 rounded-xl font-bold "> 
+                    현재 작성된 태그 데이터가 없습니다.
+                  </p>
+                )}
               </div>
             </div>
           </aside>

@@ -55,6 +55,13 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
       navigate(`/practice-exams?type=S&page=1&keyword=${encodeURIComponent(headerKeyword.trim())}`);
       setHeaderKeyword('');
       setIsMobileMenuOpen(false);
+    } else {
+      let message = "키워드를 입력해 주세요. ⚠️ 검색어 없이 조회를 진행할 수 없습니다.";
+      if (currentType === 'N') message = "확인하실 공지사항 키워드를 입력해 주세요. 📢";
+      else if (currentType === 'S') message = "키워드를 입력해 주세요. ⚠️ 학습 게시판 내에서 검색어를 통해 조회가 가능합니다.";
+      else if (currentType === 'G') message = "찾으시는 회원님이나 인사말 키워드를 입력해 주세요. 😊";
+      
+      showAlert({ type: 'warning', message });
     }
   };
 
@@ -134,17 +141,17 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
             </nav>
           </div>
 
-          <div className="flex-1 max-w-md hidden md:block">
+          <div className="flex-1 max-w-lg hidden md:block ml-4">
             <form onSubmit={handleHeaderSearch} className="relative flex items-center">
-              <div className="absolute left-3 text-[#4c739a] pointer-events-none">
-                <Search className="w-5 h-5" />
+              <div className="absolute left-4 text-[#64748b] pointer-events-none">
+                <Search className="w-[18px] h-[18px]" />
               </div>
               <input
                 type="text"
                 value={headerKeyword}
                 onChange={(e) => setHeaderKeyword(e.target.value)}
-                className="w-full h-10 pl-10 pr-4 rounded-lg border-none bg-[#e7edf3] dark:bg-slate-800 text-[#0d141b] dark:text-white placeholder:text-[#4c739a] focus:ring-2 focus:ring-primary focus:outline-none text-sm"
-                placeholder={getText('quick_search.placeholder')}
+                className="w-full h-11 pl-11 pr-4 rounded-xl border-none bg-[#f1f5f9] dark:bg-slate-800 text-[#0d141b] dark:text-white placeholder:text-[#64748b] focus:ring-2 focus:ring-primary focus:outline-none text-[14px] font-medium"
+                placeholder={currentType === 'N' ? '공지사항 게시판 전용 검색창 입니다.' : currentType === 'G' ? '가입 인사 게시판 전용 검색창 입니다.' : 'SQLD 학습 게시판 전용 검색창 입니다.'}
               />
             </form>
           </div>

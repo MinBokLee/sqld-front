@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
-import api from '../utils/api'; // Axios 인스턴스 임입
-import { useAlert } from './AlertContext'; // Added
+import api from '../utils/api'; 
+import { useAlert } from './AlertContext';
+import { useNavigate} from 'react-router-dom';
 
 interface User {
   userId: string;
@@ -27,14 +28,16 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { showAlert } = useAlert(); // Added
+  const { showAlert } = useAlert(); 
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
 
   const clearUser = useCallback(() => {
     setUser(null);
     try {
       sessionStorage.removeItem('user');
+      localStorage.removeItem('user');
       localStorage.removeItem('rememberMe');
     } catch (e) {
       console.warn('Storage access failed during clearUser');
@@ -46,7 +49,12 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!prev) return null;
       const updated = { ...prev, ...data };
       try {
-        sessionStorage.setItem('user', JSON.stringify(updated));
+        const isRemembered = localStorage.getItem('rememberMe') === 'true';
+        if (isRemembered) {
+          localStorage.setItem('user', JSON.stringify(updated));
+        } else {
+          sessionStorage.setItem('user', JSON.stringify(updated));
+        }
       } catch (e) {
         console.warn('Storage access failed during updateUser');
       }
@@ -74,8 +82,14 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           userStatus: rawData.userStatus,
         };
         setUser(newUser);
+        
+        const isRemembered = localStorage.getItem('rememberMe') === 'true';
         try {
-          sessionStorage.setItem('user', JSON.stringify(newUser));
+          if (isRemembered) {
+            localStorage.setItem('user', JSON.stringify(newUser));
+          } else {
+            sessionStorage.setItem('user', JSON.stringify(newUser));
+          }
         } catch (e) {
           console.warn('Storage access failed during refreshSession');
         }
@@ -93,8 +107,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let isRemembered = false;
 
       try {
-        storedUser = sessionStorage.getItem('user');
         isRemembered = localStorage.getItem('rememberMe') === 'true';
+        storedUser = sessionStorage.getItem('user') || (isRemembered ? localStorage.getItem('user') : null);
       } catch (e) {
         console.warn('Initial storage access failed');
       }
@@ -106,13 +120,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error('Failed to parse stored user data');
         }
       } else if (isRemembered) {
+        // localStorage에 유저 정보는 없지만 rememberMe는 켜져있는 경우 (토큰 리프레시 시도)
         const success = await refreshSession();
         if (!success) clearUser();
       }
       setIsLoading(false);
     };
 
-    // Axios 인터셉터에서 토큰 갱신 성공 시 상태 동기화
     const handleRefreshed = (e: any) => {
       if (e.detail) {
         setUser(e.detail);
@@ -152,12 +166,14 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         setUser(newUser);
         try {
-          sessionStorage.setItem('user', JSON.stringify(newUser));
-          
           if (rememberMe) {
             localStorage.setItem('rememberMe', 'true');
+            localStorage.setItem('user', JSON.stringify(newUser));
+            sessionStorage.removeItem('user'); // 중복 방지
           } else {
             localStorage.removeItem('rememberMe');
+            localStorage.removeItem('user');
+            sessionStorage.setItem('user', JSON.stringify(newUser));
           }
         } catch (e) {
           console.warn('Storage access failed during login save');
@@ -188,19 +204,23 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = useCallback(async () => {
     setIsLoading(true);
     try {
+      // 1. 서버에 로그아웃 알림 (토큰 포함)
       await api.post('/api/common/logout', null, {
         headers: {
           'Authorization': `Bearer ${user?.accessToken}`,
         }
       });
     } catch (error) {
-      console.error(error);
+      console.error('Logout API failed, but proceeding to clear local session.');
     } finally {
-      clearUser();
+      // 2. 로컬 데이터 삭제
+      clearUser(); 
       setIsLoading(false);
-      window.location.href = '/'; 
+      // window.location.href = '/'; 
+      // 3. 핵 새로고침 없이 부드럽게 이동
+      navigate('/' , {replace: true});
     }
-  }, [user?.accessToken, clearUser]);
+  }, [user?.accessToken, clearUser, navigate]);
 
   return (
     <UserContext.Provider value={{ user, login, logout, isLoading, clearUser, updateUser }}>
