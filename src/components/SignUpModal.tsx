@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Mail, Lock, CheckCircle2, ShieldCheck, Clock, Send, AlertCircle, Check } from 'lucide-react';
+import { 
+  X, User, Mail, Lock, CheckCircle2, ShieldCheck, Clock, Send, AlertCircle, Check,
+  Eye, EyeOff
+} from 'lucide-react';
 import { useAlert } from '../contexts/AlertContext';
 
 interface SignUpModalProps {
@@ -39,6 +42,21 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
   const [timeLeft, setTimeLeft] = useState(300);
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // 배경 스크롤 방지 로직
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     const newErrors = { ...errors };
@@ -291,7 +309,14 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
               <div className="space-y-1">
                 <div className="relative group">
                   <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${errors.userPassword ? 'text-red-400' : 'text-slate-400 group-focus-within:text-primary'}`} size={20} />
-                  <input required className={`w-full h-14 pl-12 pr-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent outline-none font-bold text-sm focus:ring-2 focus:ring-primary/20 transition-all ${errors.userPassword ? 'border-red-100 focus:border-red-400' : ''}`} placeholder="비밀번호 (영문/숫자/특수문자)" type="password" value={formData.userPassword} onChange={(e) => setSignUpData({ ...formData, userPassword: e.target.value })} />
+                  <input required className={`w-full h-14 pl-12 pr-12 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent outline-none font-bold text-sm focus:ring-2 focus:ring-primary/20 transition-all ${errors.userPassword ? 'border-red-100 focus:border-red-400' : ''}`} placeholder="비밀번호 (영문/숫자/특수문자)" type={showPassword ? "text" : "password"} value={formData.userPassword} onChange={(e) => setSignUpData({ ...formData, userPassword: e.target.value })} />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-1"
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
                 {errors.userPassword && <p className="text-[11px] text-red-500 font-bold ml-2 flex items-center gap-1"><AlertCircle size={12}/> {errors.userPassword}</p>}
               </div>
@@ -299,7 +324,14 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
               <div className="space-y-1">
                 <div className="relative group">
                   <Lock className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${errors.confirmPassword ? 'text-red-400' : 'text-slate-400 group-focus-within:text-primary'}`} size={20} />
-                  <input required className={`w-full h-14 pl-12 pr-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent outline-none font-bold text-sm focus:ring-2 focus:ring-primary/20 transition-all ${errors.confirmPassword ? 'border-red-100 focus:border-red-400' : ''}`} placeholder="비밀번호 재입력" type="password" value={formData.confirmPassword} onChange={(e) => setSignUpData({ ...formData, confirmPassword: e.target.value })} />
+                  <input required className={`w-full h-14 pl-12 pr-12 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 border-transparent outline-none font-bold text-sm focus:ring-2 focus:ring-primary/20 transition-all ${errors.confirmPassword ? 'border-red-100 focus:border-red-400' : ''}`} placeholder="비밀번호 재입력" type={showConfirmPassword ? "text" : "password"} value={formData.confirmPassword} onChange={(e) => setSignUpData({ ...formData, confirmPassword: e.target.value })} />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-1"
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
                 {errors.confirmPassword && <p className="text-[11px] text-red-500 font-bold ml-2 flex items-center gap-1"><AlertCircle size={12}/> {errors.confirmPassword}</p>}
               </div>

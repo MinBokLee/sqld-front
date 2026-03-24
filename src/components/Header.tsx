@@ -4,7 +4,8 @@ import { useUser } from '../contexts/UserContext';
 import { useAlert } from '../contexts/AlertContext'; // Added
 import { useState, useRef, useEffect } from 'react';
 import ProfileDropdown from './ProfileDropdown';
-import WithdrawalModal from './WithdrawalModal'; 
+import WithdrawalModal from './WithdrawalModal';
+import api from '../utils/api'; 
 
 interface HeaderProps {
   onOpenSignUpModal: () => void;
@@ -151,7 +152,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
                 value={headerKeyword}
                 onChange={(e) => setHeaderKeyword(e.target.value)}
                 className="w-full h-11 pl-11 pr-4 rounded-xl border-none bg-[#f1f5f9] dark:bg-slate-800 text-[#0d141b] dark:text-white placeholder:text-[#64748b] focus:ring-2 focus:ring-primary focus:outline-none text-[14px] font-medium"
-                placeholder={currentType === 'N' ? '공지사항 게시판 전용 검색창 입니다.' : currentType === 'G' ? '가입 인사 게시판 전용 검색창 입니다.' : 'SQLD 학습 게시판 전용 검색창 입니다.'}
+                placeholder={'SQLD 학습 게시판 전용 검색창 입니다.'}
               />
             </form>
           </div>

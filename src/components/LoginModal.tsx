@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, Mail, Lock, LogIn, 
-  ArrowRight, Github, Chrome, MessageCircle, AlertCircle, CheckCircle2
+  ArrowRight, Github, Chrome, MessageCircle, AlertCircle, CheckCircle2,
+  Eye, EyeOff
 } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { useAlert } from '../contexts/AlertContext';
@@ -25,8 +26,21 @@ export default function LoginModal({
   const { showAlert } = useAlert();
   const [userId, setUserId] = useState('');
   const [userPass, setUserPass] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // 배경 스크롤 방지 로직
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -87,12 +101,19 @@ export default function LoginModal({
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-primary transition-colors" size={20} />
                 <input 
                   required
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder={getText('login.password_placeholder')}
-                  className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none transition-all dark:text-white"
+                  className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-2xl py-4 pl-12 pr-12 text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none transition-all dark:text-white"
                   value={userPass}
                   onChange={(e) => setUserPass(e.target.value)}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors p-1"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 

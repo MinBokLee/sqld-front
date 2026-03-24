@@ -129,7 +129,14 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const handleRefreshed = (e: any) => {
       if (e.detail) {
-        setUser(e.detail);
+        const newUser = e.detail;
+        setUser(prev => {
+          // 현재 유저의 토큰과 새로 받은 토큰이 다를 때만 상태 업데이트
+          if (prev?.accessToken !== newUser.accessToken) {
+            return newUser;
+          }
+          return prev;
+        });
       }
     };
 

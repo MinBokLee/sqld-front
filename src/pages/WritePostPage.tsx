@@ -46,14 +46,15 @@ import {
 } from 'ckeditor5';
 
 import 'ckeditor5/ckeditor5.css';
-
+import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../contexts/UserContext';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
 import ConfirmModal from '../components/ConfirmModal';
+import api from '../utils/api'; 
 import { 
   Megaphone, BookOpen, Smile, Save, X, CloudUpload, 
-  Info, ShieldCheck, Zap, ChevronsRight, MessageCircle, Lightbulb, HelpCircle, Hash
+  Info, ShieldCheck, Zap, ChevronsRight, MessageCircle, Lightbulb, HelpCircle, Hash, Download, ZoomIn, FileText
 } from 'lucide-react';
 
 class MyUploadAdapter {
@@ -67,19 +68,16 @@ class MyUploadAdapter {
     return this.loader.file.then((file: File) => new Promise((resolve, reject) => {
       const data = new FormData();
       data.append('upload', file);
-      fetch(`/api/board/upload`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${this.accessToken}` },
-        body: data,
+      
+      api.post(`/api/board/upload`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       })
-      .then(res => res.json())
-      .then(result => {
-        const imageUrl = result.url || result.result?.data?.[0];
-        if (imageUrl) {
-          const fileName = imageUrl.split(/[\\/]/).pop();
-          resolve({ default: `/uploads/${fileName}` });
+      .then(res => {
+        const result = res.data;
+        if (result.uploaded || result.upload) {
+          resolve({ default: result.url });
         } else {
-          reject('이미지 업로드 실패');
+          reject(result.error?.message || '이미지 업로드 실패');
         }
       })
       .catch(() => reject('네트워크 오류'));
@@ -88,12 +86,56 @@ class MyUploadAdapter {
   abort() {}
 }
 
+const ImageLightbox = ({ src, onClose }: { src: string | null, onClose: () => void }) => {
+  return (
+    <AnimatePresence>
+      {src && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 z-[1000] bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="relative max-w-full max-h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img 
+              src={src} 
+              alt="Original" 
+              className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl border-4 border-white/10"
+            />
+            <div className="absolute -top-12 right-0 flex items-center gap-3">
+              <button 
+                onClick={onClose}
+                className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors backdrop-blur-md border border-white/10"
+                title="닫기"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-white/60 text-xs font-bold tracking-widest uppercase bg-black/20 px-4 py-1 rounded-full">
+              Click outside to close
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 export default function WritePostPage() {
   const { user, clearUser, updateUser } = useUser();
   const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editorRef = useRef<any>(null); 
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
 
@@ -107,31 +149,76 @@ export default function WritePostPage() {
   const [editorData, setEditorData] = useState('');
   const [tag, setTag] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [existingFiles, setExistingFiles] = useState<any[]>([]);
+  const [deletedFileIds, setDeletedFileIds] = useState<number[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 복구 모달 상태
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [isRestoreModalOpen, setIsRestoreModalOpen] = useState(false);
   const [tempData, setTempData] = useState<any>(null);
+  
+  const STORAGE_KEY = user ? `sqld_temp_post_${user.memberId}` : null;
 
-  // 로컬 스토리지 키
-  const STORAGE_KEY = 'sqld_temp_post';
+  const fixImagePath = (path: string) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    const fileName = path.split(/[\\/]/).pop();
+    return `/uploads/${fileName}`;
+  };
+
+  const fixContentHtml = (html: string) => {
+    if (!html) return '';
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+    let correctedHtml = html.replace(/src="http:\/\/localhost:8881\/uploads\//g, 'src="/uploads/');
+    correctedHtml = correctedHtml.replace(new RegExp(`src="${API_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/uploads/`, 'g'), 'src="/uploads/');
+    correctedHtml = correctedHtml.replace(/src="[^"]*\/upload\/([^"]+)"/g, 'src="/uploads/$1');
+    return correctedHtml;
+  };
+
+  const removeImageFromEditor = (imageSrc: string) => {
+    if (!imageSrc) return;
+    const fileName = imageSrc.split('/').pop();
+    if (!fileName) return;
+
+    setEditorData(prev => {
+      const regex = new RegExp(`<figure[^>]*>.*?src=[^>]*${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^>]*>.*?</figure>|<img[^>]*src=[^>]*${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^>]*>`, 'gi');
+      return prev.replace(regex, '');
+    });
+
+    if (editorRef.current) {
+      const currentHtml = editorRef.current.getData();
+      const regex = new RegExp(`<figure[^>]*>.*?src=[^>]*${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^>]*>.*?</figure>|<img[^>]*src=[^>]*${fileName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^>]*>`, 'gi');
+      const updatedHtml = currentHtml.replace(regex, '');
+      editorRef.current.setData(updatedHtml);
+    }
+  };
 
   useEffect(() => {
     if (editingBoardId) {
-       fetch(`/api/board/list/${editingBoardId}`)
-       .then(res => res.json())
-       .then(data => {
-         const post = data.result?.data;
+       api.get(`/api/board/list/${editingBoardId}`)
+       .then(res => {
+         const post = res.data.result?.data;
          if (post) {
            setTitle(post.title || '');
            setBoardType(post.boardType || 'S');
            setCategory(post.category || 'question');
-           setEditorData(post.content || '');
+           const correctedHtml = fixContentHtml(post.content || '');
+           setEditorData(correctedHtml);
            setTag(post.tagName || '');
+
+           const files = post.fileList || post.boardFileList || post.files || [];
+           setExistingFiles(files.map((f: any) => ({
+             ...f,
+             displayPath: fixImagePath(f.filePath || f.saveName || '')
+           })));
          }
+       })
+       .catch(() => {
+         showAlert({ type: 'error', message: "게시글을 불러올 수 없거나 권한이 없습니다. ⚠️" });
+         navigate(-1);
        });
-    } else {
+    } else if (STORAGE_KEY) {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         try {
@@ -140,33 +227,25 @@ export default function WritePostPage() {
             setTempData(parsed);
             setIsRestoreModalOpen(true);
           }
-        } catch (e) {
-          console.error('Failed to parse temp data');
-        }
+        } catch (e) { console.error('Failed to parse temp data'); }
       }
     }
-  }, [editingBoardId]);
+  }, [editingBoardId, navigate, showAlert, STORAGE_KEY]);
 
-  // 메타 정보 자동 저장
   useEffect(() => {
-    if (editingBoardId) return; 
-    
+    if (editingBoardId || !STORAGE_KEY) return; 
     const timer = setTimeout(() => {
       if (title || tag || boardType !== initialType) {
+        const content = editorData;
         const current = localStorage.getItem(STORAGE_KEY);
         const base = current ? JSON.parse(current) : {};
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          ...base,
-          title,
-          boardType,
-          category,
-          tag,
-          updatedAt: new Date().toISOString()
+          ...base, title, content, boardType, category, tag, updatedAt: new Date().toISOString()
         }));
       }
     }, 1000);
     return () => clearTimeout(timer);
-  }, [title, boardType, category, tag, editingBoardId, initialType]);
+  }, [title, boardType, category, tag, editorData, editingBoardId, initialType, STORAGE_KEY]);
 
   const handleRestore = () => {
     if (tempData) {
@@ -175,13 +254,14 @@ export default function WritePostPage() {
       setCategory(tempData.category || 'question');
       setEditorData(tempData.content || '');
       setTag(tempData.tag || '');
+      if (editorRef.current) editorRef.current.setData(tempData.content || '');
       showAlert({ type: 'success', message: "작성 중이던 내용을 복구했습니다. ✨" });
     }
     setIsRestoreModalOpen(false);
   };
 
   const handleDiscard = () => {
-    localStorage.removeItem(STORAGE_KEY);
+    if (STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
     setIsRestoreModalOpen(false);
   };
 
@@ -196,76 +276,78 @@ export default function WritePostPage() {
   const uploadSingleFile = async (file: File) => {
     const data = new FormData();
     data.append('upload', file);
-    const res = await fetch(`/api/board/upload`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${user?.accessToken}` },
-      body: data,
+    const res = await api.post(`/api/board/upload`, data, {
+      headers: { 'Content-Type': 'multipart/form-data' }
     });
-    const result = await res.json();
-    const url = result.url || result.result?.data?.[0];
-    const fileName = url.split(/[\\/]/).pop();
-    return `/uploads/${fileName}`;
+    const result = res.data;
+    let url = result.url || result.result?.data?.[0];
+    if (url.startsWith('/uploads') && !url.startsWith('/uploads/')) {
+      url = url.replace('/uploads', '/uploads/');
+    }
+    return url;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !editorData.trim()) {
+    
+    let currentEditorContent = '';
+
+    if (editorRef.current) {
+      editorRef.current.editing.view.focus();
+      await new Promise(resolve => setTimeout(resolve, 300));
+      currentEditorContent = editorRef.current.getData();
+    } else {
+      currentEditorContent = editorData;
+    }
+
+    if (!title.trim() || !currentEditorContent.trim()) {
       showAlert({ type: 'warning', message: "입력되지 않은 내용이 있습니다. ⚠️ 제목과 내용을 모두 작성해 주세요." });
       return;
     }
     setIsSubmitting(true);
 
     try {
-      let finalContent = editorData;
-      if (selectedFiles.length > 0) {
-        const uploadPromises = selectedFiles.map(file => uploadSingleFile(file));
-        const uploadedUrls = await Promise.all(uploadPromises);
-        const imagesHtml = uploadedUrls.map(url => `<figure class="image"><img src="${url}"></figure>`).join('');
-        finalContent += `<hr><p><strong>[첨부 이미지]</strong></p>${imagesHtml}`;
-      }
-
       const formData = new FormData();
+      if (editingBoardId) {
+        formData.append('boardId', editingBoardId);
+        if (deletedFileIds.length > 0) {
+          deletedFileIds.forEach(id => formData.append('deleteFileIds', String(id)));
+        }
+      }
       formData.append('title', title);
-      formData.append('content', finalContent);
+      formData.append('content', currentEditorContent); 
       formData.append('boardType', boardType);
       formData.append('category', boardType === 'S' ? category : ''); 
       formData.append('tagName', tag);
       formData.append('memberId', user?.memberId || '');
 
       if (selectedFiles && selectedFiles.length > 0) {
-        selectedFiles.forEach(file => {
-          formData.append('files', file);
-        });
+        selectedFiles.forEach(file => { formData.append('files', file); });
       }
+      
       const url = editingBoardId ? `/api/board/list/${editingBoardId}` : `/api/board/list/write`;
-      const response = await fetch(url, {
-        method: editingBoardId ? 'PUT' : 'POST',
-        headers: { 'Authorization': `Bearer ${user?.accessToken}` },
-        body: formData,
+      const response = await api({
+        method: editingBoardId ? 'put' : 'post',
+        url: url,
+        data: formData,
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      if (response.ok) {
-        localStorage.removeItem(STORAGE_KEY);
-        if (boardType === 'G' && !editingBoardId) {
-          updateUser({ userStatus: 'Y' });
-        }
-        showAlert({ type: 'success', message: "처리가 완료되었습니다. ✅ 입력하신 내용이 안전하게 등록되었습니다." });
-        const listUrl = `/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`;
-        if (editingBoardId) {
-          const detailUrl = `/exam/${editingBoardId}?type=${boardType}`;
-          navigate(listUrl, { replace: true });
-          setTimeout(() => navigate(detailUrl), 0);
+      if (response.status === 200 || response.status === 201) {
+        if (STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
+        if (boardType === 'G' && !editingBoardId) updateUser({ userStatus: 'Y' });
+        showAlert({ type: 'success', message: "처리가 완료되었습니다. ✅" });
+        const targetId = editingBoardId || response.data.result?.data?.boardId;
+        if (targetId) {
+          navigate(`/exam/${targetId}?type=${boardType}`, { replace: true });
         } else {
-          navigate(listUrl, { replace: true });
+          navigate(`/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`, { replace: true });
         }
-      } else {
-        throw new Error('저장 실패');
       }
-    } catch (error) {
-      showAlert({ type: 'error', message: "저장 중에 문제가 발생했어요. ⏳ 잠시 후 다시 시도해 주시겠어요?" });
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (error: any) {
+      if (error.response?.status === 403) showAlert({ type: 'error', message: "수정 권한이 없습니다. ⚠️" });
+      else showAlert({ type: 'error', message: "저장 중에 문제가 발생했어요. ⏳" });
+    } finally { setIsSubmitting(false); }
   };
 
   const subCategories = [
@@ -283,35 +365,36 @@ export default function WritePostPage() {
       FontColor, FontBackgroundColor, FontSize, FontFamily, MediaEmbed, HtmlEmbed, GeneralHtmlSupport, Autosave
     ],
     toolbar: [
-      'heading', '|', 
-      'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor', '|',
+      'heading', '|', 'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor', '|',
       'bold', 'italic', 'link', 'bulletedList', 'numberedList', '|',
       'alignment', 'highlight', 'horizontalLine', '|',
-      'blockQuote', 'codeBlock', 'insertTable', 'uploadImage', 'mediaEmbed', '|', 
-      'undo', 'redo'
+      'blockQuote', 'codeBlock', 'insertTable', 'uploadImage', 'mediaEmbed', '|', 'undo', 'redo'
     ],
-    autosave: {
-      waitingTime: 1000,
-      save(editor) {
-        if (editingBoardId) return Promise.resolve();
-        const data = editor.getData();
-        const current = localStorage.getItem(STORAGE_KEY);
-        const base = current ? JSON.parse(current) : {};
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-          ...base,
-          content: data,
-          updatedAt: new Date().toISOString()
-        }));
-        return Promise.resolve();
-      }
+    image: { 
+      toolbar: [
+        'imageStyle:inline', 'imageStyle:block', 'imageStyle:side', 
+        '|', 
+        'toggleImageCaption', 'imageTextAlternative',
+        '|',
+        'resizeImage:25', 'resizeImage:50', 'resizeImage:75', 'resizeImage:original', 
+        '|',
+        'linkImage'
+      ],
+      resizeOptions: [
+        { name: 'resizeImage:original', value: null, label: 'Original' },
+        { name: 'resizeImage:25', value: '25', label: '25%' },
+        { name: 'resizeImage:50', value: '50', label: '50%' },
+        { name: 'resizeImage:75', value: '75', label: '75%' }
+      ],
+      resizeUnit: '%'
     },
-    image: {
-      toolbar: ['imageStyle:inline', 'imageStyle:block', 'imageStyle:side', '|', 'toggleImageCaption', 'imageTextAlternative']
-    },
-    table: {
+    table: { 
       contentToolbar: [
         'tableColumn', 'tableRow', 'mergeTableCells', 
-        '|', 'tableProperties', 'tableCellProperties'
+        '|', 
+        'tableProperties', 'tableCellProperties',
+        '|',
+        'alignment'
       ]
     },
     codeBlock: {
@@ -324,18 +407,48 @@ export default function WritePostPage() {
     },
     htmlSupport: {
       allow: [
-        { name: 'div', attributes: true, classes: true, styles: true },
-        { name: 'span', attributes: true, classes: true, styles: true }
+        { name: /.*/, attributes: true, classes: true, styles: true } 
       ]
     },
     placeholder: '내용을 입력하세요...',
     licenseKey: 'GPL',
   };
 
+  /**
+   * [영구 해결] 코드 블록 커서 갇힘 방지 핸들러
+   * Shift + Enter를 누르면 코드 블록 밖으로 즉시 탈출합니다.
+   */
+  const handleEditorReady = (editor: any) => {
+    editorRef.current = editor;
+    editor.plugins.get('FileRepository').createUploadAdapter = (loader: any) => new MyUploadAdapter(loader, user?.accessToken || '');
+
+    // 키보드 리스너 직접 주입 (엔진 레벨 탈출 로직)
+    editor.editing.view.document.on('keydown', (evt: any, data: any) => {
+      // Shift + Enter 감지
+      if (data.keyCode === 13 && data.shiftKey) {
+        const selection = editor.model.document.selection;
+        const position = selection.getFirstPosition();
+        
+        // 현재 커서가 코드 블록 내부에 있는지 확인
+        const codeBlock = position.findAncestor('codeBlock');
+        if (codeBlock) {
+          editor.model.change((writer: any) => {
+            // 코드 블록 바로 다음에 일반 문단(Paragraph) 삽입
+            const paragraph = writer.createElement('paragraph');
+            writer.insert(paragraph, writer.createPositionAfter(codeBlock));
+            // 커서를 새로 만든 문단으로 강제 이동
+            writer.setSelection(paragraph, 'end');
+          });
+          evt.stop(); // 기본 엔터 동작 중단
+          data.preventDefault();
+        }
+      }
+    }, { priority: 'high' });
+  };
+
   return (
     <div className="bg-slate-50 dark:bg-[#0d141b] min-h-screen font-sans">
       <main className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        
         <nav className="flex items-center gap-2 text-sm text-slate-400 mb-8">
           <Link to="/" className="hover:text-primary transition-colors font-medium">{getText('common.home')}</Link>
           <ChevronsRight size={14} />
@@ -343,13 +456,10 @@ export default function WritePostPage() {
         </nav>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
           <div className="lg:col-span-9 space-y-6">
             <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
               <div className="p-6 sm:p-10 border-b border-slate-50 dark:border-slate-800">
-                <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2">
-                  {editingBoardId ? '게시글 수정하기' : '새로운 게시글 작성'}
-                </h2>
+                <h2 className="text-3xl font-black text-slate-900 dark:text-white mb-2">{editingBoardId ? '게시글 수정하기' : '새로운 게시글 작성'}</h2>
                 <p className="text-slate-500 dark:text-slate-400 font-medium">유용한 지식과 경험을 커뮤니티에 공유해 보세요.</p>
               </div>
 
@@ -363,16 +473,7 @@ export default function WritePostPage() {
                       { id: 'G', label: getText('board.join_greetings'), icon: Smile, adminOnly: false },
                     ].filter(cat => !cat.adminOnly || user?.userRole === 'ADMIN').map((cat) => (
                       <label key={cat.id} className="cursor-pointer">
-                        <input 
-                          className="peer sr-only" 
-                          name="boardType" 
-                          type="radio" 
-                          checked={boardType === cat.id} 
-                          onChange={() => {
-                            setBoardType(cat.id);
-                            if (cat.id !== 'S') setTag(''); // 'S'가 아니면 태그 초기화
-                          }} 
-                        />
+                        <input className="peer sr-only" name="boardType" type="radio" checked={boardType === cat.id} onChange={() => { setBoardType(cat.id); if (cat.id !== 'S') setTag(''); }} />
                         <div className="px-6 py-3 rounded-xl text-sm font-black text-slate-500 peer-checked:bg-white dark:peer-checked:bg-slate-700 peer-checked:text-primary peer-checked:shadow-sm transition-all flex items-center gap-2">
                           <cat.icon size={16} /> {cat.label}
                         </div>
@@ -399,268 +500,165 @@ export default function WritePostPage() {
 
                 <div className="space-y-3">
                   <label className="text-xs font-black uppercase tracking-widest text-slate-400">제목</label>
-                  <input 
-                    className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none text-xl font-black focus:ring-2 focus:ring-primary/20 transition-all dark:text-white" 
-                    placeholder="제목을 입력하세요" 
-                    type="text" 
-                    value={title} 
-                    onChange={(e) => setTitle(e.target.value)} 
-                  />
+                  <input className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none text-xl font-black focus:ring-2 focus:ring-primary/20 transition-all dark:text-white" placeholder="제목을 입력하세요" type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
                 </div>
 
-                {/* 해시태그 입력창 - SQLD-학습(S) 게시판에서만 노출 */}
                 {boardType === 'S' && (
                   <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                      <Hash size={14} className="text-primary" /> 해시태그 (쉼표로 구분)
-                    </label>
+                    <label className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Hash size={14} className="text-primary" /> 해시태그 (쉼표로 구분)</label>
                     <div className="relative group">
-                      <input 
-                        className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent rounded-2xl outline-none text-sm font-bold focus:border-primary/20 focus:bg-white dark:focus:bg-slate-700 transition-all dark:text-white" 
-                        placeholder="예: SQLD, 서브쿼리, JOIN (엔터나 쉼표로 구분 가능)" 
-                        type="text" 
-                        value={tag} 
-                        onChange={(e) => setTag(e.target.value)} 
-                      />
-                      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex gap-1">
-                        {tag.split(',').filter(t => t.trim()).slice(0, 3).map((t, i) => (
-                          <span key={i} className="px-2 py-1 bg-primary/10 text-primary text-[10px] font-black rounded-md">#{t.trim()}</span>
-                        ))}
-                      </div>
+                      <input className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent rounded-2xl outline-none text-sm font-bold focus:border-primary/20 focus:bg-white dark:focus:bg-slate-700 transition-all dark:text-white" placeholder="예: SQLD, 서브쿼리, JOIN" type="text" value={tag} onChange={(e) => setTag(e.target.value)} />
                     </div>
                   </div>
                 )}
 
                 <div className="space-y-3">
-                  <label className="text-xs font-black uppercase tracking-widest text-slate-400">
-                    내용 (SQL 코드는 <span className="text-primary font-black underline">" {`</>`} (코드 블록)</span> 버튼을 사용하세요)
-                  </label>
+                  <label className="text-xs font-black uppercase tracking-widest text-slate-400">내용</label>
                   <div className="ck-editor-container border-none dark:text-slate-900">
                     <style dangerouslySetInnerHTML={{ __html: `
-                      .ck-editor__editable { 
-                        min-height: 500px !important; 
-                        border-radius: 0 0 1.5rem 1.5rem !important; 
-                        padding: 1.5rem 2rem !important; 
-                        border: none !important; 
-                        background: #f8fafc !important; 
-                      }
+                      .ck-editor__editable { min-height: 500px !important; border-radius: 0 0 1.5rem 1.5rem !important; padding: 1.5rem 2rem !important; border: none !important; background: #f8fafc !important; }
                       .ck-toolbar { border: none !important; background: #f1f5f9 !important; border-radius: 1.5rem 1.5rem 0 0 !important; padding: 0.5rem 1rem !important; }
-                      
-                      .ck-content blockquote {
-                        background: #f1f5f9 !important;
-                        color: #475569 !important;
-                        padding: 1.2rem 1.5rem !important;
-                        border-radius: 1rem !important;
-                        border-left: 6px solid #cbd5e1 !important;
-                        margin: 1.5rem 0 !important;
-                        font-style: italic !important;
-                        height: auto !important;
-                        display: block !important;
-                      }
-                      .dark .ck-content blockquote {
-                        background: #334155 !important;
-                        color: #e2e8f0 !important;
-                        border-left-color: #475569 !important;
-                      }
-
-                      /* 고가독성 코드 블록 테마 */
-                      .ck-content pre {
-                        background: #282c34 !important; /* 깊은 밤색 */
-                        color: #abb2bf !important;    /* 부드러운 흰색 */
-                        font-family: 'Fira Code', 'JetBrains Mono', monospace !important;
-                        padding: 1.5rem !important;
-                        border-radius: 1rem !important;
-                        border-left: 4px solid #61afef !important; /* 하늘색 포인트 */
-                        margin: 1.5rem 0 !important;
-                        box-shadow: inset 0 2px 10px rgba(0,0,0,0.3) !important;
-                        height: auto !important;
-                        display: block !important;
-                        position: relative !important;
-                      }
-                      .ck-content pre::before {
-                        content: 'SQL CODE' !important;
-                        display: block !important;
-                        font-size: 10px !important;
-                        font-weight: 900 !important;
-                        color: #5c6370 !important;
-                        margin-bottom: 0.8rem !important;
-                        letter-spacing: 0.1em !important;
-                      }
-                      
-                      .ck-content pre code {
-                        background: transparent !important;
-                        color: inherit !important;
-                        padding: 0 !important;
-                        border-radius: 0 !important;
-                        font-size: inherit !important;
-                      }
-
-                      .ck-content :not(pre) > code {
-                        background-color: #e2e8f0 !important;
-                        color: #e11d48 !important;
-                        padding: 0.2rem 0.4rem !important;
-                        border-radius: 0.4rem !important;
-                        font-size: 0.9em !important;
-                      }
-                      .dark .ck-content :not(pre) > code {
-                        background-color: #1e293b !important;
-                        color: #fb7185 !important;
-                      }
-
-                      .ck-content .image img { 
-                        max-width: 60% !important; 
-                        max-height: 450px !important;
-                        margin: 2rem auto !important; 
-                        display: block !important;
-                        border-radius: 1rem !important;
-                        box-shadow: 0 10px 30px -10px rgba(0,0,0,0.1) !important;
-                      }
-
-                      .marker-yellow { background-color: #fef08a !important; color: #854d0e !important; }
-                      .marker-green { background-color: #bbf7d0 !important; color: #166534 !important; }
-                      .marker-pink { background-color: #fbcfe8 !important; color: #9d174d !important; }
-                      .marker-blue { background-color: #bfdbfe !important; color: #1e40af !important; }
+                      .ck-content figure.table { margin: 1.5rem 0 !important; width: 100% !important; }
+                      .ck-content figure.table table { width: 100% !important; border-collapse: collapse !important; border: 1px solid #cbd5e1 !important; }
+                      .ck-content figure.table td, .ck-content figure.table th { border: 1px solid #cbd5e1 !important; padding: 0.5rem !important; min-width: 50px !important; }
+                      .ck-content figure.table th { background-color: #f1f5f9 !important; font-weight: bold !important; }
+                      .ck-content pre { background: #282c34 !important; color: #abb2bf !important; font-family: 'Fira Code', monospace !important; padding: 1.5rem !important; border-radius: 1rem !important; margin: 1.5rem 0 !important; }
+                      .ck-content .image img { max-width: 60% !important; margin: 2rem auto !important; display: block !important; border-radius: 1rem !important; box-shadow: 0 10px 30px rgba(0,0,0,0.1) !important; transition: all 0.3s ease; }
+                      .ck-widget__selection-handle { display: none !important; } 
                     `}} />
                     <CKEditor
                       editor={ClassicEditor}
                       config={editorConfig}
                       data={editorData}
-                      onReady={(editor) => {
-                        editor.plugins.get('FileRepository').createUploadAdapter = (loader) => new MyUploadAdapter(loader, user?.accessToken || '');
-
-                        editor.keystrokes.set('Tab', (data, stop) => {
-                          const selection = editor.model.document.selection;
-                          const positionParent = selection.getFirstPosition()?.parent;
-                          if (positionParent && (positionParent.name === 'tableCell' || positionParent.name === 'table')) return; 
-                          editor.execute('input', { text: '    ' });
-                          stop();
-                        }, { priority: 'high' });
-
-                        editor.keystrokes.set('shift+Tab', (data, stop) => {
-                          editor.execute('outdent');
-                          stop();
-                        }, { priority: 'high' });
-
-                        editor.keystrokes.set('Enter', (data, stop) => {
-                          const selection = editor.model.document.selection;
-                          const positionParent = selection.getFirstPosition()?.parent;
-                          if (positionParent && positionParent.name === 'codeBlock') {
-                            editor.execute('input', { text: '\n' });
-                            stop(); 
-                          }
-                        }, { priority: 'high' });
-
-                        editor.keystrokes.set('ArrowDown', (data, stop) => {
-                          const selection = editor.model.document.selection;
-                          const position = selection.getFirstPosition();
-                          const positionParent = position?.parent;
-
-                          if (positionParent && positionParent.name === 'codeBlock') {
-                            const isAtEnd = position.isAtEnd;
-                            if (isAtEnd && !positionParent.nextSibling) {
-                              editor.model.change(writer => {
-                                const paragraph = writer.createElement('paragraph');
-                                writer.insert(paragraph, writer.createPositionAfter(positionParent));
-                                writer.setSelection(paragraph, 'on');
-                              });
-                              stop();
-                            }
-                          }
-                        }, { priority: 'high' });
+                      onReady={handleEditorReady}
+                      onChange={(event, editor) => {
+                        const data = editor.getData();
+                        setEditorData(data);
                       }}
-                      onChange={(event, editor) => setEditorData(editor.getData())}
+                      onBlur={(event, editor) => {
+                        const data = editor.getData();
+                        setEditorData(data);
+                      }}
                     />
                   </div>
                 </div>
 
                 <div className="space-y-3">
                   <label className="text-xs font-black uppercase tracking-widest text-slate-400">이미지 추가 첨부 (선택)</label>
-                  <div
-                    className={`flex h-40 w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed transition-all cursor-pointer ${isDragOver ? 'border-primary bg-primary/5' : 'border-slate-200 bg-slate-50 dark:bg-slate-800/30'}`}
-                    onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                    onDragLeave={() => setIsDragOver(false)}
-                    onDrop={(e) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files) setSelectedFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }}
+                  <div 
+                    className={`flex h-40 w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed transition-all cursor-pointer ${isDragOver ? 'border-primary bg-primary/5' : 'border-slate-200 bg-slate-50 dark:bg-slate-800/30'}`} 
+                    onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }} 
+                    onDragLeave={() => setIsDragOver(false)} 
+                    onDrop={(e) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files) setSelectedFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }} 
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl shadow-sm"><CloudUpload className="w-8 h-8 text-primary" /></div>
                     <p className="text-sm text-slate-500 font-bold">이미지를 드래그하거나 클릭하여 추가 업로드하세요.</p>
                     <input type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => { if (e.target.files) setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]); }} />
                   </div>
-                  {selectedFiles.length > 0 && (
-                    <div className="flex flex-wrap gap-4 mt-4">
-                      {selectedFiles.map((file, index) => (
-                        <div key={index} className="group relative h-24 w-24 overflow-hidden rounded-2xl border-2 border-white shadow-md">
-                          <img src={URL.createObjectURL(file)} alt="preview" className="h-full w-full object-cover" />
-                          <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedFiles(prev => prev.filter((_, i) => i !== index)); }} className="absolute inset-0 bg-red-500/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"><X size={20} /></button>
-                        </div>
-                      ))}
+                  
+                  {existingFiles.filter(f => !/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.originName)).length > 0 && (
+                    <div className="space-y-3 mt-8 animate-in fade-in slide-in-from-top-2 duration-500">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-1 h-3 bg-blue-400 rounded-full" />
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">기존 첨부 파일 <span className="text-blue-500">{existingFiles.filter(f => !/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.originName)).length}</span></h4>
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3">
+                        {existingFiles.filter(f => !/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.originName)).map((file, index) => {
+                          return (
+                            <div key={`existing-${index}`} className="group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300">
+                              <div className="aspect-square w-full overflow-hidden bg-slate-50 dark:bg-slate-900 flex items-center justify-center relative">
+                                <div className="flex flex-col items-center gap-1 text-slate-400">
+                                  <FileText size={20} />
+                                  <span className="text-[7px] font-bold uppercase">{file.originName.split('.').pop()}</span>
+                                </div>
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                                  <a 
+                                    href={`/api/board/download/${file.fileId}`}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-1 bg-white/20 hover:bg-white/40 text-white rounded-md backdrop-blur-md transition-all active:scale-90"
+                                    title="다운로드"
+                                  >
+                                    <Download size={12} />
+                                  </a>
+                                  <button 
+                                    type="button" 
+                                    onClick={(e) => { 
+                                      e.preventDefault(); 
+                                      e.stopPropagation(); 
+                                      setDeletedFileIds(prev => [...prev, file.fileId]);
+                                      setExistingFiles(prev => prev.filter(f => f.fileId !== file.fileId));
+                                    }} 
+                                    className="p-1 bg-rose-500/60 hover:bg-red-600 text-white rounded-md backdrop-blur-md transition-all active:scale-90"
+                                    title="삭제"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="p-1.5 bg-blue-50/50 dark:bg-blue-900/20">
+                                <p className="text-[8px] font-bold text-blue-600 dark:text-blue-400 truncate text-center" title={file.originName}>{file.originName}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedFiles.filter(f => !/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.name)).length > 0 && (
+                    <div className="space-y-3 mt-8 animate-in fade-in slide-in-from-top-2 duration-500">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="w-1 h-3 bg-primary rounded-full" />
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">새로 추가할 파일 <span className="text-primary">{selectedFiles.filter(f => !/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.name)).length}</span></h4>
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-3">
+                        {selectedFiles.filter(f => !/\.(jpg|jpeg|png|gif|webp|svg)$/i.test(f.name)).map((file, index) => {
+                          return (
+                            <div key={index} className="group relative bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-300">
+                              <div className="aspect-square w-full overflow-hidden bg-slate-50 dark:bg-slate-900 flex items-center justify-center relative">
+                                <div className="flex flex-col items-center gap-1 text-slate-400">
+                                  <FileText size={20} />
+                                  <span className="text-[7px] font-bold uppercase">{file.name.split('.').pop()}</span>
+                                </div>
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                                  <button 
+                                    type="button" 
+                                    onClick={(e) => { 
+                                      e.preventDefault(); 
+                                      e.stopPropagation(); 
+                                      setSelectedFiles(prev => prev.filter(f => f !== file)); 
+                                    }} 
+                                    className="p-1 bg-red-500/60 hover:bg-red-600 text-white rounded-md backdrop-blur-md transition-all active:scale-90"
+                                    title="삭제"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="p-1.5 bg-slate-50 dark:bg-slate-800/80">
+                                <p className="text-[8px] font-bold text-slate-500 dark:text-slate-400 truncate text-center" title={file.name}>{file.name}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
 
                 <div className="pt-10 flex items-center justify-end gap-4 border-t border-slate-50 dark:border-slate-800">
                   <button type="button" onClick={() => navigate(-1)} className="px-8 py-4 rounded-2xl text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-widest text-xs">취소</button>
-                  <button onClick={handleSubmit} disabled={isSubmitting} className="px-10 py-4 rounded-2xl bg-primary text-white font-black hover:bg-blue-600 shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase tracking-widest text-xs">
-                    {isSubmitting ? '처리 중...' : editingBoardId ? '수정 완료' : '게시하기'}
-                  </button>
+                  <button onClick={handleSubmit} disabled={isSubmitting} className="px-10 py-4 rounded-2xl bg-primary text-white font-black hover:bg-blue-600 shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase tracking-widest text-xs">{isSubmitting ? '처리 중...' : editingBoardId ? '수정 완료' : '게시하기'}</button>
                 </div>
               </div>
             </div>
           </div>
-
-          <aside className="lg:col-span-3 space-y-8">
-            <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-8 sticky top-8">
-              <div className="flex items-center gap-2 mb-8">
-                <Info className="text-primary" size={20} />
-                <h4 className="text-xl font-black dark:text-white">작성 가이드</h4>
-              </div>
-              
-              <div className="space-y-8">
-                <div className="group">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-blue-500"><Zap size={18} /></div>
-                    <p className="text-sm font-black dark:text-slate-200">분류 선택</p>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed ml-11">
-                    질문인지 팁인지 <strong>카테고리</strong>를 먼저 선택해 주세요. 정보 공유가 더 원활해집니다.
-                  </p>
-                </div>
-
-                <div className="group">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg text-emerald-500"><Save size={18} /></div>
-                    <p className="text-sm font-black dark:text-slate-200">자동 저장 중</p>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed ml-11">
-                    작성 중인 내용은 브라우저에 안전하게 보호됩니다. 안심하고 작성해 보세요.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-12 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                <div className="flex items-center gap-2 mb-2 text-slate-400">
-                  <ShieldCheck size={14} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">운영 원칙</span>
-                </div>
-                <p className="text-[11px] text-slate-400 font-bold leading-relaxed">
-                  커뮤니티의 질을 높이기 위해 비방이나 광고성 글은 제한될 수 있습니다.
-                </p>
-              </div>
-            </div>
-          </aside>
-
         </div>
       </main>
 
-      {/* 임시 저장 데이터 복구 모달 */}
-      <ConfirmModal 
-        isOpen={isRestoreModalOpen}
-        onClose={handleDiscard}
-        onConfirm={handleRestore}
-        title="작성 중인 글 복구"
-        message={`이전에 작성하던 내용이 발견되었습니다.\n(${tempData?.updatedAt ? new Date(tempData.updatedAt).toLocaleString() : ''})\n불러와서 계속 작성하시겠습니까?`}
-        type="info"
-      />
+      <ConfirmModal isOpen={isRestoreModalOpen} onClose={handleDiscard} onConfirm={handleRestore} title="작성 중인 글 복구" message="이전에 작성하던 내용이 발견되었습니다. 불러와서 계속 작성하시겠습니까?" type="info" />
+      <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   );
 }

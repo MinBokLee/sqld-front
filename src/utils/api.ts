@@ -91,8 +91,11 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${newUserInfo.accessToken}`;
           processQueue(null, newUserInfo.accessToken);
           
-          // UserContext 상태 동기화를 위해 커스텀 이벤트 발송
-          window.dispatchEvent(new CustomEvent('auth-token-refreshed', { detail: newUserInfo }));
+          // 기존 토큰과 비교하여 변경된 경우에만 이벤트 발송 (무한 루프 방지 핵심)
+          const currentStoredUser = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}');
+          if (currentStoredUser.accessToken !== newUserInfo.accessToken) {
+            window.dispatchEvent(new CustomEvent('auth-token-refreshed', { detail: newUserInfo }));
+          }
           
           return api(originalRequest);
         }
@@ -102,6 +105,8 @@ api.interceptors.response.use(
         sessionStorage.removeItem('user');
         localStorage.removeItem('user');
         localStorage.removeItem('rememberMe');
+        
+        // 리프레시 실패 시 더 이상 요청이 진행되지 않도록 에러 전파
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -109,7 +114,9 @@ api.interceptors.response.use(
     }
 
     // 그 외의 에러 처리
-    console.error('API Error:', error.response?.status, error.message);
+    if (error.response) {
+      console.error('API Error:', error.response.status, error.message);
+    }
     return Promise.reject(error);
   }
 );
