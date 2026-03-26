@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   FileText, MessageSquare, LogOut, 
-  Settings, ChevronRight, Clock, Camera, Lock, UserMinus
+  Settings, ChevronRight, Clock, Camera, Lock, UserMinus, Bookmark
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
@@ -180,10 +180,23 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
 
       <div className="p-2 space-y-0.5">
         <Link
+          to="/mypage"
+          onClick={onClose}
+          className="flex items-center justify-between w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+        >
+          <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
+            <Bookmark size={16} className="text-slate-400 group-hover:text-primary transition-colors" />
+            <span className="text-xs font-bold">스크랩 관리</span>
+          </div>
+          <ChevronRight size={12} className="text-slate-300 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
+
+        <Link
           to={`/practice-exams?mode=my`}
           onClick={onClose}
           className="flex items-center justify-between w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
-        >          <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
+        >
+          <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
             <FileText size={16} className="text-slate-400 group-hover:text-primary transition-colors" />
             <span className="text-xs font-bold">내 활동 관리</span>
           </div>

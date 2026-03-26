@@ -17,6 +17,7 @@ import PracticeExams from './pages/PracticeExams';
 import ExamDetailPage from './pages/ExamDetailPage';
 import WritePostPage from './pages/WritePostPage';
 import AdminMemberPage from './pages/AdminMemberPage'; 
+import MyPage from './pages/MyPage';
 import LegalPage from './pages/LegalPage';
 
 function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
@@ -113,6 +114,7 @@ function AppContent() {
             <Route path="/exam/:id" element={<ExamDetailPage />} />
             <Route path="/write-post" element={<WritePostPage />} />
             <Route path="/admin/members" element={<AdminMemberPage />} />
+            <Route path="/mypage" element={<MyPage />} />
             <Route path="/legal" element={<LegalPage />} />
           </Routes>
         </div>

@@ -5,7 +5,7 @@ import { useAlert } from '../contexts/AlertContext'; // Added
 import { useState, useRef, useEffect } from 'react';
 import ProfileDropdown from './ProfileDropdown';
 import WithdrawalModal from './WithdrawalModal';
-import api from '../utils/api'; 
+import api from '../utils/api';  
 
 interface HeaderProps {
   onOpenSignUpModal: () => void;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useContext } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { 
   Search, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
@@ -51,7 +51,7 @@ export default function PracticeExams() {
   const type = searchParams.get('type') || 'S';           
   const category = searchParams.get('category') || '';    
   const page = parseInt(searchParams.get('page') || '1'); 
-  const searchQuery = searchParams.get('search') || '';   
+  const searchQuery = searchParams.get('keyword') || ''; // 'search'에서 'keyword'로 통일
   const tagNameFilter = searchParams.get('tagName') || ''; 
   const mode = searchParams.get('mode') || ''; // 'my' 면 내 활동 관리 모드
 
@@ -62,13 +62,38 @@ export default function PracticeExams() {
   const [readPosts, setReadPosts] = useState<number[]>([]);     
   const [trendingTags, setTrendingTags] = useState<string[]>([]); 
   const [inputKeyword, setInputKeyword] = useState(searchQuery); 
+  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // URL 쿼리가 바뀌면 입력창도 동기화 (Header 검색 대응)
   useEffect(() => {
     setInputKeyword(searchQuery);
   }, [searchQuery]);
 
-  const handleSearch = () => {
-    if (!inputKeyword.trim()) {
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInputKeyword(value);
+
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
+    searchTimerRef.current = setTimeout(() => {
+      const params = new URLSearchParams(searchParams);
+      if (value.trim()) {
+        params.set('keyword', value.trim());
+      } else {
+        params.delete('keyword');
+      }
+      params.set('page', '1');
+      setSearchParams(params);
+    }, 500);
+  };
+
+  const handleSearch = useCallback(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    
+    const trimmedKeyword = inputKeyword.trim();
+    
+    // 유효성 검사: 검색어가 없는 경우 알림창 출력 (Header와 일관성 유지)
+    if (!trimmedKeyword) {
       let message = "키워드를 입력해 주세요. ⚠️ 검색어 없이 조회를 진행할 수 없습니다.";
       if (type === 'N') message = "확인하실 공지사항 키워드를 입력해 주세요. 📢";
       else if (type === 'S') message = "키워드를 입력해 주세요. ⚠️ 학습 게시판 내에서 검색어를 통해 조회가 가능합니다.";
@@ -77,16 +102,16 @@ export default function PracticeExams() {
       showAlert({ type: 'warning', message });
       return;
     }
-    
+
     const params = new URLSearchParams(searchParams);
-    params.set('search', inputKeyword.trim());
+    params.set('keyword', trimmedKeyword);
     params.set('page', '1');
     setSearchParams(params);
-  };
+  }, [inputKeyword, type, searchParams, setSearchParams, showAlert]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
-      e.preventDefault();
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
       handleSearch();
     }
   };
@@ -139,18 +164,32 @@ export default function PracticeExams() {
     setIsLoading(true);
     try {
       const isMyMode = mode === 'my';
-      const endpoint = isMyMode ? `/api/board/my-list` : `/api/board/list/paging`;
+      let endpoint = '';
+      let params: any = {
+        page: page,
+        size: 10,
+      };
+
+      // [핵심 분기 로직]
+      if (searchQuery.trim() && !isMyMode) {
+        // 1. 전문 검색(FTS) 모드: 검색어가 있는 경우
+        endpoint = '/api/board/searchContent';
+        params.keyword = searchQuery.trim();
+        params.boardType = type;
+      } else if (isMyMode) {
+        // 2. 내 활동 관리 모드
+        endpoint = '/api/board/my-list';
+        params.keyword = searchQuery.trim(); // null 대신 빈 문자열 유도
+      } else {
+        // 3. 일반 목록 조회 모드: 검색어가 없는 경우
+        endpoint = '/api/board/list/paging';
+        params.boardType = type;
+        params.category = type === 'S' ? category : '';
+        params.tagName = tagNameFilter || undefined;
+        params.keyword = ''; // null 대신 빈 문자열 명시
+      }
       
-      const response = await api.get(endpoint, {
-        params: {
-          page: page,
-          size: 10,
-          boardType: isMyMode ? undefined : type,
-          category: isMyMode ? undefined : category,
-          title: isMyMode ? undefined : searchQuery,
-          tagName: isMyMode ? undefined : tagNameFilter
-        }
-      });
+      const response = await api.get(endpoint, { params });
 
       const data = response.data;
       if (data.success && data.result?.data) {
@@ -334,13 +373,13 @@ export default function PracticeExams() {
 
                 <div className="bg-white dark:bg-[#1a222c] p-2.5 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center">
                   <div className="flex-1 flex items-center pl-4">
-                    <Search className="text-slate-400 mr-3" size={22} />
+                    <Search className={`mr-3 transition-colors ${isLoading && searchQuery ? 'text-primary animate-pulse' : 'text-slate-400'}`} size={22} />
                     <input 
                       type="text" 
                       placeholder="제목이나 내용에서 검색..." 
                       className="w-full bg-transparent border-none py-3 text-[15px] font-medium outline-none focus:ring-0 dark:text-white placeholder:text-[#94a3b8]"
                       value={inputKeyword}
-                      onChange={(e) => setInputKeyword(e.target.value)}
+                      onChange={handleSearchChange}
                       onKeyDown={handleKeyDown}
                     />
                   </div>

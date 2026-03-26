@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { 
   X, Camera, User, Mail, Shield, 
-  CheckCircle2, AlertCircle, Loader2
+  CheckCircle2, AlertCircle, Loader2, Bookmark, ChevronRight
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { useAlert } from '../contexts/AlertContext';
 
@@ -148,9 +149,20 @@ export default function MyInfoModal({ isOpen, onClose, getText }: MyInfoModalPro
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-8 py-6 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 text-center">
-          <button onClick={onClose} className="w-full py-4 bg-slate-900 dark:bg-primary text-white font-black rounded-2xl hover:opacity-90 transition-all shadow-xl active:scale-95 text-sm uppercase tracking-widest">
+        {/* Footer with MyPage Link */}
+        <div className="px-8 py-6 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 space-y-3">
+          <Link 
+            to="/mypage" 
+            onClick={onClose}
+            className="flex items-center justify-between w-full p-4 bg-primary text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95 group"
+          >
+            <div className="flex items-center gap-3">
+              <Bookmark size={20} />
+              <span className="text-sm uppercase tracking-widest">스크랩 및 활동 관리</span>
+            </div>
+            <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+          </Link>
+          <button onClick={onClose} className="w-full py-4 text-slate-500 font-black rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all text-xs uppercase tracking-widest">
             닫기
           </button>
         </div>

@@ -28,7 +28,7 @@ interface Member {
 }
 
 export default function AdminMemberPage() {
-  const { user } = useUser();
+  const { user, isLoading } = useUser();
   const { showAlert } = useAlert();
   const navigate = useNavigate();
   const languageContext = useContext(LanguageContext);
@@ -83,6 +83,8 @@ export default function AdminMemberPage() {
   }, [user, showAlert]);
 
   useEffect(() => {
+    if (isLoading) return; // 로그인 정보 복구 중에는 체크를 대기함
+
     if (!user) {
       navigate('/');
       return;
@@ -93,7 +95,7 @@ export default function AdminMemberPage() {
     } else {
       fetchMembers();
     }
-  }, [user, navigate, fetchMembers, showAlert]);
+  }, [user, isLoading, navigate, fetchMembers, showAlert]);
 
   /**
    * 회원 권한 변경 (USER -> ADMIN)

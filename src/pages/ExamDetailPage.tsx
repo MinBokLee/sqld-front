@@ -35,6 +35,7 @@ interface Exam {
   commentsCount: number;
   likeCount: number;
   isLiked: boolean;
+  isScrapped: boolean;
   content: string;
   boardType: string;
   files?: Attachment[];
@@ -62,6 +63,45 @@ interface PopularPost {
   likeCount: number;
 }
 
+const MainCommentForm = memo(({ 
+  user, 
+  onSubmit, 
+  isSubmitting 
+}: { 
+  user: any; 
+  onSubmit: (content: string) => Promise<boolean>;
+  isSubmitting: boolean;
+}) => {
+  const [content, setContent] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!content.trim() || isSubmitting) return;
+    
+    const success = await onSubmit(content);
+    if (success) setContent('');
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex gap-5 mb-12">
+      <div className="w-12 h-12 rounded-2xl overflow-hidden bg-primary/5 flex-shrink-0 flex items-center justify-center font-black text-primary border border-primary/10 uppercase">
+        {user?.profileImage ? <img src={user.profileImage} alt="Me" className="w-full h-full object-cover" /> : (user?.userName ? user.userName[0] : 'U')}
+      </div>
+      <div className="flex-1 relative">
+        <textarea 
+          value={content} 
+          onChange={(e) => setContent(e.target.value)} 
+          className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-[1.5rem] p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 min-h-[120px] outline-none text-slate-900 dark:text-white shadow-inner resize-none transition-all" 
+          placeholder="따뜻한 댓글로 지식을 나누어 보세요..."
+        />
+        <button type="submit" disabled={isSubmitting || !content.trim()} className="absolute bottom-4 right-4 p-3 bg-primary text-white rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95">
+          {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={20} />}
+        </button>
+      </div>
+    </form>
+  );
+});
+
 const CommentItem = memo(({ 
   comment, 
   isReply = false, 
@@ -77,7 +117,7 @@ const CommentItem = memo(({
   currentUser: any;
   onDelete: (id: number) => void;
   onUpdate: (id: number, content: string) => Promise<void>;
-  onSubmitReply: (content: string, parentId: number) => void;
+  onSubmitReply: (content: string, parentId: number) => Promise<boolean>;
   activeReplyId: number | null;
   setActiveReplyId: (id: number | null) => void;
 }) => {
@@ -87,6 +127,10 @@ const CommentItem = memo(({
   const [isProcessing, setIsProcessing] = useState(false);
 
   const canEdit = currentUser && String(currentUser.memberId) === String(comment.memberId);
+
+  useEffect(() => {
+    setEditContent(comment.content);
+  }, [comment.content]);
 
   const handleUpdate = async () => {
     if (!editContent.trim() || editContent === comment.content) {
@@ -99,12 +143,14 @@ const CommentItem = memo(({
     setIsEditing(false);
   };
 
-  const handleReplySubmit = (e: React.FormEvent) => {
+  const handleReplySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!localReplyContent.trim()) return;
-    onSubmitReply(localReplyContent, comment.commentId);
-    setLocalReplyContent('');
-    setActiveReplyId(null);
+    const success = await onSubmitReply(localReplyContent, comment.commentId);
+    if (success) {
+      setLocalReplyContent('');
+      setActiveReplyId(null);
+    }
   };
 
   const fixProfileUrl = (path: string | null) => {
@@ -213,14 +259,65 @@ const POST_CONTENT_STYLE = `
   .prose-container pre { background-color: #282c34 !important; color: #abb2bf !important; padding: 1.5rem !important; border-radius: 1rem !important; font-family: 'Fira Code', monospace !important; font-size: 0.875rem !important; margin: 2rem 0 !important; overflow-x: auto !important; border-left: 4px solid #61afef !important; }
   .prose-container :not(pre) > code { background-color: #e2e8f0 !important; color: #e11d48 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.4rem !important; font-size: 0.9em !important; }
   .dark .prose-container :not(pre) > code { background-color: #1e293b !important; color: #fb7185 !important; }
-  .prose-container img { max-width: 60% !important; border-radius: 1.5rem !important; margin: 2.5rem auto !important; display: block !important; box-shadow: 0 20px 50px -15px rgba(0,0,0,0.15) !important; border: 4px solid white !important; }
-  .dark .prose-container img { border-color: #1e293b !important; }
-  .prose-container figure.table { margin: 2rem 0 !important; width: 100% !important; border-radius: 1rem !important; overflow: hidden !important; border: 1px solid #e2e8f0 !important; }
-  .prose-container figure.table table { width: 100% !important; border-collapse: collapse !important; }
-  .prose-container figure.table th, .prose-container figure.table td { border: 1px solid #cbd5e1; padding: 0.75rem 1rem !important; }
-  .prose-container figure.table th { background-color: #f1f5f9; font-weight: 900 !important; }
-  .dark .prose-container figure.table th { background-color: #0f172a; color: #f1f5f9 !important; }
-  @media (max-width: 640px) { .prose-container img { max-width: 100% !important; } }
+  
+  /* 이미지 정렬 및 리사이징 동기화 */
+  .prose-container .image { margin: 2rem 0; clear: both; display: table; }
+  .prose-container .image img { display: block; max-width: 100%; border-radius: 1.5rem; box-shadow: 0 20px 50px -15px rgba(0,0,0,0.15); border: 4px solid white; transition: transform 0.3s ease; }
+  .dark .prose-container .image img { border-color: #1e293b; }
+  
+  /* 정렬 클래스 대응 */
+  .prose-container .image-style-align-left { float: left; margin-right: 1.5rem; margin-left: 0; max-width: 50%; }
+  .prose-container .image-style-align-right { float: right; margin-left: 1.5rem; margin-right: 0; max-width: 50%; }
+  .prose-container .image-style-align-center { margin-left: auto !important; margin-right: auto !important; float: none !important; display: table !important; }
+  .prose-container .image-style-block-align-left { margin-left: 0 !important; margin-right: auto !important; float: none !important; display: table !important; }
+  .prose-container .image-style-block-align-right { margin-right: 0 !important; margin-left: auto !important; float: none !important; display: table !important; }
+  .prose-container .image-style-side { float: right; margin-left: 1.5rem; max-width: 50%; }
+
+  /* 테이블 스타일 동기화 */
+  .prose-container figure.table {
+    margin: 2rem 0 !important;
+    border-radius: 1rem !important;
+    overflow: hidden !important;
+    border: 1px solid #e2e8f0 !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    width: auto !important;
+    max-width: 100% !important;
+    display: block !important;
+  }
+  .prose-container figure.table table {
+    border-collapse: collapse !important;
+    margin: 0 !important;
+    table-layout: fixed !important; 
+    width: 100% !important;
+    min-width: 50px !important;
+  }
+  .prose-container figure.table th,
+  .prose-container figure.table td {
+    border: 1px solid #cbd5e1; 
+    padding: 0.75rem 1rem !important;
+    word-break: break-all; 
+    overflow-wrap: break-word;
+  }
+  .prose-container figure.table th {
+    background-color: #f1f5f9;
+    font-weight: 900 !important;
+  }
+  .dark .prose-container figure.table th {
+    background-color: #0f172a;
+    color: #f1f5f9 !important;
+  }
+
+  /* 표 정렬 대응 */
+  .prose-container figure.table.table-align-left { margin-left: 0 !important; margin-right: auto !important; }
+  .prose-container figure.table.table-align-right { margin-left: auto !important; margin-right: 0 !important; }
+  .prose-container figure.table.table-align-center { margin-left: auto !important; margin-right: auto !important; }
+
+  @media (max-width: 640px) { 
+    .prose-container .image { max-width: 100% !important; float: none !important; margin: 1.5rem 0 !important; }
+    .prose-container .image img { max-width: 100% !important; } 
+    .prose-container figure.table { width: 100% !important; overflow-x: auto !important; display: block !important; }
+    .prose-container figure.table table { min-width: 500px !important; }
+  }
 `;
 
 const PostContent = memo(({ content, onImageClick }: { content: string, onImageClick: (url: string) => void }) => {
@@ -232,6 +329,47 @@ const PostContent = memo(({ content, onImageClick }: { content: string, onImageC
     <div className="prose-container p-6 sm:p-10 prose dark:prose-invert max-w-none min-h-[300px]" onClick={handleClick}>
       <style dangerouslySetInnerHTML={{ __html: POST_CONTENT_STYLE }} />
       <div dangerouslySetInnerHTML={{ __html: content }} />
+    </div>
+  );
+});
+
+const AttachmentSection = memo(({ files, onImageClick, onDownload }: { files: Attachment[], onImageClick: (url: string) => void, onDownload: (id: number, name: string) => void }) => {
+  if (!files || files.length === 0) return null;
+  
+  return (
+    <div className="px-6 sm:px-10 py-8 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800">
+      <div className="flex items-center gap-2 mb-4 text-slate-900 dark:text-white">
+        <Paperclip size={18} className="text-primary" />
+        <h4 className="text-sm font-black uppercase tracking-widest">첨부파일 <span className="text-primary ml-1">{files.length}</span></h4>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {files.map((file, idx) => {
+          const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.originName);
+          return (
+            <div key={idx} className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-primary/30 hover:shadow-md transition-all group cursor-default">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div 
+                  className={`w-10 h-10 bg-slate-50 dark:bg-slate-700 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center text-slate-400 border border-slate-100 dark:border-slate-600 transition-all ${isImage ? 'cursor-zoom-in hover:scale-105 hover:border-primary/50' : ''}`} 
+                  onClick={() => isImage && onImageClick(file.filePath)}
+                >
+                  {isImage ? <img src={file.filePath} alt="preview" className="w-full h-full object-cover" /> : <FileText size={18} />}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{file.originName}</span>
+                  {isImage && <span className="text-[10px] text-primary/60 font-medium">클릭하여 확대</span>}
+                </div>
+              </div>
+              <button 
+                onClick={() => onDownload(file.fileId, file.originName)}
+                className="p-2 text-slate-300 hover:text-primary hover:bg-primary/5 rounded-xl transition-all" 
+                title="다운로드"
+              >
+                <Download size={16} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 });
@@ -254,6 +392,29 @@ const ImageLightbox = ({ src, onClose }: { src: string | null, onClose: () => vo
   );
 };
 
+const Tooltip = ({ children, text }: { children: React.ReactNode, text: string }) => {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative flex items-center justify-center" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      {children}
+      <AnimatePresence>
+        {show && text && (
+          <motion.div 
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.95 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            className="absolute bottom-full mb-3 px-3 py-1.5 bg-slate-800 dark:bg-slate-700 text-white text-[10px] font-black rounded-lg whitespace-nowrap z-50 shadow-[0_8px_20px_-4px_rgba(0,0,0,0.3)] pointer-events-none border border-white/10"
+          >
+            {text}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-800 dark:border-t-slate-700" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 export default function ExamDetailPage() {
   const { id } = useParams();
   const { user } = useUser();
@@ -265,7 +426,6 @@ export default function ExamDetailPage() {
   const [trendingTags, setTrendingTags] = useState<string[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [isLiking, setIsLiking] = useState(false);
-  const [mainCommentContent, setMainCommentContent] = useState('');
   const [isSubmittingMainComment, setIsSubmittingMainComment] = useState(false);
   const [activeReplyId, setActiveReplyId] = useState<number | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
@@ -285,25 +445,15 @@ export default function ExamDetailPage() {
     return correctedHtml;
   };
 
-  /**
-   * [중요] 평면 리스트 데이터를 계층형 트리 구조로 변환하는 함수
-   */
   const buildCommentTree = (flatComments: any[]): Comment[] => {
     const map: { [key: number]: any } = {};
     const roots: Comment[] = [];
-
-    flatComments.forEach(comment => {
-      map[comment.commentId] = { ...comment, replies: [] };
-    });
-
+    flatComments.forEach(comment => { map[comment.commentId] = { ...comment, replies: [] }; });
     flatComments.forEach(comment => {
       if (comment.parentCommentId && map[comment.parentCommentId]) {
         map[comment.parentCommentId].replies.push(map[comment.commentId]);
-      } else {
-        roots.push(map[comment.commentId]);
-      }
+      } else { roots.push(map[comment.commentId]); }
     });
-
     return roots;
   };
 
@@ -311,9 +461,7 @@ export default function ExamDetailPage() {
     try {
       const response = await api.get(`/api/board/readComment`, { params: { boardId: id } });
       if (response.data.success) {
-        const flatData = response.data.result.data || [];
-        // 평면 리스트를 트리 구조로 변환하여 저장
-        setComments(buildCommentTree(flatData));
+        setComments(buildCommentTree(response.data.result.data || []));
       }
     } catch (error) { console.error("Fetch comments error:", error); }
   }, [id]);
@@ -343,15 +491,17 @@ export default function ExamDetailPage() {
     if (showLoading) setInitialLoading(true);
     try {
       const response = await api.get(`/api/board/list/${id}${user ? `?memberId=${user.memberId}` : ""}`);
-      const examData = response.data.result?.data || response.data.result;
-      if (examData) {
+      const rawData = response.data.result?.data || response.data.result;
+      if (rawData) {
         setExam({
-          id: examData.boardId, title: examData.title, authorName: examData.userName, authorId: String(examData.memberId || ''),
-          authorImage: examData.profileImage, date: examData.createAt, fullDate: new Date(examData.createAt).toLocaleString('ko-KR'),
-          views: examData.viewCount, commentsCount: examData.commentCount || 0, likeCount: examData.likeCount || 0, isLiked: !!examData.isLiked,
-          content: fixContentHtml(examData.content), boardType: examData.boardType,
-          files: (examData.fileList || examData.files || []).map((f: any) => ({ fileId: f.fileId, originName: f.originName, filePath: fixImagePath(f.filePath || '') })),
-          tags: examData.tags || (examData.tagName ? examData.tagName.split(',').map((t: string) => t.trim()) : []),
+          id: rawData.boardId, title: rawData.title, authorName: rawData.userName, authorId: String(rawData.memberId || ''),
+          authorImage: rawData.profileImage, date: rawData.createAt, fullDate: new Date(rawData.createAt).toLocaleString('ko-KR'),
+          views: rawData.viewCount, commentsCount: rawData.commentCount || 0, likeCount: rawData.likeCount || 0, 
+          isLiked: !!(rawData.isLiked || rawData.liked), 
+          isScrapped: !!(rawData.isScrapped || rawData.scrapped), 
+          content: fixContentHtml(rawData.content), boardType: rawData.boardType,
+          files: (rawData.fileList || rawData.files || []).map((f: any) => ({ fileId: f.fileId, originName: f.originName, filePath: fixImagePath(f.filePath || '') })),
+          tags: rawData.tags || (rawData.tagName ? rawData.tagName.split(',').map((t: string) => t.trim()) : []),
         });
       }
     } catch (error) { console.error("Post detail error:", error); } finally { if (showLoading) setInitialLoading(false); }
@@ -361,50 +511,89 @@ export default function ExamDetailPage() {
     fetchPostDetail(true); fetchComments(); fetchPopularPosts(); fetchTrendingTags();
   }, [id, fetchPostDetail, fetchComments, fetchPopularPosts, fetchTrendingTags]);
 
-  const handleCommentSubmit = async (content: string, parentId: number | null = null) => {
-    if (!user) { showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" }); return; }
-    if (!content.trim()) return;
+  const handleCommentSubmit = useCallback(async (content: string, parentId: number | null = null): Promise<boolean> => {
+    if (!user) { showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" }); return false; }
+    if (!content.trim()) return false;
     if (parentId === null) setIsSubmittingMainComment(true);
     try {
       const commentData = { boardId: Number(id), content: content, parentCommentId: parentId };
       const response = await api.post(`/api/board/writeComment`, commentData, { headers: { 'Authorization': `Bearer ${user.accessToken}` } });
       if (response.status === 200 || response.status === 201) {
-        if (parentId === null) setMainCommentContent(''); 
         await fetchComments();
         setExam(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
-        showAlert({ type: 'success', message: "댓글이 등록되었습니다. ✨" });
+        return true;
       }
-    } catch (error) { console.error("Comment submit error:", error); } finally { if (parentId === null) setIsSubmittingMainComment(false); }
-  };
+      return false;
+    } catch (error) { 
+      console.error("Comment submit error:", error); 
+      return false;
+    } finally { 
+      if (parentId === null) setIsSubmittingMainComment(false); 
+    }
+  }, [id, user, showAlert, fetchComments]);
 
-  const handleDeleteComment = async (commentId: number) => {
+  const handleDeleteComment = useCallback(async (commentId: number) => {
     if (!user) return;
     try {
       const response = await api.delete(`/api/board/deleteComment/${commentId}`, { headers: { 'Authorization': `Bearer ${user.accessToken}` } });
       if (response.status === 200) { await fetchComments(); setExam(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null); showAlert({ type: 'success', message: "댓글이 삭제되었습니다. ✅" }); }
     } catch (error) { console.error("Delete comment error:", error); }
-  };
+  }, [user, fetchComments, showAlert]);
 
-  const handleUpdateComment = async (commentId: number, content: string) => {
+  const handleUpdateComment = useCallback(async (commentId: number, content: string) => {
     if (!user) return;
     try {
       const formData = new FormData(); formData.append('commentId', String(commentId)); formData.append('content', content);
-      const response = await api.patch(`/api/board/modifyComment`, formData, { headers: { 'Authorization': `Bearer ${user.accessToken}`, 'Content-Type': 'multipart/form-data' } });
+      const response = await api.put(`/api/board/modifyComment`, formData, { headers: { 'Authorization': `Bearer ${user.accessToken}`, 'Content-Type': 'multipart/form-data' } });
       if (response.status === 200) { await fetchComments(); showAlert({ type: 'success', message: "댓글이 수정되었습니다. ✨" }); }
     } catch (error) { console.error("Update comment error:", error); }
-  };
+  }, [user, fetchComments, showAlert]);
 
-  const handleLikeAction = async (action: 'like' | 'unlike') => {
-    if (!user) { showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" }); return; }
-    if (isLiking || !exam) return;
+  const handleLikeAction = useCallback(async () => {
+    if (!user || !exam) { 
+      if (!user) showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" }); 
+      return; 
+    }
+    if (isLiking) return;
     setIsLiking(true);
     try {
-      const response = await api.post(`/api/board/${action}`, { boardId: Number(id), memberId: user.memberId }, { headers: { 'Authorization': `Bearer ${user.accessToken}` } });
-      if (response.status === 200) { setExam(prev => prev ? { ...prev, isLiked: action === 'like', likeCount: action === 'like' ? prev.likeCount + 1 : Math.max(0, prev.likeCount - 1) } : null); }
-    } catch (error) { console.error("Like error:", error); } finally { setIsLiking(false); }
-  };
+      const response = await api.post(`/api/board/like`, null, { 
+        params: { boardId: Number(id) },
+        headers: { 'Authorization': `Bearer ${user.accessToken}` } 
+      });
+      if (response.status === 200) { 
+        const isNowLiked = !exam.isLiked;
+        setExam(prev => prev ? { 
+          ...prev, 
+          isLiked: isNowLiked, 
+          likeCount: isNowLiked ? prev.likeCount + 1 : Math.max(0, prev.likeCount - 1) 
+        } : null); 
+      }
+    } catch (error) { console.error("Like action error:", error); } finally { setIsLiking(false); }
+  }, [id, user, exam, isLiking, showAlert]);
 
-  const handleDelete = () => {
+  const handleShare = useCallback(() => {
+    navigator.clipboard.writeText(window.location.href)
+      .then(() => showAlert({ type: 'success', message: "링크가 복사되었습니다. 원하는 곳에 공유해 보세요! 🔗" }))
+      .catch(() => showAlert({ type: 'error', message: "링크 복사에 실패했습니다. 직접 주소를 복사해 주세요. ⚠️" }));
+  }, [showAlert]);
+
+  const handleScrap = useCallback(async () => {
+    if (!user) { showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" }); return; }
+    if (exam?.isScrapped) { showAlert({ type: 'info', message: "이미 스크랩된 게시글입니다. 😊" }); return; }
+    try {
+      const response = await api.post(`/api/board/insertBoardScrap`, null, { params: { boardId: id }, headers: { 'Authorization': `Bearer ${user.accessToken}` } });
+      if (response.status === 200 || response.data.success) {
+        setExam(prev => prev ? { ...prev, isScrapped: true } : null);
+        showAlert({ type: 'success', message: "게시글이 스크랩되었습니다. ✨" });
+      }
+    } catch (error: any) {
+      if (error.response?.status === 409) { setExam(prev => prev ? { ...prev, isScrapped: true } : null); showAlert({ type: 'info', message: error.response.data.message || "이미 스크랩된 게시글입니다. 😊" }); }
+      else { showAlert({ type: 'error', message: "스크랩 처리 중 오류가 발생했습니다. ⏳" }); }
+    }
+  }, [id, user, exam, showAlert]);
+
+  const handleDelete = useCallback(() => {
     setConfirmModal({ isOpen: true, title: '게시글 삭제', message: '정말로 이 게시글을 삭제하시겠습니까?', type: 'danger', isLoading: false, onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
@@ -413,12 +602,41 @@ export default function ExamDetailPage() {
         } catch (error) { showAlert({ type: 'error', message: "삭제 중 오류 발생 ⏳" }); } finally { setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false })); }
       }
     });
-  };
+  }, [id, user, exam, navigate, showAlert]);
+
+  const handleImageClick = useCallback((url: string) => {
+    setLightboxSrc(url);
+  }, []);
+
+  const handleDownload = useCallback(async (fileId: number, fileName: string) => {
+    if (!user) {
+      showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" });
+      return;
+    }
+    
+    try {
+      const response = await api.get(`/api/board/download/${fileId}`, {
+        responseType: 'blob',
+        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', fileName);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download error:", error);
+      showAlert({ type: 'error', message: "파일 다운로드 중 오류가 발생했습니다. ⏳" });
+    }
+  }, [user, showAlert]);
 
   if (initialLoading) return (<div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] flex items-center justify-center"><div className="flex flex-col items-center gap-4"><div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div><p className="text-slate-400 font-black animate-pulse">L O A D I N G</p></div></div>);
 
   const authorProfileUrl = exam?.authorImage ? fixImagePath(exam.authorImage) : null;
-  const myProfileUrl = user?.profileImage ? fixImagePath(user.profileImage) : null;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white transition-colors relative z-10">
@@ -464,83 +682,57 @@ export default function ExamDetailPage() {
 
                   <div className="px-6 sm:px-10 py-4 bg-slate-50/30 dark:bg-slate-800/20 flex items-center justify-between border-b border-slate-50 dark:border-slate-800">
                     <div className="flex items-center gap-3">
-                      <button onClick={() => handleLikeAction('like')} disabled={isLiking || exam.isLiked} className={`p-3 rounded-xl transition-all shadow-sm active:scale-95 border ${exam.isLiked ? 'bg-slate-100 text-slate-300 cursor-not-allowed opacity-50' : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700 hover:text-primary hover:bg-primary/5'}`}><ThumbsUp size={22} /></button>
-                      <button onClick={() => handleLikeAction('unlike')} disabled={isLiking || !exam.isLiked} className={`p-3 rounded-xl transition-all shadow-sm active:scale-95 border ${!exam.isLiked ? 'bg-slate-100 text-slate-300 cursor-not-allowed opacity-50' : 'bg-red-50 text-red-500 border border-red-100'}`}><ThumbsDown size={22} /></button>
+                      <Tooltip text={exam.isLiked ? "추천 취소" : "이 글을 추천합니다"}>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          onClick={handleLikeAction} 
+                          className={`p-3 rounded-xl transition-all shadow-sm border flex items-center justify-center gap-2 ${
+                            exam.isLiked 
+                              ? 'bg-primary text-white border-primary shadow-primary/20' 
+                              : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700 hover:text-primary hover:bg-primary/5'
+                          }`}
+                        >
+                          <ThumbsUp size={22} className={exam.isLiked ? 'fill-white' : ''} />
+                          {exam.isLiked && <span className="text-xs font-black hidden sm:inline">추천함</span>}
+                        </motion.button>
+                      </Tooltip>
+
                       <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-2"></div>
-                      <button title="스크랩" className="p-3 rounded-xl text-slate-400 hover:text-orange-500 hover:bg-orange-50 transition-all"><Bookmark size={22} /></button>
-                      <button title="공유하기" className="p-3 rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-all"><Share2 size={22} /></button>
+                      
+                      <Tooltip text={exam.isScrapped ? "이미 스크랩된 글입니다" : "이 글을 스크랩합니다"}>
+                        <button onClick={handleScrap} className={`p-3 rounded-xl transition-all shadow-sm active:scale-95 border ${exam.isScrapped ? 'bg-orange-50 text-orange-500 border-orange-100 shadow-orange-100/50' : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700 hover:text-orange-500 hover:bg-orange-50'}`}><Bookmark size={22} className={exam.isScrapped ? 'fill-orange-500' : ''} /></button>
+                      </Tooltip>
+                      
+                      <Tooltip text="링크 복사하기">
+                        <button onClick={handleShare} className="p-3 rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-all"><Share2 size={22} /></button>
+                      </Tooltip>
                     </div>
-                    {user && exam && (String(user.memberId) === String(exam.authorId) || user.userRole === 'ADMIN') && (
+                    {user && (String(user.memberId) === String(exam.authorId) || user.userRole === 'ADMIN') && (
                       <div className="flex items-center gap-2">
-                        <button onClick={() => navigate(`/write-post?boardId=${exam.id}&type=${exam.boardType}`, { replace: true })} title="글 수정" className="p-3 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Pencil size={22} /></button>
+                        <button onClick={() => navigate(`/write-post?boardId=${exam.id}&type=${exam.boardType}`)} title="글 수정" className="p-3 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Pencil size={22} /></button>
                         <button onClick={handleDelete} title="글 삭제" className="p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"><Trash2 size={22} /></button>
                       </div>
                     )}
                   </div>
 
-                  <PostContent content={exam.content} onImageClick={(url) => setLightboxSrc(url)} />
+                  <PostContent content={exam.content} onImageClick={handleImageClick} />
 
-                  {exam.files && exam.files.length > 0 && (
-                    <div className="px-6 sm:px-10 py-8 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800">
-                      <div className="flex items-center gap-2 mb-4 text-slate-900 dark:text-white">
-                        <Paperclip size={18} className="text-primary" />
-                        <h4 className="text-sm font-black uppercase tracking-widest">첨부파일 <span className="text-primary ml-1">{exam.files.length}</span></h4>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {exam.files.map((file, idx) => {
-                          const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.originName);
-                          return (
-                            <div key={idx} className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-primary/30 hover:shadow-md transition-all group cursor-default">
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <div className={`w-10 h-10 bg-slate-50 dark:bg-slate-700 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center text-slate-400 border border-slate-100 dark:border-slate-600 transition-all ${isImage ? 'cursor-zoom-in hover:scale-105 hover:border-primary/50' : ''}`} onClick={() => isImage && setLightboxSrc(file.filePath)}>
-                                  {isImage ? <img src={file.filePath} alt="preview" className="w-full h-full object-cover" /> : <FileText size={18} />}
-                                </div>
-                                <div className="flex flex-col min-w-0">
-                                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{file.originName}</span>
-                                  {isImage && <span className="text-[10px] text-primary/60 font-medium">클릭하여 확대</span>}
-                                </div>
-                              </div>
-                              <a href={`/api/board/download/${file.fileId}`} className="p-2 text-slate-300 hover:text-primary hover:bg-primary/5 rounded-xl transition-all" title="다운로드"><Download size={16} /></a>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  <AttachmentSection files={exam.files || []} onImageClick={handleImageClick} onDownload={handleDownload} />
                 </>
-              ) : (
-                <div className="flex items-center justify-center h-full py-20 text-slate-400 font-bold">게시글을 불러오는 중입니다...</div>
-              )}
+              ) : (<div className="flex items-center justify-center h-full py-20 text-slate-400 font-bold">게시글을 불러오는 중입니다...</div>)}
             </article>
 
             {exam && (
               <section className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 sm:p-10">
-                <div className="flex items-center gap-3 mb-10">
-                  <MessageSquare className="text-primary" size={24} />
-                  <h3 className="text-2xl font-black">댓글 <span className="text-primary">{comments.length}</span></h3>
-                </div>
-                
+                <div className="flex items-center gap-3 mb-10"><MessageSquare className="text-primary" size={24} /><h3 className="text-2xl font-black">댓글 <span className="text-primary">{comments.length}</span></h3></div>
                 <div className="space-y-4">
-                  <form onSubmit={(e) => { e.preventDefault(); handleCommentSubmit(mainCommentContent); }} className="flex gap-5 mb-12">
-                    <div className="w-12 h-12 rounded-2xl overflow-hidden bg-primary/5 flex-shrink-0 flex items-center justify-center font-black text-primary border border-primary/10 uppercase">
-                      {myProfileUrl ? <img src={myProfileUrl} alt="Me" className="w-full h-full object-cover" /> : (user?.userName ? user.userName[0] : 'U')}
-                    </div>
-                    <div className="flex-1 relative">
-                      <textarea value={mainCommentContent} onChange={(e) => setMainCommentContent(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-[1.5rem] p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 min-h-[120px] outline-none text-slate-900 dark:text-white shadow-inner resize-none transition-all" placeholder="따뜻한 댓글로 지식을 나누어 보세요..."/>
-                      <button type="submit" disabled={isSubmittingMainComment || !mainCommentContent.trim()} className="absolute bottom-4 right-4 p-3 bg-primary text-white rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95">
-                        {isSubmittingMainComment ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={20} />}
-                      </button>
-                    </div>
-                  </form>
-
+                  <MainCommentForm 
+                    user={user} 
+                    onSubmit={handleCommentSubmit} 
+                    isSubmitting={isSubmittingMainComment} 
+                  />
                   <div className="space-y-2">
-                    {comments.length > 0 ? (
-                      comments.map(comment => (
-                        <CommentItem key={comment.commentId} comment={comment} currentUser={user} onDelete={handleDeleteComment} onUpdate={handleUpdateComment} onSubmitReply={handleCommentSubmit} activeReplyId={activeReplyId} setActiveReplyId={setActiveReplyId} />
-                      ))
-                    ) : (
-                      <div className="py-20 text-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/30 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-700"><MessageSquare size={40} className="mx-auto mb-4 opacity-20" /><p className="font-bold">아직 작성된 댓글이 없습니다. ✨</p></div>
-                    )}
+                    {comments.length > 0 ? (comments.map(comment => (<CommentItem key={comment.commentId} comment={comment} currentUser={user} onDelete={handleDeleteComment} onUpdate={handleUpdateComment} onSubmitReply={handleCommentSubmit} activeReplyId={activeReplyId} setActiveReplyId={setActiveReplyId} />))) : (<div className="py-20 text-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/30 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-700"><MessageSquare size={40} className="mx-auto mb-4 opacity-20" /><p className="font-bold">아직 작성된 댓글이 없습니다. ✨</p></div>)}
                   </div>
                 </div>
               </section>
@@ -560,11 +752,11 @@ export default function ExamDetailPage() {
                   )) : ( <div className="text-xs text-slate-400 text-center py-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 font-bold">인기 게시글이 없습니다.</div> )}
                 </div>
               </div>
-              <div className="bg-[#0d141b] rounded-3xl p-8 border border-white/5 shadow-2xl relative overflow-hidden group">
+              <div className="bg-white dark:bg-[#1a222c] rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/20 transition-colors" />
-                <h3 className="text-sm font-black text-white mb-6 flex items-center gap-2 relative z-10"><Hash className="text-primary" size={18} /> 실시간 급상승 태그</h3>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2 relative z-10"><Hash className="text-primary" size={18} /> 실시간 급상승 태그</h3>
                 <div className="flex flex-wrap gap-2.5 relative z-10">
-                  {trendingTags.length > 0 ? trendingTags.map((tag, i) => (<Link key={i} to={`/practice-exams?type=S&tagName=${encodeURIComponent(tag)}`} className="px-3.5 py-2 rounded-xl bg-white/5 text-[11px] font-black text-slate-400 hover:bg-primary hover:text-white transition-all border border-white/5 active:scale-95">#{tag}</Link>)) : ( <p className="text-[11px] text-slate-500 py-6 text-center w-full font-bold">작성된 태그가 없습니다.</p> )}
+                  {trendingTags.length > 0 ? trendingTags.map((tag, i) => (<Link key={i} to={`/practice-exams?type=S&tagName=${encodeURIComponent(tag)}`} className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-white/5 text-[11px] font-black text-slate-500 dark:text-slate-400 hover:bg-primary hover:text-white transition-all border border-slate-100 dark:border-white/5 active:scale-95">#{tag}</Link>)) : ( <p className="text-[11px] text-slate-500 py-6 text-center w-full font-bold">작성된 태그가 없습니다.</p> )}
                 </div>
               </div>
             </div>
