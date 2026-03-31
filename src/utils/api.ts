@@ -18,7 +18,8 @@ api.interceptors.request.use((config) => {
     const userStr = sessionStorage.getItem('user') || localStorage.getItem('user');
     if (userStr) {
       const user = JSON.parse(userStr);
-      if (user.accessToken && !config.headers.Authorization) {
+      if (user.accessToken) {
+        // [강화] 기존 헤더가 있더라도 스토리지의 최신 토큰으로 강제 동기화
         config.headers.Authorization = `Bearer ${user.accessToken}`;
       }
     }
@@ -51,9 +52,9 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 && 
       !originalRequest._retry && 
-      !originalRequest.url.includes('/api/token-refresh') &&
-      !originalRequest.url.includes('/api/common/signIn')&&
-      !originalRequest.url.includes('/api/common/logout')
+      !originalRequest.url.includes('/api/auth/token-refresh') &&
+      !originalRequest.url.includes('/api/auth/signIn')&&
+      !originalRequest.url.includes('/api/auth/logout')
     ) {
       
       if (isRefreshing) {
@@ -72,13 +73,18 @@ api.interceptors.response.use(
 
       try {
         // 리프레시 API 호출
-        const res = await axios.post('/api/token-refresh', null, { withCredentials: true });
+        const res = await axios.post('/api/auth/token-refresh', null, { withCredentials: true });
         const data = res.data;
         const rawData = data.result?.data || data.data || data.result || data;
         
         if (rawData && rawData.accessToken) {
           const newUserInfo = rawData;
           
+          // 기존 저장된 토큰 확인 (이벤트 발송용: 스토리지 갱신 전 비교)
+          const currentStoredUserStr = sessionStorage.getItem('user') || localStorage.getItem('user');
+          const currentStoredUser = currentStoredUserStr ? JSON.parse(currentStoredUserStr) : {};
+          const isTokenChanged = currentStoredUser.accessToken !== newUserInfo.accessToken;
+
           // 저장소 갱신 (Remember Me 여부에 따라 분기)
           const isRemembered = localStorage.getItem('rememberMe') === 'true';
           if (isRemembered) {
@@ -91,9 +97,8 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${newUserInfo.accessToken}`;
           processQueue(null, newUserInfo.accessToken);
           
-          // 기존 토큰과 비교하여 변경된 경우에만 이벤트 발송 (무한 루프 방지 핵심)
-          const currentStoredUser = JSON.parse(sessionStorage.getItem('user') || localStorage.getItem('user') || '{}');
-          if (currentStoredUser.accessToken !== newUserInfo.accessToken) {
+          // 기존 토큰과 변경된 경우에만 이벤트 발송 (무한 루프 방지 핵심)
+          if (isTokenChanged) {
             window.dispatchEvent(new CustomEvent('auth-token-refreshed', { detail: newUserInfo }));
           }
           
@@ -101,10 +106,11 @@ api.interceptors.response.use(
         }
       } catch (refreshError) {
         processQueue(refreshError, null);
-        // 리프레시 실패 시 로그아웃 처리
+        // 리프레시 실패 시 로그아웃 처리 및 알림 이벤트 발송
         sessionStorage.removeItem('user');
         localStorage.removeItem('user');
         localStorage.removeItem('rememberMe');
+        window.dispatchEvent(new CustomEvent('auth-error'));
         
         // 리프레시 실패 시 더 이상 요청이 진행되지 않도록 에러 전파
         return Promise.reject(refreshError);

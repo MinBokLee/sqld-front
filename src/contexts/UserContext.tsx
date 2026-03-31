@@ -64,9 +64,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const refreshSession = async () => {
     try {
-      const response = await api.post('/api/token-refresh');
+      const response = await api.post('/api/auth/token-refresh');
       const data = response.data;
       const rawData = data.result?.data || data.data || data.result || data;
+
       
       if (rawData && rawData.accessToken) {
         const newUser: User = {
@@ -129,10 +130,24 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const handleRefreshed = (e: any) => {
       if (e.detail) {
-        const newUser = e.detail;
+        const rawData = e.detail;
+        
         setUser(prev => {
           // 현재 유저의 토큰과 새로 받은 토큰이 다를 때만 상태 업데이트
-          if (prev?.accessToken !== newUser.accessToken) {
+          if (prev?.accessToken !== rawData.accessToken) {
+            // 원본 데이터가 User 인터페이스 필드를 포함하는지 확인 후 매핑 (기존 정보 유지)
+            const newUser: User = {
+              userId: rawData.userId || prev?.userId || '',
+              userName: rawData.userName || prev?.userName || '',
+              userRole: rawData.userRole || prev?.userRole || '',
+              accessToken: rawData.accessToken,
+              memberId: rawData.memberId || prev?.memberId || '',
+              profileImage: rawData.profileImage || prev?.profileImage,
+              postCount: rawData.postCount !== undefined ? Number(rawData.postCount) : (prev?.postCount || 0),
+              commentCount: rawData.commentCount !== undefined ? Number(rawData.commentCount) : (prev?.commentCount || 0),
+              lastLogAt: rawData.lastLogAt || prev?.lastLogAt,
+              userStatus: rawData.userStatus || prev?.userStatus,
+            };
             return newUser;
           }
           return prev;
@@ -140,16 +155,25 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     };
 
+    const handleAuthError = () => {
+      clearUser();
+      // 필요한 경우 로그인 페이지로 리다이렉트나 알림 표시 가능
+    };
+
     window.addEventListener('auth-token-refreshed', handleRefreshed);
+    window.addEventListener('auth-error', handleAuthError);
     initializeUser();
 
-    return () => window.removeEventListener('auth-token-refreshed', handleRefreshed);
+    return () => {
+      window.removeEventListener('auth-token-refreshed', handleRefreshed);
+      window.removeEventListener('auth-error', handleAuthError);
+    };
   }, [clearUser]);
 
   const login = useCallback(async (username: string, password: string, rememberMe: boolean): Promise<boolean> => {
     setIsLoading(true);
     try {
-      const response = await api.post('/api/common/signIn', { 
+      const response = await api.post('/api/auth/signIn', { 
         userId: username, 
         userPass: password 
       });
@@ -212,7 +236,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     try {
       // 1. 서버에 로그아웃 알림 (토큰 포함)
-      await api.post('/api/common/logout', null, {
+      await api.post('/api/auth/logout', null, {
         headers: {
           'Authorization': `Bearer ${user?.accessToken}`,
         }

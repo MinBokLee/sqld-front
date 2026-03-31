@@ -180,7 +180,7 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
 
       <div className="p-2 space-y-0.5">
         <Link
-          to="/mypage"
+          to="/mypage?tab=scraps"
           onClick={onClose}
           className="flex items-center justify-between w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
         >
@@ -192,13 +192,13 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
         </Link>
 
         <Link
-          to={`/practice-exams?mode=my`}
+          to="/mypage?tab=posts"
           onClick={onClose}
           className="flex items-center justify-between w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
         >
           <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
             <FileText size={16} className="text-slate-400 group-hover:text-primary transition-colors" />
-            <span className="text-xs font-bold">내 활동 관리</span>
+            <span className="text-xs font-bold">내가 쓴 글 관리</span>
           </div>
           <ChevronRight size={12} className="text-slate-300 group-hover:translate-x-0.5 transition-transform" />
         </Link>

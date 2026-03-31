@@ -194,14 +194,14 @@ export default function WritePostPage() {
   const [tempData, setTempData] = useState<any>(null);
   
   const isSuccessfullySubmitted = useRef(false);
+  const isHistoryPushed = useRef(false); // [신규] pushState 실행 여부를 추적하는 잠금 장치
   const STORAGE_KEY = user ? `sqld_temp_post_${user.memberId}${editingBoardId ? `_${editingBoardId}` : ''}` : null;
 
   const handleConfirmBack = () => {
     setIsBackConfirmOpen(false);
     isSuccessfullySubmitted.current = true;
     
-    // [핵심] '수정 페이지'와 '가짜 상태' 2개를 모두 건너뛰어 원래의 상세 페이지 지점으로 돌아갑니다.
-    // 이렇게 하면 상세 페이지에서 뒤로가기를 눌렀을 때 수정 페이지가 아닌 리스트/메인이 나옵니다.
+    // 원래 페이지로 돌아가기 위해 가짜 상태와 현재 페이지를 모두 제거
     window.history.go(-2);
   };
 
@@ -211,7 +211,6 @@ export default function WritePostPage() {
       setIsBackConfirmOpen(true);
     } else {
       isSuccessfullySubmitted.current = true;
-      // 내용이 없더라도 스택 정리를 위해 2칸 뒤로 이동합니다.
       window.history.go(-2);
     }
   };
@@ -250,7 +249,7 @@ export default function WritePostPage() {
 
   useEffect(() => {
     if (editingBoardId) {
-       api.get(`/api/board/list/${editingBoardId}`)
+       api.get(`api/board/list/detail/${editingBoardId}`)
        .then(res => {
          const post = res.data.result?.data;
          if (post) {
@@ -281,40 +280,48 @@ export default function WritePostPage() {
 
   const lastContent = useRef({title: '', content: ''});
   
-  //1. 최신 데이터 업데이트 (항상 최상위)
+  // 최신 데이터 업데이트
   lastContent.current = {title, content:editorData};
 
   useEffect(()=> {
-    //1. 브라우저 탭 닫기 방지
-    const handleBeforeUnload= (e: BeforeUnloadEvent) => {
+    // 1. 브라우저 탭 닫기 방지
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       const{title, content} = lastContent.current;
       if(!isSuccessfullySubmitted.current && (title.trim() || content.trim())) {
           e.preventDefault(); e.returnValue='';
       }
     };
-    //2. 뒤로 가기 방지 핵심 로직
-    const handlePopState = () =>{
+
+    // 2. 뒤로 가기 방지 핵심 로직
+    const handlePopState = () => {
       const{title, content} = lastContent.current;
-      if(!isSuccessfullySubmitted.current && (title.trim() || content.trim())){
+      
+      if (isSuccessfullySubmitted.current) return;
+
+      if (title.trim() || content.trim()) {
         setIsBackConfirmOpen(true);
-        // 가짜 상태를 다시 밀어넣어 현재 페이지 유지 (브라우저의 뒤로가기 동작을 상쇄함)
+        // 가짜 상태를 다시 밀어넣어 현재 페이지 유지
         window.history.pushState({ preventBack: true }, '', window.location.href);
-      }      
-    };// end of handlePopState()
+      } else {
+        // 내용이 없으면 그냥 나감 (단, 가짜 상태가 있으므로 go(-1)을 추가로 호출하여 확실히 이탈)
+        window.history.back();
+      }
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('popstate', handlePopState);
 
-    // [핵심 수정] 페이지 진입 시 딱 한 번만 가짜 상태를 추가합니다. (중복 생성 방지)
-    if(window.history.state?.preventBack !== true){
-      window.history.pushState({preventBack:true},'', window.location.href);
+    // [개선] useRef 플래그와 history.state를 이중 체크하여 중복 생성 완벽 차단
+    if (!isHistoryPushed.current && window.history.state?.preventBack !== true) {
+      window.history.pushState({ preventBack: true }, '', window.location.href);
+      isHistoryPushed.current = true;
     }
 
-    return() => {
+    return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('popstate', handlePopState);
     };
-  
-  }, []); // 의존성 배열을 비워 마운트 시 1회만 실행되도록 보장합니다.
+  }, []);
 
   useEffect(() => {
     if (isUserLoading) return; // 로그인 정보 복구 중에는 체크를 대기함
@@ -381,15 +388,30 @@ export default function WritePostPage() {
       if (selectedFiles && selectedFiles.length > 0) selectedFiles.forEach(file => formData.append('files', file));
       
       const url = editingBoardId ? `/api/board/list/${editingBoardId}` : `/api/board/list/write`;
-      const response = await api({ method: editingBoardId ? 'put' : 'post', url: url, data: formData, headers: { 'Content-Type': 'multipart/form-data' } });
+      const response = await api({ 
+        method: editingBoardId ? 'put' : 'post', 
+        url: url, 
+        data: formData, 
+        headers: { 
+          'Content-Type': 'multipart/form-data'
+        } 
+      });
       if (response.status === 200 || response.status === 201) {
+        // [중요] 성공 플래그를 가장 먼저 설정하여 popstate 이벤트를 무력화
         isSuccessfullySubmitted.current = true;
+        
         if (STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
         if (boardType === 'G' && !editingBoardId) updateUser({ userStatus: 'Y' });
-        showAlert({ type: 'success', message: "처리가 완료되었습니다. ✅" });
+        
         const targetId = editingBoardId || response.data.result?.data?.boardId;
-        if (targetId) navigate(`/exam/${targetId}?type=${boardType}`, { replace: true });
-        else navigate(`/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`, { replace: true });
+        showAlert({ type: 'success', message: "처리가 완료되었습니다. ✅" });
+
+        // [히스토리 클리닝] 가짜 엔트리 삭제 후 실제 엔트리를 교체
+        window.history.back();
+        setTimeout(() => {
+          if (targetId) navigate(`/exam/${targetId}?type=${boardType}`, { replace: true });
+          else navigate(`/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`, { replace: true });
+        }, 50);
       }
     } catch (error: any) { showAlert({ type: 'error', message: "저장 실패 ⏳" }); } finally { setIsSubmitting(false); }
   };

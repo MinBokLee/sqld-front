@@ -1,27 +1,26 @@
-import React, { useState, useEffect, useCallback, useContext, memo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
-  MessageSquare, Eye, ThumbsUp, ThumbsDown, Clock, 
-  Share2, Bookmark, ArrowLeft, Send, Trash2, Pencil,
-  User, Check, X, MoreHorizontal, Reply, Hash, 
-  TrendingUp, Heart, Tag, Search, ChevronsRight,
-  FileText, Download, DownloadCloud, Paperclip, ZoomIn
+  MessageSquare, Eye, ThumbsUp, 
+  Share2, Bookmark,
+  X, Hash, 
+  ChevronsRight,
+  Download, Pencil, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../contexts/UserContext';
-import { LanguageContext } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
 import { formatRelativeTime } from '../utils/dateUtils';
 import api from '../utils/api';
 import ConfirmModal from '../components/ConfirmModal';
+import AttachmentSection from '../components/AttachmentSection';
+import type { Attachment } from '../components/AttachmentSection';
+import CommentSection from '../components/CommentSection';
+import type { Comment } from '../components/CommentItem';
+import PostSidebar from '../components/PostSidebar';
+import type { PopularPost } from '../components/PostSidebar';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
-interface Attachment {
-  fileId: number;
-  originName: string;
-  filePath: string;
-}
 
 interface Exam {
   id: number;
@@ -36,6 +35,7 @@ interface Exam {
   likeCount: number;
   isLiked: boolean;
   isScrapped: boolean;
+  scrapId?: number | null; // 스크랩 취소를 위한 ID
   content: string;
   boardType: string;
   files?: Attachment[];
@@ -43,284 +43,25 @@ interface Exam {
   tags?: string[];
 }
 
-interface Comment {
-  commentId: number;
-  userName: string;
-  userId: string;
-  memberId: number;
-  profileImage?: string;
-  content: string;
-  createAt: string;
-  replies?: Comment[];
-  parentCommentId?: number | null;
-}
-
-interface PopularPost {
-  id: number;
-  title: string;
-  date: string;
-  views: number;
-  likeCount: number;
-}
-
-const MainCommentForm = memo(({ 
-  user, 
-  onSubmit, 
-  isSubmitting 
-}: { 
-  user: any; 
-  onSubmit: (content: string) => Promise<boolean>;
-  isSubmitting: boolean;
-}) => {
-  const [content, setContent] = useState('');
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!content.trim() || isSubmitting) return;
-    
-    const success = await onSubmit(content);
-    if (success) setContent('');
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="flex gap-5 mb-12">
-      <div className="w-12 h-12 rounded-2xl overflow-hidden bg-primary/5 flex-shrink-0 flex items-center justify-center font-black text-primary border border-primary/10 uppercase">
-        {user?.profileImage ? <img src={user.profileImage} alt="Me" className="w-full h-full object-cover" /> : (user?.userName ? user.userName[0] : 'U')}
-      </div>
-      <div className="flex-1 relative">
-        <textarea 
-          value={content} 
-          onChange={(e) => setContent(e.target.value)} 
-          className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-[1.5rem] p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 min-h-[120px] outline-none text-slate-900 dark:text-white shadow-inner resize-none transition-all" 
-          placeholder="따뜻한 댓글로 지식을 나누어 보세요..."
-        />
-        <button type="submit" disabled={isSubmitting || !content.trim()} className="absolute bottom-4 right-4 p-3 bg-primary text-white rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95">
-          {isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send size={20} />}
-        </button>
-      </div>
-    </form>
-  );
-});
-
-const CommentItem = memo(({ 
-  comment, 
-  isReply = false, 
-  currentUser,
-  onDelete,
-  onUpdate,
-  onSubmitReply,
-  activeReplyId,
-  setActiveReplyId
-}: { 
-  comment: Comment; 
-  isReply?: boolean; 
-  currentUser: any;
-  onDelete: (id: number) => void;
-  onUpdate: (id: number, content: string) => Promise<void>;
-  onSubmitReply: (content: string, parentId: number) => Promise<boolean>;
-  activeReplyId: number | null;
-  setActiveReplyId: (id: number | null) => void;
-}) => {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editContent, setEditContent] = useState(comment.content);
-  const [localReplyContent, setLocalReplyContent] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const canEdit = currentUser && String(currentUser.memberId) === String(comment.memberId);
-
-  useEffect(() => {
-    setEditContent(comment.content);
-  }, [comment.content]);
-
-  const handleUpdate = async () => {
-    if (!editContent.trim() || editContent === comment.content) {
-      setIsEditing(false);
-      return;
-    }
-    setIsProcessing(true);
-    await onUpdate(comment.commentId, editContent);
-    setIsProcessing(false);
-    setIsEditing(false);
-  };
-
-  const handleReplySubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!localReplyContent.trim()) return;
-    const success = await onSubmitReply(localReplyContent, comment.commentId);
-    if (success) {
-      setLocalReplyContent('');
-      setActiveReplyId(null);
-    }
-  };
-
-  const fixProfileUrl = (path: string | null) => {
-    if (!path) return null;
-    if (path.startsWith('http')) return path;
-    const fileName = path.split(/[\\/]/).pop();
-    return `/uploads/${fileName}`;
-  };
-
-  const profileUrl = fixProfileUrl(comment.profileImage);
-
-  return (
-    <div className={`${isReply ? 'ml-6 sm:ml-12 mt-4 bg-slate-50/50 dark:bg-slate-800/30 p-4 rounded-2xl border-l-4 border-primary/20' : 'mb-8'}`}>
-      <div className="flex gap-4 group">
-        <div className={`rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 flex-shrink-0 border border-slate-200 dark:border-slate-700 ${isReply ? 'w-8 h-8' : 'w-10 h-10'}`}>
-          {profileUrl ? (
-            <img src={profileUrl} alt="P" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-400">
-              <User size={isReply ? 14 : 18} />
-            </div>
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-2">
-              {isReply && <Reply size={12} className="text-primary rotate-180" />}
-              <span className={`font-black text-slate-900 dark:text-white ${isReply ? 'text-xs' : 'text-sm'}`}>{comment.userName}</span>
-              <span className="text-[10px] text-slate-400 font-bold">{formatRelativeTime(comment.createAt)}</span>
-            </div>
-            {canEdit && !isEditing && (
-              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button onClick={() => setIsEditing(true)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-primary/5 rounded-lg transition-all"><Pencil size={14} /></button>
-                <button onClick={() => onDelete(comment.commentId)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={14} /></button>
-              </div>
-            )}
-          </div>
-          
-          {isEditing ? (
-            <div className="mt-2 space-y-2">
-              <textarea 
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                className="w-full bg-white dark:bg-slate-800 border-2 border-primary/20 rounded-xl p-3 text-sm focus:border-primary outline-none transition-all dark:text-white min-h-[80px] resize-none"
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
-                <button onClick={() => setIsEditing(false)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded-lg"><X size={16} /></button>
-                <button onClick={handleUpdate} disabled={isProcessing} className="p-1.5 text-primary hover:bg-primary/10 rounded-lg"><Check size={16} /></button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <p className={`text-slate-700 dark:text-slate-300 leading-relaxed font-medium ${isReply ? 'text-xs' : 'text-sm'}`}>{comment.content}</p>
-              {!isReply && (
-                <button 
-                  onClick={() => setActiveReplyId(activeReplyId === comment.commentId ? null : comment.commentId)}
-                  className="text-[10px] font-black text-primary mt-2 flex items-center gap-1 hover:underline uppercase tracking-tighter"
-                >
-                  <MessageSquare size={10} /> Reply
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-
-      {activeReplyId === comment.commentId && !isReply && (
-        <div className="ml-10 sm:ml-14 mt-4 animate-in fade-in slide-in-from-top-2">
-          <form onSubmit={handleReplySubmit}>
-            <textarea 
-              value={localReplyContent}
-              onChange={(e) => setLocalReplyContent(e.target.value)}
-              className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-sm focus:ring-2 focus:ring-primary/20 h-[100px] outline-none text-slate-900 dark:text-white shadow-sm resize-none"
-              placeholder={`${comment.userName}님께 답글 남기기...`}
-              autoFocus
-            />
-            <div className="flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setActiveReplyId(null)} className="px-4 py-1.5 text-xs font-bold text-slate-400">Cancel</button>
-              <button type="submit" disabled={isProcessing || !localReplyContent.trim()} className="px-6 py-1.5 bg-primary text-white text-xs font-black rounded-lg disabled:opacity-50 shadow-md shadow-primary/20">
-                {isProcessing ? 'Saving...' : 'Submit'}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {comment.replies && comment.replies.map(reply => (
-        <CommentItem 
-          key={reply.commentId} 
-          comment={reply} 
-          isReply={true} 
-          currentUser={currentUser}
-          onDelete={onDelete}
-          onUpdate={onUpdate}
-          onSubmitReply={onSubmitReply}
-          activeReplyId={activeReplyId}
-          setActiveReplyId={setActiveReplyId}
-        />
-      ))}
-    </div>
-  );
-});
-
 const POST_CONTENT_STYLE = `
   .prose-container pre { background-color: #282c34 !important; color: #abb2bf !important; padding: 1.5rem !important; border-radius: 1rem !important; font-family: 'Fira Code', monospace !important; font-size: 0.875rem !important; margin: 2rem 0 !important; overflow-x: auto !important; border-left: 4px solid #61afef !important; }
   .prose-container :not(pre) > code { background-color: #e2e8f0 !important; color: #e11d48 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.4rem !important; font-size: 0.9em !important; }
   .dark .prose-container :not(pre) > code { background-color: #1e293b !important; color: #fb7185 !important; }
-  
-  /* 이미지 정렬 및 리사이징 동기화 */
   .prose-container .image { margin: 2rem 0; clear: both; display: table; }
   .prose-container .image img { display: block; max-width: 100%; border-radius: 1.5rem; box-shadow: 0 20px 50px -15px rgba(0,0,0,0.15); border: 4px solid white; transition: transform 0.3s ease; }
   .dark .prose-container .image img { border-color: #1e293b; }
-  
-  /* 정렬 클래스 대응 */
   .prose-container .image-style-align-left { float: left; margin-right: 1.5rem; margin-left: 0; max-width: 50%; }
   .prose-container .image-style-align-right { float: right; margin-left: 1.5rem; margin-right: 0; max-width: 50%; }
   .prose-container .image-style-align-center { margin-left: auto !important; margin-right: auto !important; float: none !important; display: table !important; }
-  .prose-container .image-style-block-align-left { margin-left: 0 !important; margin-right: auto !important; float: none !important; display: table !important; }
-  .prose-container .image-style-block-align-right { margin-right: 0 !important; margin-left: auto !important; float: none !important; display: table !important; }
-  .prose-container .image-style-side { float: right; margin-left: 1.5rem; max-width: 50%; }
-
-  /* 테이블 스타일 동기화 */
-  .prose-container figure.table {
-    margin: 2rem 0 !important;
-    border-radius: 1rem !important;
-    overflow: hidden !important;
-    border: 1px solid #e2e8f0 !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
-    width: auto !important;
-    max-width: 100% !important;
-    display: block !important;
-  }
-  .prose-container figure.table table {
-    border-collapse: collapse !important;
-    margin: 0 !important;
-    table-layout: fixed !important; 
-    width: 100% !important;
-    min-width: 50px !important;
-  }
-  .prose-container figure.table th,
-  .prose-container figure.table td {
-    border: 1px solid #cbd5e1; 
-    padding: 0.75rem 1rem !important;
-    word-break: break-all; 
-    overflow-wrap: break-word;
-  }
-  .prose-container figure.table th {
-    background-color: #f1f5f9;
-    font-weight: 900 !important;
-  }
-  .dark .prose-container figure.table th {
-    background-color: #0f172a;
-    color: #f1f5f9 !important;
-  }
-
-  /* 표 정렬 대응 */
-  .prose-container figure.table.table-align-left { margin-left: 0 !important; margin-right: auto !important; }
-  .prose-container figure.table.table-align-right { margin-left: auto !important; margin-right: 0 !important; }
-  .prose-container figure.table.table-align-center { margin-left: auto !important; margin-right: auto !important; }
-
-  @media (max-width: 640px) { 
-    .prose-container .image { max-width: 100% !important; float: none !important; margin: 1.5rem 0 !important; }
-    .prose-container .image img { max-width: 100% !important; } 
-    .prose-container figure.table { width: 100% !important; overflow-x: auto !important; display: block !important; }
-    .prose-container figure.table table { min-width: 500px !important; }
-  }
+  .prose-container figure.table { margin: 2rem 0 !important; border-radius: 1rem !important; overflow: hidden !important; border: 1px solid #e2e8f0 !important; width: auto !important; max-width: 100% !important; display: block !important; }
+  .prose-container figure.table table { border-collapse: collapse !important; margin: 0 !important; table-layout: fixed !important; width: 100% !important; min-width: 50px !important; }
+  .prose-container figure.table th, .prose-container figure.table td { border: 1px solid #cbd5e1; padding: 0.75rem 1rem !important; word-break: break-all; }
+  .prose-container figure.table th { background-color: #f1f5f9; font-weight: 900 !important; }
+  .dark .prose-container figure.table th { background-color: #0f172a; color: #f1f5f9 !important; }
+  @media (max-width: 640px) { .prose-container .image { max-width: 100% !important; float: none !important; } .prose-container figure.table table { min-width: 500px !important; } }
 `;
 
-const PostContent = memo(({ content, onImageClick }: { content: string, onImageClick: (url: string) => void }) => {
+const PostContent = React.memo(({ content, onImageClick }: { content: string, onImageClick: (url: string) => void }) => {
   const handleClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.tagName === 'IMG') onImageClick((target as HTMLImageElement).src);
@@ -329,47 +70,6 @@ const PostContent = memo(({ content, onImageClick }: { content: string, onImageC
     <div className="prose-container p-6 sm:p-10 prose dark:prose-invert max-w-none min-h-[300px]" onClick={handleClick}>
       <style dangerouslySetInnerHTML={{ __html: POST_CONTENT_STYLE }} />
       <div dangerouslySetInnerHTML={{ __html: content }} />
-    </div>
-  );
-});
-
-const AttachmentSection = memo(({ files, onImageClick, onDownload }: { files: Attachment[], onImageClick: (url: string) => void, onDownload: (id: number, name: string) => void }) => {
-  if (!files || files.length === 0) return null;
-  
-  return (
-    <div className="px-6 sm:px-10 py-8 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800">
-      <div className="flex items-center gap-2 mb-4 text-slate-900 dark:text-white">
-        <Paperclip size={18} className="text-primary" />
-        <h4 className="text-sm font-black uppercase tracking-widest">첨부파일 <span className="text-primary ml-1">{files.length}</span></h4>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {files.map((file, idx) => {
-          const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(file.originName);
-          return (
-            <div key={idx} className="flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 hover:border-primary/30 hover:shadow-md transition-all group cursor-default">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <div 
-                  className={`w-10 h-10 bg-slate-50 dark:bg-slate-700 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center text-slate-400 border border-slate-100 dark:border-slate-600 transition-all ${isImage ? 'cursor-zoom-in hover:scale-105 hover:border-primary/50' : ''}`} 
-                  onClick={() => isImage && onImageClick(file.filePath)}
-                >
-                  {isImage ? <img src={file.filePath} alt="preview" className="w-full h-full object-cover" /> : <FileText size={18} />}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate group-hover:text-slate-900 dark:group-hover:text-white transition-colors">{file.originName}</span>
-                  {isImage && <span className="text-[10px] text-primary/60 font-medium">클릭하여 확대</span>}
-                </div>
-              </div>
-              <button 
-                onClick={() => onDownload(file.fileId, file.originName)}
-                className="p-2 text-slate-300 hover:text-primary hover:bg-primary/5 rounded-xl transition-all" 
-                title="다운로드"
-              >
-                <Download size={16} />
-              </button>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 });
@@ -399,15 +99,9 @@ const Tooltip = ({ children, text }: { children: React.ReactNode, text: string }
       {children}
       <AnimatePresence>
         {show && text && (
-          <motion.div 
-            initial={{ opacity: 0, y: 8, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.95 }}
-            transition={{ duration: 0.15, ease: "easeOut" }}
-            className="absolute bottom-full mb-3 px-3 py-1.5 bg-slate-800 dark:bg-slate-700 text-white text-[10px] font-black rounded-lg whitespace-nowrap z-50 shadow-[0_8px_20px_-4px_rgba(0,0,0,0.3)] pointer-events-none border border-white/10"
-          >
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} className="absolute bottom-full mb-3 px-3 py-1.5 bg-slate-800 text-white text-[10px] font-black rounded-lg whitespace-nowrap z-50">
             {text}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-800 dark:border-t-slate-700" />
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-800" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -420,6 +114,7 @@ export default function ExamDetailPage() {
   const { user } = useUser();
   const { showAlert } = useAlert();
   const navigate = useNavigate();
+
   const [exam, setExam] = useState<Exam | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [popularPosts, setPopularPosts] = useState<PopularPost[]>([]);
@@ -427,7 +122,6 @@ export default function ExamDetailPage() {
   const [initialLoading, setInitialLoading] = useState(true);
   const [isLiking, setIsLiking] = useState(false);
   const [isSubmittingMainComment, setIsSubmittingMainComment] = useState(false);
-  const [activeReplyId, setActiveReplyId] = useState<number | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean; title: string; message: string; onConfirm: () => void; type: 'danger' | 'warning' | 'info'; isLoading: boolean; }>({ isOpen: false, title: '', message: '', onConfirm: () => {}, type: 'info', isLoading: false });
 
@@ -439,9 +133,8 @@ export default function ExamDetailPage() {
 
   const fixContentHtml = (html: string) => {
     if (!html) return '';
-    let correctedHtml = html.replace(/src="http:\/\/localhost:8881\/uploads\//g, 'src="/uploads/');
+    let correctedHtml = html.replace(/src="https?:\/\/[^/]+\/uploads\//g, 'src="/uploads/');
     correctedHtml = correctedHtml.replace(new RegExp(`src="${API_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/uploads/`, 'g'), 'src="/uploads/');
-    correctedHtml = correctedHtml.replace(/src="[^"]*\/upload\/([^"]+)"/g, 'src="/uploads/$1');
     return correctedHtml;
   };
 
@@ -460,11 +153,30 @@ export default function ExamDetailPage() {
   const fetchComments = useCallback(async () => {
     try {
       const response = await api.get(`/api/board/readComment`, { params: { boardId: id } });
-      if (response.data.success) {
-        setComments(buildCommentTree(response.data.result.data || []));
-      }
+      if (response.data.success) setComments(buildCommentTree(response.data.result.data || []));
     } catch (error) { console.error("Fetch comments error:", error); }
   }, [id]);
+
+  const fetchPostDetail = useCallback(async (showLoading = false) => {
+    if (showLoading) setInitialLoading(true);
+    try {
+      const response = await api.get(`/api/board/list/detail/${id}`);
+      const rawData = response.data.result?.data || response.data.result;
+      if (rawData) {
+        setExam({
+          id: rawData.boardId, title: rawData.title, authorName: rawData.userName, authorId: String(rawData.memberId || ''),
+          authorImage: rawData.profileImage, date: rawData.createAt, fullDate: new Date(rawData.createAt).toLocaleString('ko-KR'),
+          views: rawData.viewCount, commentsCount: rawData.commentCount || 0, likeCount: rawData.likeCount || 0, 
+          isLiked: !!(rawData.isLiked || rawData.liked), 
+          isScrapped: !!(rawData.isScrapped || rawData.scrapped), 
+          scrapId: rawData.scrap_Id || null, // 서버에서 내려주는 scrap_Id 저장
+          content: fixContentHtml(rawData.content), boardType: rawData.boardType,
+          files: (rawData.fileList || rawData.files || []).map((f: any) => ({ fileId: f.fileId, originName: f.originName, filePath: fixImagePath(f.filePath || '') })),
+          tags: rawData.tags || (rawData.tagName ? rawData.tagName.split(',').map((t: string) => t.trim()) : []),
+        });
+      }
+    } catch (error) { console.error("Post detail error:", error); } finally { if (showLoading) setInitialLoading(false); }
+  }, [id, user]);
 
   const fetchPopularPosts = useCallback(async () => {
     try {
@@ -487,26 +199,6 @@ export default function ExamDetailPage() {
     } catch (error) { console.error("Tags error:", error); }
   }, []);
 
-  const fetchPostDetail = useCallback(async (showLoading = false) => {
-    if (showLoading) setInitialLoading(true);
-    try {
-      const response = await api.get(`/api/board/list/${id}${user ? `?memberId=${user.memberId}` : ""}`);
-      const rawData = response.data.result?.data || response.data.result;
-      if (rawData) {
-        setExam({
-          id: rawData.boardId, title: rawData.title, authorName: rawData.userName, authorId: String(rawData.memberId || ''),
-          authorImage: rawData.profileImage, date: rawData.createAt, fullDate: new Date(rawData.createAt).toLocaleString('ko-KR'),
-          views: rawData.viewCount, commentsCount: rawData.commentCount || 0, likeCount: rawData.likeCount || 0, 
-          isLiked: !!(rawData.isLiked || rawData.liked), 
-          isScrapped: !!(rawData.isScrapped || rawData.scrapped), 
-          content: fixContentHtml(rawData.content), boardType: rawData.boardType,
-          files: (rawData.fileList || rawData.files || []).map((f: any) => ({ fileId: f.fileId, originName: f.originName, filePath: fixImagePath(f.filePath || '') })),
-          tags: rawData.tags || (rawData.tagName ? rawData.tagName.split(',').map((t: string) => t.trim()) : []),
-        });
-      }
-    } catch (error) { console.error("Post detail error:", error); } finally { if (showLoading) setInitialLoading(false); }
-  }, [id, user]);
-
   useEffect(() => {
     fetchPostDetail(true); fetchComments(); fetchPopularPosts(); fetchTrendingTags();
   }, [id, fetchPostDetail, fetchComments, fetchPopularPosts, fetchTrendingTags]);
@@ -524,20 +216,15 @@ export default function ExamDetailPage() {
         return true;
       }
       return false;
-    } catch (error) { 
-      console.error("Comment submit error:", error); 
-      return false;
-    } finally { 
-      if (parentId === null) setIsSubmittingMainComment(false); 
-    }
+    } catch (error) { console.error("Comment error:", error); return false; } finally { if (parentId === null) setIsSubmittingMainComment(false); }
   }, [id, user, showAlert, fetchComments]);
 
   const handleDeleteComment = useCallback(async (commentId: number) => {
     if (!user) return;
     try {
       const response = await api.delete(`/api/board/deleteComment/${commentId}`, { headers: { 'Authorization': `Bearer ${user.accessToken}` } });
-      if (response.status === 200) { await fetchComments(); setExam(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null); showAlert({ type: 'success', message: "댓글이 삭제되었습니다. ✅" }); }
-    } catch (error) { console.error("Delete comment error:", error); }
+      if (response.status === 200) { await fetchComments(); setExam(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null); showAlert({ type: 'success', message: "댓글 삭제 완료 ✅" }); }
+    } catch (error) { console.error("Delete error:", error); }
   }, [user, fetchComments, showAlert]);
 
   const handleUpdateComment = useCallback(async (commentId: number, content: string) => {
@@ -545,98 +232,89 @@ export default function ExamDetailPage() {
     try {
       const formData = new FormData(); formData.append('commentId', String(commentId)); formData.append('content', content);
       const response = await api.put(`/api/board/modifyComment`, formData, { headers: { 'Authorization': `Bearer ${user.accessToken}`, 'Content-Type': 'multipart/form-data' } });
-      if (response.status === 200) { await fetchComments(); showAlert({ type: 'success', message: "댓글이 수정되었습니다. ✨" }); }
-    } catch (error) { console.error("Update comment error:", error); }
+      if (response.status === 200) { await fetchComments(); showAlert({ type: 'success', message: "댓글 수정 완료 ✨" }); }
+    } catch (error) { console.error("Update error:", error); }
   }, [user, fetchComments, showAlert]);
 
   const handleLikeAction = useCallback(async () => {
-    if (!user || !exam) { 
-      if (!user) showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" }); 
-      return; 
-    }
-    if (isLiking) return;
+    if (!user || !exam || isLiking) { if (!user) showAlert({ type: 'warning', message: "로그인이 필요합니다. ✅" }); return; }
     setIsLiking(true);
     try {
-      const response = await api.post(`/api/board/like`, null, { 
-        params: { boardId: Number(id) },
-        headers: { 'Authorization': `Bearer ${user.accessToken}` } 
-      });
-      if (response.status === 200) { 
+      const response = await api.post(`/api/board/like`, null, { params: { boardId: Number(id) }, headers: { 'Authorization': `Bearer ${user.accessToken}` } });
+      if (response.status === 200) {
         const isNowLiked = !exam.isLiked;
-        setExam(prev => prev ? { 
-          ...prev, 
-          isLiked: isNowLiked, 
-          likeCount: isNowLiked ? prev.likeCount + 1 : Math.max(0, prev.likeCount - 1) 
-        } : null); 
+        setExam(prev => prev ? { ...prev, isLiked: isNowLiked, likeCount: isNowLiked ? prev.likeCount + 1 : Math.max(0, prev.likeCount - 1) } : null);
       }
-    } catch (error) { console.error("Like action error:", error); } finally { setIsLiking(false); }
+    } catch (error) { console.error("Like error:", error); } finally { setIsLiking(false); }
   }, [id, user, exam, isLiking, showAlert]);
 
-  const handleShare = useCallback(() => {
-    navigator.clipboard.writeText(window.location.href)
-      .then(() => showAlert({ type: 'success', message: "링크가 복사되었습니다. 원하는 곳에 공유해 보세요! 🔗" }))
-      .catch(() => showAlert({ type: 'error', message: "링크 복사에 실패했습니다. 직접 주소를 복사해 주세요. ⚠️" }));
-  }, [showAlert]);
-
   const handleScrap = useCallback(async () => {
-    if (!user) { showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" }); return; }
-    if (exam?.isScrapped) { showAlert({ type: 'info', message: "이미 스크랩된 게시글입니다. 😊" }); return; }
-    try {
-      const response = await api.post(`/api/board/insertBoardScrap`, null, { params: { boardId: id }, headers: { 'Authorization': `Bearer ${user.accessToken}` } });
-      if (response.status === 200 || response.data.success) {
-        setExam(prev => prev ? { ...prev, isScrapped: true } : null);
-        showAlert({ type: 'success', message: "게시글이 스크랩되었습니다. ✨" });
-      }
-    } catch (error: any) {
-      if (error.response?.status === 409) { setExam(prev => prev ? { ...prev, isScrapped: true } : null); showAlert({ type: 'info', message: error.response.data.message || "이미 스크랩된 게시글입니다. 😊" }); }
-      else { showAlert({ type: 'error', message: "스크랩 처리 중 오류가 발생했습니다. ⏳" }); }
+    if (!user || !exam) { 
+      if (!user) showAlert({ type: 'warning', message: "로그인이 필요합니다. ✅" }); 
+      return; 
     }
-  }, [id, user, exam, showAlert]);
+
+    if (exam.isScrapped && exam.scrapId) {
+      // [취소] 백엔드 명세 준수: scrapIds 키로 감싼 배열 전달
+      try {
+        const response = await api.delete('/api/board/deleteMyScrapPage', {
+          data: { 
+            scrapIds: [Number(exam.scrapId)] 
+          },
+          headers: { 
+            'Authorization': `Bearer ${user.accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (response.status === 200 || response.data.success) {
+          setExam(prev => prev ? { ...prev, isScrapped: false, scrapId: null } : null);
+          showAlert({ type: 'success', message: "스크랩이 취소되었습니다. ✨" });
+        }
+      } catch (error) {
+        console.error("Scrap cancel error:", error);
+        showAlert({ type: 'error', message: "스크랩 취소 중 오류가 발생했습니다. ⏳" });
+      }
+    } else {
+      // [등록] 기존 등록 로직 유지
+      try {
+        const response = await api.post(`/api/board/insertBoardScrap`, null, { 
+          params: { boardId: id }, 
+          headers: { 'Authorization': `Bearer ${user.accessToken}` } 
+        });
+        if (response.status === 200 || response.data.success) {
+          showAlert({ type: 'success', message: "스크랩 완료 ✨" });
+          fetchPostDetail(); // 등록 성공 시 scrapId를 새로 받아오기 위해 갱신
+        }
+      } catch (error) {
+        console.error("Scrap insert error:", error);
+        showAlert({ type: 'error', message: "스크랩 처리 중 오류가 발생했습니다. ⏳" });
+      }
+    }
+  }, [id, user, exam, showAlert, fetchPostDetail]);
 
   const handleDelete = useCallback(() => {
     setConfirmModal({ isOpen: true, title: '게시글 삭제', message: '정말로 이 게시글을 삭제하시겠습니까?', type: 'danger', isLoading: false, onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
           const response = await api.delete(`/api/board/list/${id}`, { headers: { 'Authorization': `Bearer ${user?.accessToken}` } });
-          if (response.status === 200) { showAlert({ type: 'success', message: "게시글이 삭제되었습니다. ✅" }); navigate(`/practice-exams?type=${exam?.boardType || 'S'}`); }
-        } catch (error) { showAlert({ type: 'error', message: "삭제 중 오류 발생 ⏳" }); } finally { setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false })); }
+          if (response.status === 200) { showAlert({ type: 'success', message: "삭제되었습니다. ✅" }); navigate(`/practice-exams?type=${exam?.boardType || 'S'}`); }
+        } catch (error) { showAlert({ type: 'error', message: "삭제 오류 ⏳" }); } finally { setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false })); }
       }
     });
   }, [id, user, exam, navigate, showAlert]);
 
-  const handleImageClick = useCallback((url: string) => {
-    setLightboxSrc(url);
-  }, []);
-
   const handleDownload = useCallback(async (fileId: number, fileName: string) => {
-    if (!user) {
-      showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" });
-      return;
-    }
-    
+    if (!user) { showAlert({ type: 'warning', message: "로그인이 필요합니다. ✅" }); return; }
     try {
-      const response = await api.get(`/api/board/download/${fileId}`, {
-        responseType: 'blob',
-        headers: { 'Authorization': `Bearer ${user.accessToken}` }
-      });
-      
+      const response = await api.get(`/api/board/download/${fileId}`, { responseType: 'blob', headers: { 'Authorization': `Bearer ${user.accessToken}` } });
       const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', fileName);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Download error:", error);
-      showAlert({ type: 'error', message: "파일 다운로드 중 오류가 발생했습니다. ⏳" });
-    }
+      const link = document.createElement('a'); link.href = url; link.setAttribute('download', fileName);
+      document.body.appendChild(link); link.click(); link.remove(); window.URL.revokeObjectURL(url);
+    } catch (error) { showAlert({ type: 'error', message: "다운로드 오류 ⏳" }); }
   }, [user, showAlert]);
 
-  if (initialLoading) return (<div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] flex items-center justify-center"><div className="flex flex-col items-center gap-4"><div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div><p className="text-slate-400 font-black animate-pulse">L O A D I N G</p></div></div>);
-
-  const authorProfileUrl = exam?.authorImage ? fixImagePath(exam.authorImage) : null;
+  if (initialLoading) return (<div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] flex items-center justify-center"><div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" /></div>);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white transition-colors relative z-10">
@@ -644,37 +322,32 @@ export default function ExamDetailPage() {
         <nav className="flex items-center gap-2 text-sm text-slate-400 mb-8">
           <Link to="/" className="hover:text-primary transition-colors font-medium">홈</Link>
           <ChevronsRight size={14} />
-          <Link to={`/practice-exams?type=${exam?.boardType || 'S'}`} className="hover:text-primary transition-colors font-medium">{exam?.boardType === 'N' ? '공지사항' : exam?.boardType === 'G' ? '가입 인사' : 'SQLD 학습'}</Link>
-          <ChevronsRight size={14} />
-          <span className="font-bold truncate max-w-xs">{exam?.title || '게시글'}</span>
+          <Link to={`/practice-exams?type=${exam?.boardType || 'S'}`} className="hover:text-primary transition-colors font-medium">{exam?.boardType === 'N' ? '공지사항' : 'SQLD 학습'}</Link>
+          <ChevronsRight size={14} /><span className="font-bold truncate max-w-xs">{exam?.title}</span>
         </nav>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-9 space-y-8">
-            <article className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden min-h-[400px]">
+            <article className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
               {exam ? (
                 <>
                   <div className="p-6 sm:p-10 border-b border-slate-50 dark:border-slate-800">
                     <div className="flex items-center gap-2 mb-6">
-                      <span className="px-3 py-1 bg-primary text-white text-[10px] font-black rounded-lg uppercase tracking-tighter">{exam.boardType === 'N' ? 'Announcement' : 'Community'}</span>
-                      {exam.tags && exam.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2">{exam.tags.map((t, i) => (<Link key={i} to={`/practice-exams?type=${exam.boardType}&tagName=${encodeURIComponent(t)}`} className="text-[10px] text-primary font-black bg-primary/5 hover:bg-primary/10 px-2 py-1 rounded-md transition-colors flex items-center gap-1"><Hash size={10} /> {t}</Link>))}</div>
-                      )}
+                      <span className="px-3 py-1 bg-primary text-white text-[10px] font-black rounded-lg uppercase">{exam.boardType === 'N' ? 'Announcement' : 'Community'}</span>
                     </div>
                     <h1 className="text-2xl sm:text-4xl font-black leading-tight mb-8">{exam.title}</h1>
                     <div className="flex flex-wrap items-center justify-between gap-6">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-primary/5 flex items-center justify-center font-black text-xl text-primary border border-primary/10 uppercase shadow-sm">
-                          {authorProfileUrl ? <img src={authorProfileUrl} alt="P" className="w-full h-full object-cover" /> : (exam.authorName ? exam.authorName[0] : 'U')}
+                        <div className="w-14 h-14 rounded-2xl overflow-hidden bg-primary/5 flex items-center justify-center font-black text-xl text-primary border border-primary/10">
+                          {exam.authorImage ? <img src={fixImagePath(exam.authorImage)!} alt="P" className="w-full h-full object-cover" /> : exam.authorName[0]}
                         </div>
                         <div>
-                          <p className="text-base font-black">{exam.authorName || 'Unknown'}</p>
-                          <p className="text-xs text-gray-500 font-medium cursor-help" title={exam.fullDate}>{formatRelativeTime(exam.date)}</p>
+                          <p className="text-base font-black">{exam.authorName}</p>
+                          <p className="text-xs text-gray-500 font-medium">{formatRelativeTime(exam.date)}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-6 text-slate-400 font-bold">
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-xl"><Eye size={18} /> <span className="text-sm">{exam.views}</span></div>
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 dark:bg-slate-800 rounded-xl"><MessageSquare size={18} /> <span className="text-sm">{exam.commentsCount}</span></div>
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/5 text-primary rounded-xl"><ThumbsUp size={18} /> <span className="text-sm">{exam.likeCount}</span></div>
                       </div>
                     </div>
@@ -682,85 +355,44 @@ export default function ExamDetailPage() {
 
                   <div className="px-6 sm:px-10 py-4 bg-slate-50/30 dark:bg-slate-800/20 flex items-center justify-between border-b border-slate-50 dark:border-slate-800">
                     <div className="flex items-center gap-3">
-                      <Tooltip text={exam.isLiked ? "추천 취소" : "이 글을 추천합니다"}>
-                        <motion.button 
-                          whileTap={{ scale: 0.9 }}
-                          onClick={handleLikeAction} 
-                          className={`p-3 rounded-xl transition-all shadow-sm border flex items-center justify-center gap-2 ${
-                            exam.isLiked 
-                              ? 'bg-primary text-white border-primary shadow-primary/20' 
-                              : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700 hover:text-primary hover:bg-primary/5'
-                          }`}
-                        >
-                          <ThumbsUp size={22} className={exam.isLiked ? 'fill-white' : ''} />
-                          {exam.isLiked && <span className="text-xs font-black hidden sm:inline">추천함</span>}
-                        </motion.button>
+                      <Tooltip text={exam.isLiked ? "추천 취소" : "이 글 추천"}>
+                        <button onClick={handleLikeAction} className={`p-3 rounded-xl transition-all border ${exam.isLiked ? 'bg-primary text-white border-primary' : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700'}`}><ThumbsUp size={22} className={exam.isLiked ? 'fill-white' : ''} /></button>
                       </Tooltip>
-
-                      <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 mx-2"></div>
-                      
-                      <Tooltip text={exam.isScrapped ? "이미 스크랩된 글입니다" : "이 글을 스크랩합니다"}>
-                        <button onClick={handleScrap} className={`p-3 rounded-xl transition-all shadow-sm active:scale-95 border ${exam.isScrapped ? 'bg-orange-50 text-orange-500 border-orange-100 shadow-orange-100/50' : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700 hover:text-orange-500 hover:bg-orange-50'}`}><Bookmark size={22} className={exam.isScrapped ? 'fill-orange-500' : ''} /></button>
-                      </Tooltip>
-                      
-                      <Tooltip text="링크 복사하기">
-                        <button onClick={handleShare} className="p-3 rounded-xl text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-all"><Share2 size={22} /></button>
+                      <Tooltip text={exam.isScrapped ? "스크랩 취소" : "스크랩"}>
+                        <button onClick={handleScrap} className={`p-3 rounded-xl transition-all border ${exam.isScrapped ? 'bg-orange-50 text-orange-500 border-orange-100' : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700'}`}><Bookmark size={22} className={exam.isScrapped ? 'fill-orange-500' : ''} /></button>
                       </Tooltip>
                     </div>
                     {user && (String(user.memberId) === String(exam.authorId) || user.userRole === 'ADMIN') && (
                       <div className="flex items-center gap-2">
-                        <button onClick={() => navigate(`/write-post?boardId=${exam.id}&type=${exam.boardType}`)} title="글 수정" className="p-3 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Pencil size={22} /></button>
-                        <button onClick={handleDelete} title="글 삭제" className="p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"><Trash2 size={22} /></button>
+                        <button onClick={() => navigate(`/write-post?boardId=${exam.id}&type=${exam.boardType}`)} className="p-3 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Pencil size={22} /></button>
+                        <button onClick={handleDelete} className="p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={22} /></button>
                       </div>
                     )}
                   </div>
 
-                  <PostContent content={exam.content} onImageClick={handleImageClick} />
+                  <PostContent content={exam.content} onImageClick={(url) => setLightboxSrc(url)} />
 
-                  <AttachmentSection files={exam.files || []} onImageClick={handleImageClick} onDownload={handleDownload} />
+                  <AttachmentSection files={exam.files || []} onImageClick={(url) => setLightboxSrc(url)} onDownload={handleDownload} />
                 </>
-              ) : (<div className="flex items-center justify-center h-full py-20 text-slate-400 font-bold">게시글을 불러오는 중입니다...</div>)}
+              ) : null}
             </article>
 
             {exam && (
-              <section className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 sm:p-10">
-                <div className="flex items-center gap-3 mb-10"><MessageSquare className="text-primary" size={24} /><h3 className="text-2xl font-black">댓글 <span className="text-primary">{comments.length}</span></h3></div>
-                <div className="space-y-4">
-                  <MainCommentForm 
-                    user={user} 
-                    onSubmit={handleCommentSubmit} 
-                    isSubmitting={isSubmittingMainComment} 
-                  />
-                  <div className="space-y-2">
-                    {comments.length > 0 ? (comments.map(comment => (<CommentItem key={comment.commentId} comment={comment} currentUser={user} onDelete={handleDeleteComment} onUpdate={handleUpdateComment} onSubmitReply={handleCommentSubmit} activeReplyId={activeReplyId} setActiveReplyId={setActiveReplyId} />))) : (<div className="py-20 text-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/30 rounded-[2.5rem] border border-dashed border-slate-200 dark:border-slate-700"><MessageSquare size={40} className="mx-auto mb-4 opacity-20" /><p className="font-bold">아직 작성된 댓글이 없습니다. ✨</p></div>)}
-                  </div>
-                </div>
-              </section>
+              <CommentSection 
+                comments={comments} 
+                user={user} 
+                isSubmittingMain={isSubmittingMainComment} 
+                onCommentSubmit={handleCommentSubmit} 
+                onDeleteComment={handleDeleteComment} 
+                onUpdateComment={handleUpdateComment} 
+              />
             )}
           </div>
 
-          <aside className="lg:col-span-3 space-y-8">
-            <div className="lg:sticky lg:top-8 space-y-8">
-              <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-6 sm:p-8">
-                <div className="flex items-center gap-3 mb-8"><TrendingUp className="text-primary" size={20} /><h4 className="text-xl font-black dark:text-white tracking-tight">인기 게시글</h4></div>
-                <div className="space-y-6">
-                  {popularPosts.length > 0 ? popularPosts.map((post) => (
-                    <Link key={post.id} to={`/exam/${post.id}?type=S`} className="block group border-b border-slate-50 dark:border-slate-800 pb-5 last:border-0 last:pb-0">
-                      <p className="text-sm font-black text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors line-clamp-2 mb-3 leading-relaxed">{post.title}</p>
-                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-bold"><span>{formatRelativeTime(post.date)}</span><div className="flex items-center gap-3"><span className="flex items-center gap-1 bg-rose-50 dark:bg-rose-900/20 text-rose-500 px-2 py-1 rounded-lg"><Heart size={10} className="fill-rose-500" /> {post.likeCount}</span><span className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg"><Eye size={10} /> {post.views}</span></div></div>
-                    </Link>
-                  )) : ( <div className="text-xs text-slate-400 text-center py-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 font-bold">인기 게시글이 없습니다.</div> )}
-                </div>
-              </div>
-              <div className="bg-white dark:bg-[#1a222c] rounded-3xl p-8 border border-slate-200 dark:border-slate-800 shadow-xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/20 transition-colors" />
-                <h3 className="text-sm font-black text-slate-900 dark:text-white mb-6 flex items-center gap-2 relative z-10"><Hash className="text-primary" size={18} /> 실시간 급상승 태그</h3>
-                <div className="flex flex-wrap gap-2.5 relative z-10">
-                  {trendingTags.length > 0 ? trendingTags.map((tag, i) => (<Link key={i} to={`/practice-exams?type=S&tagName=${encodeURIComponent(tag)}`} className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-white/5 text-[11px] font-black text-slate-500 dark:text-slate-400 hover:bg-primary hover:text-white transition-all border border-slate-100 dark:border-white/5 active:scale-95">#{tag}</Link>)) : ( <p className="text-[11px] text-slate-500 py-6 text-center w-full font-bold">작성된 태그가 없습니다.</p> )}
-                </div>
-              </div>
-            </div>
-          </aside>
+          <PostSidebar 
+            popularPosts={popularPosts} 
+            trendingTags={trendingTags} 
+          />
         </div>
       </main>
       <ConfirmModal isOpen={confirmModal.isOpen} onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} onConfirm={confirmModal.onConfirm} title={confirmModal.title} message={confirmModal.message} type={confirmModal.type} isLoading={confirmModal.isLoading} />

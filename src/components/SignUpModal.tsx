@@ -205,7 +205,7 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
     }
 
     try {
-      const response = await fetch(`/api/common/signUp`, {
+      const response = await fetch(`/api/auth/signUp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
