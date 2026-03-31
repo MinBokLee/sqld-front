@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, AlertTriangle, HelpCircle, ShieldAlert, Trash2 } from 'lucide-react';
 
 interface ConfirmModalProps {
@@ -24,6 +24,22 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
   type = 'info',
   isLoading = false
 }) => {
+  // 엔터키 및 ESC 지원 로직
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        onConfirm(); // 엔터키 -> 확인
+      } else if (e.key === 'Escape') {
+        onClose(); // ESC키 -> 취소
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onConfirm, onClose]);
+
   if (!isOpen) return null;
 
   const themes = {

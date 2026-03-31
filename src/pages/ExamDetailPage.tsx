@@ -128,13 +128,36 @@ export default function ExamDetailPage() {
   const fixImagePath = (path: string) => {
     if (!path) return null;
     if (path.startsWith('http')) return path;
-    return `/uploads/${path.split(/[\\/]/).pop()}`;
+
+    let normalized = path;
+    // 1. 서버의 물리적 절대 경로(/Users/...)인 경우 파일명만 추출
+    if (path.includes('/Users/')) {
+      normalized = path.split(/[\\/]/).pop() || '';
+    }
+
+    // 2. 'uploads'라는 단어가 포함된 경우 중복을 제거하고 /uploads/ 패턴으로 통일
+    if (normalized.includes('uploads')) {
+      return '/' + normalized.replace(/^[\/]*uploads\/*/, 'uploads/');
+    }
+
+    // 3. 그 외 파일명만 있는 경우 접두어 부착
+    return `/uploads/${normalized}`;
   };
 
   const fixContentHtml = (html: string) => {
     if (!html) return '';
-    let correctedHtml = html.replace(/src="https?:\/\/[^/]+\/uploads\//g, 'src="/uploads/');
-    correctedHtml = correctedHtml.replace(new RegExp(`src="${API_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/uploads/`, 'g'), 'src="/uploads/');
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+    let correctedHtml = html;
+
+    // 절대 경로 -> 상대 경로 변환
+    correctedHtml = correctedHtml.replace(/src="https?:\/\/[^/]+\/uploads\//g, 'src="/uploads/');
+    if (API_BASE_URL) {
+      const escapedBaseUrl = API_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      correctedHtml = correctedHtml.replace(new RegExp(`src="${escapedBaseUrl}/uploads/`, 'g'), 'src="/uploads/');
+    }
+
+    // [핵심] 중복된 /uploads/uploads 패턴 통합
+    correctedHtml = correctedHtml.replace(/\/uploads\/+uploads\/*/g, '/uploads/');
     return correctedHtml;
   };
 
@@ -269,7 +292,8 @@ export default function ExamDetailPage() {
         
         if (response.status === 200 || response.data.success) {
           setExam(prev => prev ? { ...prev, isScrapped: false, scrapId: null } : null);
-          showAlert({ type: 'success', message: "스크랩이 취소되었습니다. ✨" });
+          const successMsg = response.data.message || response.data.msg || "스크랩이 취소되었습니다. ✨";
+          showAlert({ type: 'success', message: successMsg });
         }
       } catch (error) {
         console.error("Scrap cancel error:", error);
@@ -283,7 +307,8 @@ export default function ExamDetailPage() {
           headers: { 'Authorization': `Bearer ${user.accessToken}` } 
         });
         if (response.status === 200 || response.data.success) {
-          showAlert({ type: 'success', message: "스크랩 완료 ✨" });
+          const successMsg = response.data.message || response.data.msg || "스크랩 완료 ✨";
+          showAlert({ type: 'success', message: successMsg });
           fetchPostDetail(); // 등록 성공 시 scrapId를 새로 받아오기 위해 갱신
         }
       } catch (error) {

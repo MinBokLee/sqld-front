@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
-import { useNavigate, useSearchParams, Link, replace } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { CKEditor } from '@ckeditor/ckeditor5-react';
 import {
 	ClassicEditor,
@@ -49,17 +49,17 @@ import {
 } from 'ckeditor5';
 
 import 'ckeditor5/ckeditor5.css';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../contexts/UserContext';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
 import ConfirmModal from '../components/ConfirmModal';
 import api from '../utils/api'; 
 import { 
-  Megaphone, BookOpen, Smile, Save, X, CloudUpload, 
-  Info, ShieldCheck, Zap, ChevronsRight, ChevronRight, MessageCircle, Lightbulb, HelpCircle, Hash, Download, ZoomIn, FileText, Trash2, File,
-  ArrowLeft
+  Megaphone, BookOpen, Smile, X, CloudUpload, 
+  ChevronsRight, MessageCircle, Lightbulb, HelpCircle, Hash, Download, ZoomIn, FileText, Trash2, File
 } from 'lucide-react';
+import ImageLightbox from '../components/ImageLightbox';
+import WritingGuideAside from '../components/WritingGuideAside';
 
 /**
  * [커스텀 플러그인] TableColumnWidthEqualizer
@@ -129,43 +129,8 @@ class MyUploadAdapter {
   abort() {}
 }
 
-const ImageLightbox = ({ src, onClose }: { src: string | null, onClose: () => void }) => {
-  return (
-    <AnimatePresence>
-      {src && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 z-[1000] bg-slate-900/95 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out"
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="relative max-w-full max-h-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <img src={src} alt="Original" className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl border-4 border-white/10" />
-            <div className="absolute -top-12 right-0 flex items-center gap-3">
-              <button onClick={onClose} className="p-2 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors backdrop-blur-md border border-white/10" title="닫기" >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-white/60 text-xs font-bold tracking-widest uppercase bg-black/20 px-4 py-1 rounded-full">
-              Click outside to close
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-};
-
 export default function WritePostPage() {
-  const { user, clearUser, updateUser, isLoading: isUserLoading } = useUser();
+  const { user, updateUser, isLoading: isUserLoading } = useUser();
   const { showAlert } = useAlert();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -194,14 +159,12 @@ export default function WritePostPage() {
   const [tempData, setTempData] = useState<any>(null);
   
   const isSuccessfullySubmitted = useRef(false);
-  const isHistoryPushed = useRef(false); // [신규] pushState 실행 여부를 추적하는 잠금 장치
   const STORAGE_KEY = user ? `sqld_temp_post_${user.memberId}${editingBoardId ? `_${editingBoardId}` : ''}` : null;
 
   const handleConfirmBack = () => {
     setIsBackConfirmOpen(false);
     isSuccessfullySubmitted.current = true;
-    
-    // 원래 페이지로 돌아가기 위해 가짜 상태와 현재 페이지를 모두 제거
+    // [핵심] 가짜 상태와 진짜 수정 페이지 2개를 모두 제거하여 상세 페이지로 이동
     window.history.go(-2);
   };
 
@@ -211,6 +174,7 @@ export default function WritePostPage() {
       setIsBackConfirmOpen(true);
     } else {
       isSuccessfullySubmitted.current = true;
+      // 내용이 없더라도 스택 정리를 위해 2칸 뒤로 이동합니다.
       window.history.go(-2);
     }
   };
@@ -218,16 +182,40 @@ export default function WritePostPage() {
   const fixImagePath = (path: string) => {
     if (!path) return '';
     if (path.startsWith('http')) return path;
-    const fileName = path.split(/[\\/]/).pop();
-    return `/uploads/${fileName}`;
+
+    let normalized = path;
+    // 1. 서버의 물리적 절대 경로(/Users/...)인 경우 파일명만 추출
+    if (path.includes('/Users/')) {
+      normalized = path.split(/[\\/]/).pop() || '';
+    }
+
+    // 2. 'uploads'라는 단어가 포함된 경우 중복을 제거하고 /uploads/ 패턴으로 통일
+    // 예: /uploads/uploads21f6... -> /uploads/21f6...
+    // 예: uploads/21f6... -> /uploads/21f6...
+    // 예: uploads21f6... -> /uploads/21f6...
+    if (normalized.includes('uploads')) {
+      return '/' + normalized.replace(/^[\/]*uploads\/*/, 'uploads/');
+    }
+
+    // 3. 그 외 파일명만 있는 경우 접두어 부착
+    return `/uploads/${normalized}`;
   };
 
   const fixContentHtml = (html: string) => {
     if (!html) return '';
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-    let correctedHtml = html.replace(/src="https?:\/\/[^/]+\/uploads\//g, 'src="/uploads/');
-    correctedHtml = correctedHtml.replace(new RegExp(`src="${API_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/uploads/`, 'g'), 'src="/uploads/');
-    correctedHtml = correctedHtml.replace(/src="[^"]*\/upload\/([^"]+)"/g, 'src="/uploads/$1');
+    let correctedHtml = html;
+
+    // 절대 경로 -> 상대 경로 변환
+    correctedHtml = correctedHtml.replace(/src="https?:\/\/[^/]+\/uploads\//g, 'src="/uploads/');
+    if (API_BASE_URL) {
+      const escapedBaseUrl = API_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      correctedHtml = correctedHtml.replace(new RegExp(`src="${escapedBaseUrl}/uploads/`, 'g'), 'src="/uploads/');
+    }
+
+    // [핵심] 본문 내 중복된 /uploads/uploads 패턴을 /uploads/ 하나로 안전하게 통합 (슬래시 보존)
+    correctedHtml = correctedHtml.replace(/\/uploads\/+uploads\/*/g, '/uploads/');
+
     return correctedHtml;
   };
 
@@ -260,7 +248,7 @@ export default function WritePostPage() {
            setEditorData(correctedHtml);
            setTag(post.tagName || '');
            const files = post.fileList || post.boardFileList || post.files || [];
-           setExistingFiles(files.map((f: any) => ({ ...f, displayPath: fixImagePath(f.filePath || f.saveName || '') })));
+           setExistingFiles(files.map((f: any) => ({ ...f, displayPath: fixImagePath(f.filePath || f.saveName || f.save_Name || '') })));
          }
        })
        .catch(() => {
@@ -279,12 +267,9 @@ export default function WritePostPage() {
   }, [editingBoardId, navigate, showAlert, STORAGE_KEY]);
 
   const lastContent = useRef({title: '', content: ''});
-  
-  // 최신 데이터 업데이트
   lastContent.current = {title, content:editorData};
 
   useEffect(()=> {
-    // 1. 브라우저 탭 닫기 방지
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       const{title, content} = lastContent.current;
       if(!isSuccessfullySubmitted.current && (title.trim() || content.trim())) {
@@ -292,29 +277,26 @@ export default function WritePostPage() {
       }
     };
 
-    // 2. 뒤로 가기 방지 핵심 로직
     const handlePopState = () => {
-      const{title, content} = lastContent.current;
-      
       if (isSuccessfullySubmitted.current) return;
 
+      const { title, content } = lastContent.current;
       if (title.trim() || content.trim()) {
         setIsBackConfirmOpen(true);
-        // 가짜 상태를 다시 밀어넣어 현재 페이지 유지
         window.history.pushState({ preventBack: true }, '', window.location.href);
       } else {
-        // 내용이 없으면 그냥 나감 (단, 가짜 상태가 있으므로 go(-1)을 추가로 호출하여 확실히 이탈)
-        window.history.back();
+        // 내용이 없으면 가짜 상태와 현재 페이지를 모두 제거하며 이탈
+        isSuccessfullySubmitted.current = true;
+        window.history.go(-2);
       }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     window.addEventListener('popstate', handlePopState);
 
-    // [개선] useRef 플래그와 history.state를 이중 체크하여 중복 생성 완벽 차단
-    if (!isHistoryPushed.current && window.history.state?.preventBack !== true) {
+    // 페이지 진입 시 이탈 방지용 가짜 상태 하나만 생성
+    if (window.history.state?.preventBack !== true) {
       window.history.pushState({ preventBack: true }, '', window.location.href);
-      isHistoryPushed.current = true;
     }
 
     return () => {
@@ -324,8 +306,7 @@ export default function WritePostPage() {
   }, []);
 
   useEffect(() => {
-    if (isUserLoading) return; // 로그인 정보 복구 중에는 체크를 대기함
-
+    if (isUserLoading) return;
     if (!user) {
       showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" });
       navigate('/');
@@ -355,8 +336,16 @@ export default function WritePostPage() {
     data.append('upload', file);
     const res = await api.post(`/api/board/upload`, data, { headers: { 'Content-Type': 'multipart/form-data' } });
     const result = res.data;
-    let url = result.url || result.result?.data?.[0];
-    if (url.startsWith('/uploads') && !url.startsWith('/uploads/')) url = url.replace('/uploads', '/uploads/');
+    let url = result.url || result.result?.data?.[0] || '';
+    
+    // 업로드 후 결과 경로 처리 시에도 중복 방지
+    if (url && !url.startsWith('http')) {
+      if (url.includes('uploads')) {
+        url = url.startsWith('/') ? url : '/' + url;
+      } else {
+        url = `/uploads/${url}`;
+      }
+    }
     return url;
   };
 
@@ -397,16 +386,13 @@ export default function WritePostPage() {
         } 
       });
       if (response.status === 200 || response.status === 201) {
-        // [중요] 성공 플래그를 가장 먼저 설정하여 popstate 이벤트를 무력화
         isSuccessfullySubmitted.current = true;
-        
         if (STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
         if (boardType === 'G' && !editingBoardId) updateUser({ userStatus: 'Y' });
-        
         const targetId = editingBoardId || response.data.result?.data?.boardId;
         showAlert({ type: 'success', message: "처리가 완료되었습니다. ✅" });
-
-        // [히스토리 클리닝] 가짜 엔트리 삭제 후 실제 엔트리를 교체
+        
+        // [히스토리 클리닝] 가짜 엔트리 삭제 후 진짜 엔트리를 결과 페이지로 교체
         window.history.back();
         setTimeout(() => {
           if (targetId) navigate(`/exam/${targetId}?type=${boardType}`, { replace: true });
@@ -434,7 +420,7 @@ export default function WritePostPage() {
     toolbar: [
       'heading', '|', 'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor', '|',
       'bold', 'bulletedList', 'numberedList', 'alignment', 'highlight', '|',
-      'uploadImage', 'insertTable', 'codeBlock', '|', // [핵심] 3대 핵심 도구 전면 배치
+      'uploadImage', 'insertTable', 'codeBlock', '|',
       'undo', 'redo'
     ],
     image: { 
@@ -673,36 +659,7 @@ export default function WritePostPage() {
             </div>
           </div>
 
-          <aside className="lg:col-span-3 space-y-8">
-            <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 p-8 sticky top-8">
-              <div className="flex items-center gap-2 mb-8">
-                <Info className="text-primary" size={20} />
-                <h4 className="text-xl font-black dark:text-white">작성 가이드</h4>
-              </div>
-              <div className="space-y-8">
-                <div className="group">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-blue-500"><Zap size={18} /></div>
-                    <p className="text-sm font-black dark:text-slate-200">분류 선택</p>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed ml-11 font-bold">질문인지 팁인지 <strong className="text-primary">카테고리</strong>를 먼저 선택해 주세요. 정보 공유가 더 원활해집니다.</p>
-                </div>
-                <div className="group">
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg text-emerald-500"><Save size={18} /></div>
-                    <p className="text-sm font-black dark:text-slate-200">자동 저장</p>
-                  </div>
-                  <p className="text-xs text-slate-500 leading-relaxed ml-11 font-bold">작성 중인 내용은 안전하게 보호됩니다. 안심하고 작성해 보세요.</p>
-                </div>
-              </div>
-              <div className="mt-12 p-5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
-                <div className="flex items-center gap-2 mb-2 text-slate-400">
-                  <ShieldCheck size={14} /><span className="text-[10px] font-black uppercase tracking-widest">운영 원칙</span>
-                </div>
-                <p className="text-[11px] text-slate-400 font-bold leading-relaxed">커뮤니티의 질을 높이기 위해 비방이나 광고성 글은 제한될 수 있습니다.</p>
-              </div>
-            </div>
-          </aside>
+          <WritingGuideAside />
         </div>
       </main>
 
