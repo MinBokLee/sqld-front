@@ -5,11 +5,12 @@ import {
   ChevronRight, Bookmark, FileText, 
   Trash2, MessageSquare, Eye, ThumbsUp,
   Search, Filter, Clock, MoreVertical,
-  CheckCircle2, AlertCircle, ChevronsRight,
+  CheckCircle2, AlertCircle, ChevronsRight, Bell,
   ChevronLeft, ChevronsLeft, ChevronRight as ChevronRightIcon, ChevronsRight as ChevronsRightIcon
 } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { useAlert } from '../contexts/AlertContext';
+import { useNotification } from '../contexts/NotificationContext';
 import api from '../utils/api';
 import { formatRelativeTime } from '../utils/dateUtils';
 
@@ -39,6 +40,7 @@ interface MyPostItem {
 export default function MyPage() {
   const { user, isLoading: isUserLoading } = useUser();
   const { showAlert, showToast } = useAlert();
+  const { notifications: allNotifications, markAsRead, markAllAsRead, unreadCount } = useNotification();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -117,8 +119,12 @@ export default function MyPage() {
     }
 
     if (activeTab === 'scraps') fetchScraps();
-    else fetchMyPosts();
-  }, [user, isUserLoading, activeTab, page, size, keyword, boardFilter, fetchScraps, fetchMyPosts, navigate, showAlert]);
+    else if (activeTab === 'posts') fetchMyPosts();
+    else {
+      setTotalElements(allNotifications.length);
+      setIsLoading(false);
+    }
+  }, [user, isUserLoading, activeTab, page, size, keyword, boardFilter, fetchScraps, fetchMyPosts, allNotifications.length, navigate, showAlert]);
 
   const toggleTab = (tab: string) => {
     setSearchParams({ tab, page: '1', keyword, filter: boardFilter });
@@ -150,7 +156,7 @@ export default function MyPage() {
   const handleSelectAll = () => {
     const currentIds = activeTab === 'scraps' 
       ? scraps.map(s => s.scrapId) 
-      : myPosts.map(p => p.boardId);
+      : activeTab === 'posts' ? myPosts.map(p => p.boardId) : [];
     
     if (selectedIds.length === currentIds.length) setSelectedIds([]);
     else setSelectedIds(currentIds);
@@ -165,8 +171,7 @@ export default function MyPage() {
           data: { scrapIds: selectedIds }, 
           headers: { 'Authorization': `Bearer ${user?.accessToken}` } 
         });
-      } else {
-        // 일괄 삭제 API가 없는 경우 개별 삭제 루프
+      } else if (activeTab === 'posts') {
         for (const id of selectedIds) {
           await api.delete(`/api/board/list/${id}`, { headers: { 'Authorization': `Bearer ${user?.accessToken}` } });
         }
@@ -205,122 +210,188 @@ export default function MyPage() {
           </div>
 
           <div className="flex bg-white dark:bg-[#1a222c] p-1.5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 w-fit">
-            <button onClick={() => toggleTab('scraps')} className={`px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'scraps' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>스크랩 목록</button>
-            <button onClick={() => toggleTab('posts')} className={`px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'posts' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>내가 쓴 글</button>
+            <button onClick={() => toggleTab('scraps')} className={`px-6 sm:px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'scraps' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>스크랩</button>
+            <button onClick={() => toggleTab('posts')} className={`px-6 sm:px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'posts' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>작성글</button>
+            <button onClick={() => toggleTab('notifications')} className={`px-6 sm:px-8 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${activeTab === 'notifications' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
+              알림
+              {unreadCount > 0 && <span className={`size-2 rounded-full ${activeTab === 'notifications' ? 'bg-white' : 'bg-red-500 animate-pulse'}`} />}
+            </button>
           </div>
         </header>
 
-        {/* Filter & Action Section */}
-        <section className="flex flex-col xl:flex-row gap-4 mb-6">
-          <div className="flex flex-wrap items-center gap-3 flex-1">
-            {selectedIds.length > 0 && (
-              <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
-                <button onClick={handleSelectAll} className="flex items-center gap-2 h-12 px-4 bg-white dark:bg-[#1a222c] border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black text-slate-500 dark:text-slate-400 hover:text-primary transition-all shadow-sm">
-                  {selectedIds.length === (activeTab === 'scraps' ? scraps.length : myPosts.length) ? '선택 해제' : '전체 선택'}
-                </button>
-                <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
-                <button onClick={handleDeleteSelected} className="flex items-center gap-2 h-12 px-6 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-2xl text-xs font-black hover:bg-rose-500 hover:text-white transition-all shadow-sm"><Trash2 size={14} /> {selectedIds.length}개 삭제</button>
+        {/* Filter & Action Section (Hidden for notifications) */}
+        {activeTab !== 'notifications' && (
+          <section className="flex flex-col xl:flex-row gap-4 mb-6">
+            <div className="flex flex-wrap items-center gap-3 flex-1">
+              {selectedIds.length > 0 && (
+                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                  <button onClick={handleSelectAll} className="flex items-center gap-2 h-12 px-4 bg-white dark:bg-[#1a222c] border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black text-slate-500 dark:text-slate-400 hover:text-primary transition-all shadow-sm">
+                    {selectedIds.length === (activeTab === 'scraps' ? scraps.length : myPosts.length) ? '선택 해제' : '전체 선택'}
+                  </button>
+                  <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
+                  <button onClick={handleDeleteSelected} className="flex items-center gap-2 h-12 px-6 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-2xl text-xs font-black hover:bg-rose-500 hover:text-white transition-all shadow-sm"><Trash2 size={14} /> {selectedIds.length}개 삭제</button>
+                </div>
+              )}
+              
+              <div className="flex bg-white dark:bg-[#1a222c] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm h-12">
+                {['ALL', 'N', 'S', 'G'].map(f => (
+                  <button key={f} onClick={() => { setBoardFilter(f); handlePageChange(1); }} className={`px-6 h-full rounded-xl text-xs font-black transition-all ${boardFilter === f ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
+                    {f === 'ALL' ? '전체' : f === 'N' ? '공지' : f === 'S' ? '학습' : '인사'}
+                  </button>
+                ))}
               </div>
-            )}
-            
-            <div className="flex bg-white dark:bg-[#1a222c] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm h-12">
-              {['ALL', 'N', 'S', 'G'].map(f => (
-                <button key={f} onClick={() => { setBoardFilter(f); handlePageChange(1); }} className={`px-6 h-full rounded-xl text-xs font-black transition-all ${boardFilter === f ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
-                  {f === 'ALL' ? '전체' : f === 'N' ? '공지' : f === 'S' ? '학습' : '인사'}
-                </button>
-              ))}
             </div>
-          </div>
 
-          <div className="flex-1 bg-white dark:bg-[#1a222c] p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-lg shadow-slate-200/40 dark:shadow-none flex items-center group focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary/40 transition-all duration-300 h-12">
-            <div className="w-10 h-10 flex items-center justify-center text-slate-400 group-focus-within:text-primary transition-colors">
-              <Search size={18} />
+            <div className="flex-1 bg-white dark:bg-[#1a222c] p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-lg shadow-slate-200/40 dark:shadow-none flex items-center group focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary/40 transition-all duration-300 h-12">
+              <div className="w-10 h-10 flex items-center justify-center text-slate-400 group-focus-within:text-primary transition-colors">
+                <Search size={18} />
+              </div>
+              <input 
+                type="text" 
+                placeholder="제목이나 내용에서 검색..." 
+                className="w-full bg-transparent border-none py-2 text-[15px] font-semibold outline-none focus:ring-0 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" 
+                value={inputKeyword} 
+                onChange={handleSearchChange} 
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              />
+              <button className="bg-primary text-white w-9 h-9 flex items-center justify-center rounded-full hover:bg-blue-600 transition-all shadow-md active:scale-90 shrink-0 ml-2" onClick={handleSearch} title="검색"><ChevronsRight size={18} /></button>
             </div>
-            <input 
-              type="text" 
-              placeholder="제목이나 내용에서 검색..." 
-              className="w-full bg-transparent border-none py-2 text-[15px] font-semibold outline-none focus:ring-0 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" 
-              value={inputKeyword} 
-              onChange={handleSearchChange} 
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <button className="bg-primary text-white w-9 h-9 flex items-center justify-center rounded-full hover:bg-blue-600 transition-all shadow-md active:scale-90 shrink-0 ml-2" onClick={handleSearch} title="검색"><ChevronsRight size={18} /></button>
-          </div>
-        </section>
+          </section>
+        )}
+
+        {/* Notifications Specific Action Bar */}
+        {activeTab === 'notifications' && (
+          <section className="flex items-center justify-between mb-6 px-2">
+            <p className="text-sm font-bold text-slate-500">
+              최근 30일간 수신된 알림입니다.
+            </p>
+            {unreadCount > 0 && (
+              <button 
+                onClick={markAllAsRead}
+                className="flex items-center gap-2 h-10 px-4 bg-white dark:bg-[#1a222c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-black text-primary hover:bg-primary hover:text-white transition-all shadow-sm"
+              >
+                <CheckCircle2 size={14} /> 모두 읽음 처리
+              </button>
+            )}
+          </section>
+        )}
 
         {/* List Section */}
-        <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/50 text-[#4c739a] dark:text-slate-400 text-xs font-black uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                  <th className="px-6 py-5 text-center w-16">
-                    <input type="checkbox" className="rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer" checked={selectedIds.length > 0 && selectedIds.length === (activeTab === 'scraps' ? scraps.length : myPosts.length)} onChange={handleSelectAll} />
-                  </th>
-                  <th className="px-6 py-5 text-center w-20">No</th>
-                  <th className="px-6 py-5 text-left">제목</th>
-                  {activeTab === 'scraps' && <th className="px-6 py-5 text-center w-24">작성자</th>}
-                  <th className="px-6 py-5 text-center w-32">날짜</th>
-                  <th className="px-6 py-5 text-center w-20">조회</th>
-                  <th className="px-6 py-5 text-center w-20">추천</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-20 text-center">
-                      <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-                      <p className="text-sm font-bold text-slate-400">데이터를 불러오는 중입니다...</p>
-                    </td>
-                  </tr>
-                ) : (activeTab === 'scraps' ? scraps : myPosts).length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-20 text-center">
-                      <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                        <FileText className="text-slate-300" size={32} />
+        <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden min-h-[400px]">
+          {activeTab === 'notifications' ? (
+            <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
+              {allNotifications.length === 0 ? (
+                <div className="py-20 text-center">
+                  <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                    <Bell className="text-slate-300" size={32} />
+                  </div>
+                  <p className="text-sm font-bold text-slate-400">알림 내역이 없습니다.</p>
+                </div>
+              ) : (
+                allNotifications.map((noti) => (
+                  <div 
+                    key={noti.id} 
+                    onClick={() => {
+                      markAsRead(noti.id);
+                      navigate(noti.targetUrl);
+                    }}
+                    className={`p-6 flex items-start gap-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer group ${!noti.isRead ? 'bg-blue-50/20 dark:bg-primary/5' : ''}`}
+                  >
+                    <div className={`size-10 rounded-2xl flex-shrink-0 flex items-center justify-center ${!noti.isRead ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                      <Bell size={18} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${!noti.isRead ? 'text-primary' : 'text-slate-400'}`}>
+                          {noti.type || 'SYSTEM'}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-bold">{noti.timestamp}</span>
                       </div>
-                      <p className="text-sm font-bold text-slate-400">활동 내역이 없습니다.</p>
-                    </td>
+                      <p className={`text-sm leading-relaxed ${!noti.isRead ? 'text-slate-900 dark:text-white font-black' : 'text-slate-600 dark:text-slate-400 font-semibold'}`}>
+                        {noti.content}
+                      </p>
+                    </div>
+                    {!noti.isRead && (
+                      <div className="size-2.5 bg-primary rounded-full mt-2 ring-4 ring-primary/20" />
+                    )}
+                    <ChevronRight className="text-slate-300 group-hover:text-primary group-hover:translate-x-1 transition-all mt-1" size={20} />
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800/50 text-[#4c739a] dark:text-slate-400 text-xs font-black uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
+                    <th className="px-6 py-5 text-center w-16">
+                      <input type="checkbox" className="rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer" checked={selectedIds.length > 0 && selectedIds.length === (activeTab === 'scraps' ? scraps.length : myPosts.length)} onChange={handleSelectAll} />
+                    </th>
+                    <th className="px-6 py-5 text-center w-20">No</th>
+                    <th className="px-6 py-5 text-left">제목</th>
+                    {activeTab === 'scraps' && <th className="px-6 py-5 text-center w-24">작성자</th>}
+                    <th className="px-6 py-5 text-center w-32">날짜</th>
+                    <th className="px-6 py-5 text-center w-20">조회</th>
+                    <th className="px-6 py-5 text-center w-20">추천</th>
                   </tr>
-                ) : (
-                  (activeTab === 'scraps' ? scraps : myPosts).map((post, idx) => {
-                    const id = activeTab === 'scraps' ? post.scrapId : post.boardId;
-                    return (
-                      <tr key={id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => navigate(`/exam/${post.boardId}?type=${post.boardType}`)}>
-                        <td className="px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
-                          <input type="checkbox" className="rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer" checked={selectedIds.includes(id)} onChange={() => toggleSelect(id)} />
-                        </td>
-                        <td className="px-6 py-5 text-sm text-[#4c739a] text-center font-bold whitespace-nowrap">
-                          {activeTab === 'posts' && typeof post.seqNumber === 'number' ? String(post.seqNumber).padStart(2, '0') : totalElements - (page-1)*size - idx}
-                        </td>
-                        <td className="px-6 py-5">
-                          <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${post.boardType === 'N' ? 'bg-amber-100 text-amber-600' : post.boardType === 'S' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                {post.boardType === 'N' ? 'Notice' : post.boardType === 'S' ? 'Study' : 'Join'}
-                              </span>
-                              <h3 className="text-sm font-bold text-[#0d141b] dark:text-white group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-[400px]">{post.title}</h3>
-                              {post.commentCount > 0 && <span className="text-primary font-black text-[11px] shrink-0">[{post.commentCount}]</span>}
+                </thead>
+                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-20 text-center">
+                        <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+                        <p className="text-sm font-bold text-slate-400">데이터를 불러오는 중입니다...</p>
+                      </td>
+                    </tr>
+                  ) : (activeTab === 'scraps' ? scraps : myPosts).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="px-6 py-20 text-center">
+                        <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                          <FileText className="text-slate-300" size={32} />
+                        </div>
+                        <p className="text-sm font-bold text-slate-400">활동 내역이 없습니다.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    (activeTab === 'scraps' ? scraps : myPosts).map((post, idx) => {
+                      const id = activeTab === 'scraps' ? post.scrapId : post.boardId;
+                      return (
+                        <tr key={id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => navigate(`/exam/${post.boardId}?type=${post.boardType}`)}>
+                          <td className="px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
+                            <input type="checkbox" className="rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer" checked={selectedIds.includes(id)} onChange={() => toggleSelect(id)} />
+                          </td>
+                          <td className="px-6 py-5 text-sm text-[#4c739a] text-center font-bold whitespace-nowrap">
+                            {activeTab === 'posts' && typeof post.seqNumber === 'number' ? String(post.seqNumber).padStart(2, '0') : totalElements - (page-1)*size - idx}
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${post.boardType === 'N' ? 'bg-amber-100 text-amber-600' : post.boardType === 'S' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                  {post.boardType === 'N' ? 'Notice' : post.boardType === 'S' ? 'Study' : 'Join'}
+                                </span>
+                                <h3 className="text-sm font-bold text-[#0d141b] dark:text-white group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-[400px]">{post.title}</h3>
+                                {post.commentCount > 0 && <span className="text-primary font-black text-[11px] shrink-0">[{post.commentCount}]</span>}
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        {activeTab === 'scraps' && (
-                          <td className="px-6 py-5 text-sm text-slate-600 dark:text-slate-400 text-center font-medium whitespace-nowrap">{(post as ScrapItem).userName}</td>
-                        )}
-                        <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center whitespace-nowrap">{formatRelativeTime(post.createAt)}</td>
-                        <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center font-bold">{post.viewCount}</td>
-                        <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center font-bold">{post.likeCount}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
+                          </td>
+                          {activeTab === 'scraps' && (
+                            <td className="px-6 py-5 text-sm text-slate-600 dark:text-slate-400 text-center font-medium whitespace-nowrap">{(post as ScrapItem).userName}</td>
+                          )}
+                          <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center whitespace-nowrap">{formatRelativeTime(post.createAt)}</td>
+                          <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center font-bold">{post.viewCount}</td>
+                          <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center font-bold">{post.likeCount}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Pagination Section */}
-        {totalPages > 1 && (
+        {activeTab !== 'notifications' && totalPages > 1 && (
           <div className="mt-10 flex justify-center items-center gap-2">
             <button onClick={() => handlePageChange(1)} disabled={page === 1} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronsLeft size={18} /></button>
             <button onClick={() => handlePageChange(page - 1)} disabled={page === 1} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronLeft size={18} /></button>

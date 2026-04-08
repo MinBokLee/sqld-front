@@ -1,7 +1,8 @@
-import { Database, Menu, Search, User as UserIcon, ChevronDown, ShieldCheck, X, LogOut, FileText, Smile, Megaphone } from 'lucide-react';
+import { Database, Menu, Search, User as UserIcon, ChevronDown, ShieldCheck, X, LogOut, FileText, Smile, Megaphone, Bell } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
-import { useAlert } from '../contexts/AlertContext'; // Added
+import { useAlert } from '../contexts/AlertContext'; 
+import { useNotification } from '../contexts/NotificationContext';
 import { useState, useRef, useEffect } from 'react';
 import ProfileDropdown from './ProfileDropdown';
 import WithdrawalModal from './WithdrawalModal';
@@ -16,16 +17,19 @@ interface HeaderProps {
 
 export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPasswordReset, getText }: HeaderProps) {
   const { user, logout } = useUser();
-  const { showAlert } = useAlert(); // Added
+  const { showAlert } = useAlert(); 
+  const { unreadCount, notifications, markAsRead, markAllAsRead } = useNotification();
   const location = useLocation();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); 
   const [headerKeyword, setHeaderKeyword] = useState(''); 
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false); 
   const [isWithdrawing, setIsWithdrawing] = useState(false); 
 
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const notiRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const searchParams = new URLSearchParams(location.search);
   const currentType = searchParams.get('type');
@@ -37,6 +41,9 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false);
       }
+      if (notiRef.current && !notiRef.current.contains(event.target as Node)) {
+        setIsNotificationOpen(false);
+      }
       if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node) && isMobileMenuOpen) {
         setIsMobileMenuOpen(false);
       }
@@ -47,6 +54,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
 
   useEffect(() => {
     setIsProfileOpen(false);
+    setIsNotificationOpen(false);
     setIsMobileMenuOpen(false);
   }, [location.pathname, location.search]);
 
@@ -159,11 +167,108 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
 
           <div className="flex items-center gap-2">
             {user ? (
-              <div className="relative" ref={dropdownRef}>
-                <button 
-                  onClick={() => setIsProfileOpen(!isProfileOpen)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all group ${isProfileOpen ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
-                >
+              <>
+                {/* Notification Bell */}
+                <div className="relative" ref={notiRef}>
+                  <button
+                    onClick={() => setIsNotificationOpen(!isNotificationOpen)}
+                    className={`p-2 rounded-xl transition-all relative ${isNotificationOpen ? 'bg-slate-100 dark:bg-slate-800 text-primary' : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400'}`}
+                  >
+                    <Bell size={22} className={unreadCount > 0 ? 'animate-swing' : ''} />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-1.5 right-1.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white ring-2 ring-white dark:ring-slate-900 transition-all scale-110">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Notification Dropdown Placeholder */}
+                  {isNotificationOpen && (
+                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden z-[60] animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+                        <h3 className="font-black text-slate-800 dark:text-white flex items-center gap-2">
+                          알림 <span className="text-xs font-bold text-slate-400">Recent</span>
+                        </h3>
+                        {unreadCount > 0 && (
+                          <button 
+                            onClick={markAllAsRead}
+                            className="text-[11px] font-bold text-primary hover:underline"
+                          >
+                            모두 읽음
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-[400px] overflow-y-auto">
+                        {notifications.length > 0 ? (
+                          <div className="divide-y divide-slate-50 dark:divide-slate-800">
+                            {notifications.map((noti) => {
+                              // URL 정규화 함수
+                              const normalizeUrl = (url: string) => {
+                                if (!url) return '/';
+                                if (url.includes('/board/view?boardId=')) {
+                                  const boardId = url.split('boardId=')[1]?.split('&')[0];
+                                  return `/exam/${boardId}?type=S`; 
+                                }
+                                return url;
+                              };
+
+                              return (
+                                <button
+                                  key={noti.id}
+                                  onClick={() => {
+                                    if (noti.id && !noti.id.startsWith('noti_')) {
+                                      markAsRead(noti.id);
+                                    }
+                                    navigate(normalizeUrl(noti.targetUrl));
+                                    setIsNotificationOpen(false);
+                                  }}
+                                  className={`w-full p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex gap-3 ${!noti.isRead ? 'bg-blue-50/30 dark:bg-primary/5' : ''}`}
+                                >
+                                  <div className={`size-8 rounded-full flex-shrink-0 flex items-center justify-center ${!noti.isRead ? 'bg-primary text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                                    <Bell size={14} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm leading-snug mb-1 ${!noti.isRead ? 'font-bold text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-400'}`}>
+                                      {noti.content}
+                                    </p>
+                                    <span className="text-[10px] text-slate-400 font-medium">
+                                      {noti.timestamp}
+                                    </span>
+                                  </div>
+                                  {!noti.isRead && (
+                                    <div className="size-2 bg-primary rounded-full mt-1.5 flex-shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="p-12 text-center">
+                            <div className="size-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
+                              <Bell size={20} className="text-slate-300" />
+                            </div>
+                            <p className="text-sm font-bold text-slate-400">새로운 알림이 없습니다.</p>
+                          </div>
+                        )}
+                      </div>
+                      <div className="p-3 border-t border-slate-100 dark:border-slate-800 text-center">
+                        <Link 
+                          to="/mypage" 
+                          onClick={() => setIsNotificationOpen(false)}
+                          className="text-xs font-bold text-slate-500 hover:text-primary transition-colors"
+                        >
+                          전체 알림 보기
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="relative" ref={dropdownRef}>
+                  <button 
+                    onClick={() => setIsProfileOpen(!isProfileOpen)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all group ${isProfileOpen ? 'bg-slate-100 dark:bg-slate-800' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                  >
                   <div className="size-8 rounded-lg overflow-hidden bg-primary/10 flex items-center justify-center text-primary border border-primary/10 font-black text-xs uppercase group-hover:scale-105 transition-transform shadow-sm">
                     {user.profileImage ? (
                       <img src={getProfileImageUrl(user.profileImage)!} alt="P" className="w-full h-full object-cover" />
@@ -187,6 +292,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
                   onOpenWithdrawalModal={() => setIsWithdrawalModalOpen(true)}
                 />
               </div>
+              </>
             ) : (
               <div className="hidden sm:flex items-center gap-2">
                 <button

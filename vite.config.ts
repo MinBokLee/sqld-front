@@ -13,6 +13,9 @@ export default defineConfig(({mode}) =>{
 
   return { 
     plugins: [react()],
+    define: {
+      global: 'window',
+    },
     server: {
       proxy: {
         '/api': {
@@ -24,6 +27,12 @@ export default defineConfig(({mode}) =>{
           target: target,
           changeOrigin: true,
           secure: false
+        },
+        '/ws-stomp': {
+          target: target,
+          changeOrigin: true,
+          secure: false,
+          ws: true
         },
       },
      },

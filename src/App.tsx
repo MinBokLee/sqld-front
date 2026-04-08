@@ -13,6 +13,7 @@ import ExamScheduleModal from './components/ExamScheduleModal';
 import { UserProvider } from './contexts/UserContext';
 import { LanguageProvider, LanguageContext } from './contexts/LanguageContext';
 import { AlertProvider } from './contexts/AlertContext'; 
+import { NotificationProvider } from './contexts/NotificationContext';
 import PracticeExams from './pages/PracticeExams';
 import ExamDetailPage from './pages/ExamDetailPage';
 import WritePostPage from './pages/WritePostPage';
@@ -179,7 +180,9 @@ function App() {
     <LanguageProvider>
       <AlertProvider>
         <UserProvider>
-          <RouterProvider router={router} />
+          <NotificationProvider>
+            <RouterProvider router={router} />
+          </NotificationProvider>
         </UserProvider>
       </AlertProvider>
     </LanguageProvider>
@@ -187,3 +190,4 @@ function App() {
 }
 
 export default App;
+
