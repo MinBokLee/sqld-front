@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { 
   MessageSquare, Eye, ThumbsUp, 
@@ -112,7 +112,7 @@ const Tooltip = ({ children, text }: { children: React.ReactNode, text: string }
 export default function ExamDetailPage() {
   const { id } = useParams();
   const { user } = useUser();
-  const { showAlert } = useAlert();
+  const { showAlert, showToast } = useAlert();
   const navigate = useNavigate();
 
   const [exam, setExam] = useState<Exam | null>(null);
@@ -125,6 +125,9 @@ export default function ExamDetailPage() {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{isOpen: boolean; title: string; message: string; onConfirm: () => void; type: 'danger' | 'warning' | 'info'; isLoading: boolean; }>({ isOpen: false, title: '', message: '', onConfirm: () => {}, type: 'info', isLoading: false });
 
+  // [최적화] 중복 호출 방지를 위한 Ref (ID 변경 감지)
+  const lastFetchedId = useRef<string | null>(null);
+
   const fixImagePath = (path: string) => {
     if (!path) return null;
     if (path.startsWith('http')) return path;
@@ -135,13 +138,10 @@ export default function ExamDetailPage() {
       normalized = path.split(/[\\/]/).pop() || '';
     }
 
-    // 2. 'uploads'라는 단어가 포함된 경우 중복을 제거하고 /uploads/ 패턴으로 통일
-    if (normalized.includes('uploads')) {
-      return '/' + normalized.replace(/^[\/]*uploads\/*/, 'uploads/');
-    }
-
-    // 3. 그 외 파일명만 있는 경우 접두어 부착
-    return `/uploads/${normalized}`;
+    // 2. 'uploads' 단어 포함 여부와 상관없이 최종 경로는 반드시 /uploads/파일명 형태가 되도록 강제 정규화
+    // 이미 'uploads'가 포함되어 있다면 해당 부분을 제거하고 순수 파일명(혹은 하위경로)만 추출
+    const fileName = normalized.replace(/^.*uploads\/*/, '');
+    return `/uploads/${fileName}`;
   };
 
   const fixContentHtml = (html: string) => {
@@ -149,15 +149,22 @@ export default function ExamDetailPage() {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
     let correctedHtml = html;
 
-    // 절대 경로 -> 상대 경로 변환
-    correctedHtml = correctedHtml.replace(/src="https?:\/\/[^/]+\/uploads\//g, 'src="/uploads/');
+    // [강화] 모든 형태의 uploads 경로를 /uploads/ 패턴으로 통일 (슬래시 누락/중복 방지)
+    // 1. 절대 경로(http...) -> 상대 경로(/uploads/) 변환
+    correctedHtml = correctedHtml.replace(/src="https?:\/\/[^/]+\/uploads\/*([^"]+)"/g, 'src="/uploads/$1"');
+    
+    // 2. API_BASE_URL이 포함된 경우 제거하여 상대 경로로 통일
     if (API_BASE_URL) {
       const escapedBaseUrl = API_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      correctedHtml = correctedHtml.replace(new RegExp(`src="${escapedBaseUrl}/uploads/`, 'g'), 'src="/uploads/');
+      correctedHtml = correctedHtml.replace(new RegExp(`src="${escapedBaseUrl}/uploads\/*([^"]+)"`, 'g'), 'src="/uploads/$1"');
     }
+
+    // 3. 상대 경로 중 슬래시가 누락되었거나 중복된 패턴(/uploads파일명, /uploads//파일명 등) 보정
+    correctedHtml = correctedHtml.replace(/src="\/+uploads\/*([^"]+)"/g, 'src="/uploads/$1"');
 
     // [핵심] 중복된 /uploads/uploads 패턴 통합
     correctedHtml = correctedHtml.replace(/\/uploads\/+uploads\/*/g, '/uploads/');
+    
     return correctedHtml;
   };
 
@@ -199,7 +206,7 @@ export default function ExamDetailPage() {
         });
       }
     } catch (error) { console.error("Post detail error:", error); } finally { if (showLoading) setInitialLoading(false); }
-  }, [id, user]);
+  }, [id]); // user 의존성 제거
 
   const fetchPopularPosts = useCallback(async () => {
     try {
@@ -212,7 +219,7 @@ export default function ExamDetailPage() {
 
   const fetchTrendingTags = useCallback(async () => {
     try {
-      const response = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 30, boardType: 'S' } });
+      const response = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 20, boardType: 'S' } });
       if (response.data.success && response.data.result?.data?.list) {
         const allTags = response.data.result.data.list.flatMap((p: any) => p.tags || (p.tagName ? p.tagName.split(',').map((t: string) => t.trim()) : []));
         const tagCounts: { [key: string]: number } = {};
@@ -223,7 +230,14 @@ export default function ExamDetailPage() {
   }, []);
 
   useEffect(() => {
-    fetchPostDetail(true); fetchComments(); fetchPopularPosts(); fetchTrendingTags();
+    // [핵심 해결] ID가 바뀌었을 때만 데이터를 새로 불러옴
+    if (id && lastFetchedId.current !== id) {
+      fetchPostDetail(true); 
+      fetchComments(); 
+      fetchPopularPosts(); 
+      fetchTrendingTags();
+      lastFetchedId.current = id; // 현재 ID를 마지막 페칭 ID로 기록
+    }
   }, [id, fetchPostDetail, fetchComments, fetchPopularPosts, fetchTrendingTags]);
 
   const handleCommentSubmit = useCallback(async (content: string, parentId: number | null = null): Promise<boolean> => {
@@ -236,28 +250,36 @@ export default function ExamDetailPage() {
       if (response.status === 200 || response.status === 201) {
         await fetchComments();
         setExam(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
+        showToast(response.data.message || response.data.msg || "댓글이 등록되었습니다. ✅");
         return true;
       }
       return false;
     } catch (error) { console.error("Comment error:", error); return false; } finally { if (parentId === null) setIsSubmittingMainComment(false); }
-  }, [id, user, showAlert, fetchComments]);
+  }, [id, user, showAlert, showToast, fetchComments]);
 
   const handleDeleteComment = useCallback(async (commentId: number) => {
     if (!user) return;
     try {
       const response = await api.delete(`/api/board/deleteComment/${commentId}`, { headers: { 'Authorization': `Bearer ${user.accessToken}` } });
-      if (response.status === 200) { await fetchComments(); setExam(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null); showAlert({ type: 'success', message: "댓글 삭제 완료 ✅" }); }
+      if (response.status === 200) { 
+        await fetchComments(); 
+        setExam(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null); 
+        showToast(response.data.message || response.data.msg || "댓글 삭제 완료 ✅"); 
+      }
     } catch (error) { console.error("Delete error:", error); }
-  }, [user, fetchComments, showAlert]);
+  }, [user, fetchComments, showToast]);
 
   const handleUpdateComment = useCallback(async (commentId: number, content: string) => {
     if (!user) return;
     try {
       const formData = new FormData(); formData.append('commentId', String(commentId)); formData.append('content', content);
       const response = await api.put(`/api/board/modifyComment`, formData, { headers: { 'Authorization': `Bearer ${user.accessToken}`, 'Content-Type': 'multipart/form-data' } });
-      if (response.status === 200) { await fetchComments(); showAlert({ type: 'success', message: "댓글 수정 완료 ✨" }); }
+      if (response.status === 200) { 
+        await fetchComments(); 
+        showToast(response.data.message || response.data.msg || "댓글 수정 완료 ✨"); 
+      }
     } catch (error) { console.error("Update error:", error); }
-  }, [user, fetchComments, showAlert]);
+  }, [user, fetchComments, showToast]);
 
   const handleLikeAction = useCallback(async () => {
     if (!user || !exam || isLiking) { if (!user) showAlert({ type: 'warning', message: "로그인이 필요합니다. ✅" }); return; }
@@ -267,9 +289,10 @@ export default function ExamDetailPage() {
       if (response.status === 200) {
         const isNowLiked = !exam.isLiked;
         setExam(prev => prev ? { ...prev, isLiked: isNowLiked, likeCount: isNowLiked ? prev.likeCount + 1 : Math.max(0, prev.likeCount - 1) } : null);
+        showToast(response.data.message || response.data.msg || (isNowLiked ? "이 글을 추천했습니다. ❤️" : "추천을 취소했습니다."));
       }
     } catch (error) { console.error("Like error:", error); } finally { setIsLiking(false); }
-  }, [id, user, exam, isLiking, showAlert]);
+  }, [id, user, exam, isLiking, showAlert, showToast]);
 
   const handleScrap = useCallback(async () => {
     if (!user || !exam) { 
@@ -278,52 +301,45 @@ export default function ExamDetailPage() {
     }
 
     if (exam.isScrapped && exam.scrapId) {
-      // [취소] 백엔드 명세 준수: scrapIds 키로 감싼 배열 전달
       try {
         const response = await api.delete('/api/board/deleteMyScrapPage', {
-          data: { 
-            scrapIds: [Number(exam.scrapId)] 
-          },
-          headers: { 
-            'Authorization': `Bearer ${user.accessToken}`,
-            'Content-Type': 'application/json'
-          }
+          data: { scrapIds: [Number(exam.scrapId)] },
+          headers: { 'Authorization': `Bearer ${user.accessToken}`, 'Content-Type': 'application/json' }
         });
-        
         if (response.status === 200 || response.data.success) {
           setExam(prev => prev ? { ...prev, isScrapped: false, scrapId: null } : null);
-          const successMsg = response.data.message || response.data.msg || "스크랩이 취소되었습니다. ✨";
-          showAlert({ type: 'success', message: successMsg });
+          showToast(response.data.message || response.data.msg || "스크랩이 취소되었습니다. ✨");
         }
       } catch (error) {
         console.error("Scrap cancel error:", error);
         showAlert({ type: 'error', message: "스크랩 취소 중 오류가 발생했습니다. ⏳" });
       }
     } else {
-      // [등록] 기존 등록 로직 유지
       try {
         const response = await api.post(`/api/board/insertBoardScrap`, null, { 
           params: { boardId: id }, 
           headers: { 'Authorization': `Bearer ${user.accessToken}` } 
         });
         if (response.status === 200 || response.data.success) {
-          const successMsg = response.data.message || response.data.msg || "스크랩 완료 ✨";
-          showAlert({ type: 'success', message: successMsg });
-          fetchPostDetail(); // 등록 성공 시 scrapId를 새로 받아오기 위해 갱신
+          showToast(response.data.message || response.data.msg || "스크랩 완료 ✨");
+          fetchPostDetail();
         }
       } catch (error) {
         console.error("Scrap insert error:", error);
         showAlert({ type: 'error', message: "스크랩 처리 중 오류가 발생했습니다. ⏳" });
       }
     }
-  }, [id, user, exam, showAlert, fetchPostDetail]);
+  }, [id, user, exam, showAlert, showToast, fetchPostDetail]);
 
   const handleDelete = useCallback(() => {
     setConfirmModal({ isOpen: true, title: '게시글 삭제', message: '정말로 이 게시글을 삭제하시겠습니까?', type: 'danger', isLoading: false, onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
           const response = await api.delete(`/api/board/list/${id}`, { headers: { 'Authorization': `Bearer ${user?.accessToken}` } });
-          if (response.status === 200) { showAlert({ type: 'success', message: "삭제되었습니다. ✅" }); navigate(`/practice-exams?type=${exam?.boardType || 'S'}`); }
+          if (response.status === 200) { 
+            showAlert({ type: 'success', message: response.data.message || response.data.msg || "삭제되었습니다. ✅" }); 
+            navigate(`/practice-exams?type=${exam?.boardType || 'S'}`); 
+          }
         } catch (error) { showAlert({ type: 'error', message: "삭제 오류 ⏳" }); } finally { setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false })); }
       }
     });

@@ -4,7 +4,7 @@ import {
   Search, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   MessageSquare, Eye, ThumbsUp, Clock, BookOpen,
   ArrowUpRight, PenSquare, Hash, Tag, X, TrendingUp, Heart,
-  Layers, MessageCircle, Lightbulb, HelpCircle, User
+  Layers, MessageCircle, Lightbulb, HelpCircle, User, ArrowUpDown
 } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { LanguageContext } from '../contexts/LanguageContext';
@@ -51,6 +51,7 @@ export default function PracticeExams() {
   const type = searchParams.get('type') || 'S';           
   const category = searchParams.get('category') || '';    
   const page = parseInt(searchParams.get('page') || '1'); 
+  const size = parseInt(searchParams.get('size') || '10'); // [추가]
   const searchQuery = searchParams.get('keyword') || ''; // 'search'에서 'keyword'로 통일
   const tagNameFilter = searchParams.get('tagName') || ''; 
   const mode = searchParams.get('mode') || ''; // 'my' 면 내 활동 관리 모드
@@ -68,6 +69,15 @@ export default function PracticeExams() {
   useEffect(() => {
     setInputKeyword(searchQuery);
   }, [searchQuery]);
+
+  // [추가] 페이지당 노출 개수 변경 핸들러
+  const handleSizeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newSize = e.target.value;
+    const params = new URLSearchParams(searchParams);
+    params.set('size', newSize);
+    params.set('page', '1'); // 리셋
+    setSearchParams(params);
+  };
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -167,7 +177,7 @@ export default function PracticeExams() {
       let endpoint = '';
       let params: any = {
         page: page,
-        size: 10,
+        size: size, // [수정] 하드코딩된 10 대신 변수 사용
       };
 
       // [핵심 분기 로직]
@@ -219,7 +229,7 @@ export default function PracticeExams() {
     } finally {
       setIsLoading(false);
     }
-  }, [type, category, page, searchQuery, tagNameFilter, mode]);
+  }, [type, category, page, size, searchQuery, tagNameFilter, mode]); // [수정] size 추가
 
   useEffect(() => {
     fetchPosts();
@@ -371,23 +381,41 @@ export default function PracticeExams() {
                   )}
                 </div>
 
-                <div className="bg-white dark:bg-[#1a222c] p-2.5 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-sm flex items-center">
-                  <div className="flex-1 flex items-center pl-4">
-                    <Search className={`mr-3 transition-colors ${isLoading && searchQuery ? 'text-primary animate-pulse' : 'text-slate-400'}`} size={22} />
+                <div className="bg-white dark:bg-[#1a222c] p-1.5 rounded-[2rem] border border-slate-200/60 dark:border-slate-800 shadow-lg shadow-slate-200/40 dark:shadow-none flex items-center group focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary/40 transition-all duration-300">
+                  {/* 페이지당 노출 개수 선택 (아이콘 포함 미니멀 디자인) */}
+                  <div className="relative flex items-center pl-4 pr-3 border-r border-slate-100 dark:border-slate-800 group-hover:border-slate-200 dark:group-hover:border-slate-700 transition-colors">
+                    <Filter className="text-slate-400 dark:text-slate-500 mr-2" size={16} />
+                    <select 
+                      value={size} 
+                      onChange={handleSizeChange}
+                      className="appearance-none bg-transparent border-none text-[13px] font-black text-slate-600 dark:text-slate-300 outline-none cursor-pointer pr-5"
+                    >
+                      <option value="10">10</option>
+                      <option value="30">30</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
+                    <ArrowUpDown className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600 pointer-events-none" size={10} />
+                  </div>
+
+                  <div className="flex-1 flex items-center pl-3">
+                    <Search className={`mr-3 transition-all duration-300 ${isLoading && searchQuery ? 'text-primary animate-pulse' : 'text-slate-300 dark:text-slate-600 group-focus-within:text-primary'}`} size={20} />
                     <input 
                       type="text" 
                       placeholder="제목이나 내용에서 검색..." 
-                      className="w-full bg-transparent border-none py-3 text-[15px] font-medium outline-none focus:ring-0 dark:text-white placeholder:text-[#94a3b8]"
+                      className="w-full bg-transparent border-none py-3.5 text-[15px] font-semibold outline-none focus:ring-0 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600"
                       value={inputKeyword}
                       onChange={handleSearchChange}
                       onKeyDown={handleKeyDown}
                     />
                   </div>
+                  
                   <button 
-                    className="bg-[#0d141b] dark:bg-slate-700 text-white px-8 py-3.5 rounded-[1.5rem] font-bold text-[15px] whitespace-nowrap hover:bg-slate-800 dark:hover:bg-slate-600 transition-colors"
+                    className="bg-primary text-white w-9 h-9 flex items-center justify-center rounded-full hover:bg-blue-600 transition-all shadow-md active:scale-90 shrink-0 ml-2"
                     onClick={handleSearch}
+                    title="검색"
                   >
-                    검색하기
+                    <ChevronsRight size={18} />
                   </button>
                 </div>
               </div>

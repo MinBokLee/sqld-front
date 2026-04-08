@@ -123,9 +123,8 @@ export default function Board({ title, icon: Icon, items, boardType, isTable = f
                       <div className="flex items-center gap-2 text-xs text-[#4c739a] dark:text-slate-400">
                         <div className="size-4 rounded-full overflow-hidden bg-primary/5 dark:bg-primary/10 flex items-center justify-center border border-primary/5 shadow-sm">
                           {item.authorImage ? (
-                            <img src={item.authorImage.startsWith('http') ? item.authorImage : item.authorImage} alt="P" className="w-full h-full object-cover" />
+                            <img src={item.authorImage.startsWith('http') ? item.authorImage : `/uploads/${item.authorImage.replace(/^\/*uploads\/*/, '')}`} alt="P" className="w-full h-full object-cover" />
                           ) : (
-
                             <span className="text-[8px] font-black text-primary uppercase">{item.author?.[0] || 'U'}</span>
                           )}
                         </div>

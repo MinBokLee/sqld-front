@@ -9,14 +9,19 @@ A modern, responsive exam preparation portal for SQLD certification, built with 
 ## Features
 - **Modern UI:** Clean, responsive interface using Tailwind CSS.
 - **Dark Mode Support:** Built-in support for light and dark themes.
+- **Security & Authorization:**
+    - **Multi-level Roles:** Supports `USER`, `ADMIN`, and `SUPER_ADMIN` hierarchy.
+    - **Intelligent RBAC:** Advanced role-based access control with server-side toggle logic and hierarchy validation.
+    - **Session Security:** Enhanced file download system using **Axios Blob method** with JWT authentication.
 - **Interactive Boards:**
     - **Performance:** Optimized rendering (`memo`, `useCallback`) to prevent flickering during comment input or media interaction.
-    - **Security:** Enhanced file download system using **Axios Blob method** with JWT authentication.
     - **Navigation:** Intelligent history management (`go(-2)`) to handle complex back-navigation from edit pages.
 - **Comment System:**
     - Nested parent-child (Reply) architecture.
     - Isolated input components (`MainCommentForm`) for high-performance typing.
-    - Simplified UX: Removed redundant success alerts for common tasks.
+- **Dual Notification System (Alert & Toast):**
+    - **Blocking Alerts:** Used for critical messages (errors, auth guards, data validation) requiring user confirmation.
+    - **Non-blocking Toasts:** Lightweight, auto-dismissing notifications (2.5s) for frequent feedback (scraps, likes, success actions) using `framer-motion` for smooth animations.
 - **Resource Boards:** Organized sections for Notices, Study Materials, and Greetings.
 - **Search Functionality:** Prominent search bars with debounce logic.
 
@@ -26,7 +31,7 @@ A modern, responsive exam preparation portal for SQLD certification, built with 
 - **Icons:** Lucide React
 - **Animation:** Framer Motion
 - **State Management:** Local state & Context API.
-- **API:** Custom `api.ts` utility (Axios) supporting `PUT` methods and `Blob` responses.
+- **API:** Custom `api.ts` utility (Axios) supporting `PUT/PATCH` methods, `Blob` responses, and automatic token refresh.
 
 ## Components
 - **Header:** Navigation, Search, Auth buttons, Profile dropdown.

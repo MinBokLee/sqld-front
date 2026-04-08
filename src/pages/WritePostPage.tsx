@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext, useCallback } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link, useBlocker } from 'react-router-dom';
 import { CKEditor } from '@ckeditor/ckeditor5-react';
 import {
 	ClassicEditor,
@@ -131,7 +131,7 @@ class MyUploadAdapter {
 
 export default function WritePostPage() {
   const { user, updateUser, isLoading: isUserLoading } = useUser();
-  const { showAlert } = useAlert();
+  const { showAlert, showToast } = useAlert();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,22 +161,37 @@ export default function WritePostPage() {
   const isSuccessfullySubmitted = useRef(false);
   const STORAGE_KEY = user ? `sqld_temp_post_${user.memberId}${editingBoardId ? `_${editingBoardId}` : ''}` : null;
 
+  // [핵심] useBlocker를 사용하여 사이트 내 내비게이션(로고 클릭, 뒤로가기 등)을 가로챕니다.
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      !isSuccessfullySubmitted.current &&
+      (title.trim() !== '' || editorData.trim() !== '') &&
+      currentLocation.pathname !== nextLocation.pathname
+  );
+
+  // 블로커가 작동하면 이탈 방지 모달을 엽니다.
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      setIsBackConfirmOpen(true);
+    }
+  }, [blocker.state]);
+
   const handleConfirmBack = () => {
     setIsBackConfirmOpen(false);
-    isSuccessfullySubmitted.current = true;
-    // [핵심] 가짜 상태와 진짜 수정 페이지 2개를 모두 제거하여 상세 페이지로 이동
-    window.history.go(-2);
+    if (blocker.state === 'blocked') {
+      // 1. 블로커가 더 이상 작동하지 않도록 플래그 활성화
+      isSuccessfullySubmitted.current = true;
+      
+      // 2. 가려던 목적지(blocker.location)로 replace 이동
+      // 현재 페이지를 목적지 페이지로 덮어씌워 히스토리 스택을 정리합니다.
+      const { pathname, search, hash } = blocker.location;
+      navigate(pathname + search + hash, { replace: true });
+    }
   };
 
   const handleCancelClick = () => {
-    const { title, content } = lastContent.current;
-    if (title.trim() || content.trim()) {
-      setIsBackConfirmOpen(true);
-    } else {
-      isSuccessfullySubmitted.current = true;
-      // 내용이 없더라도 스택 정리를 위해 2칸 뒤로 이동합니다.
-      window.history.go(-2);
-    }
+    // navigate(-1)을 호출하면 내용이 있을 경우 blocker가 가로채서 모달을 띄웁니다.
+    navigate(-1);
   };
 
   const fixImagePath = (path: string) => {
@@ -189,16 +204,9 @@ export default function WritePostPage() {
       normalized = path.split(/[\\/]/).pop() || '';
     }
 
-    // 2. 'uploads'라는 단어가 포함된 경우 중복을 제거하고 /uploads/ 패턴으로 통일
-    // 예: /uploads/uploads21f6... -> /uploads/21f6...
-    // 예: uploads/21f6... -> /uploads/21f6...
-    // 예: uploads21f6... -> /uploads/21f6...
-    if (normalized.includes('uploads')) {
-      return '/' + normalized.replace(/^[\/]*uploads\/*/, 'uploads/');
-    }
-
-    // 3. 그 외 파일명만 있는 경우 접두어 부착
-    return `/uploads/${normalized}`;
+    // 2. 'uploads' 단어 포함 여부와 상관없이 최종 경로는 반드시 /uploads/파일명 형태가 되도록 강제 정규화
+    const fileName = normalized.replace(/^.*uploads\/*/, '');
+    return `/uploads/${fileName}`;
   };
 
   const fixContentHtml = (html: string) => {
@@ -206,14 +214,20 @@ export default function WritePostPage() {
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
     let correctedHtml = html;
 
-    // 절대 경로 -> 상대 경로 변환
-    correctedHtml = correctedHtml.replace(/src="https?:\/\/[^/]+\/uploads\//g, 'src="/uploads/');
+    // [강화] 모든 형태의 uploads 경로를 /uploads/ 패턴으로 통일
+    // 1. 절대 경로 -> 상대 경로 변환
+    correctedHtml = correctedHtml.replace(/src="https?:\/\/[^/]+\/uploads\/*([^"]+)"/g, 'src="/uploads/$1"');
+    
+    // 2. API_BASE_URL 제거
     if (API_BASE_URL) {
       const escapedBaseUrl = API_BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      correctedHtml = correctedHtml.replace(new RegExp(`src="${escapedBaseUrl}/uploads/`, 'g'), 'src="/uploads/');
+      correctedHtml = correctedHtml.replace(new RegExp(`src="${escapedBaseUrl}/uploads\/*([^"]+)"`, 'g'), 'src="/uploads/$1"');
     }
 
-    // [핵심] 본문 내 중복된 /uploads/uploads 패턴을 /uploads/ 하나로 안전하게 통합 (슬래시 보존)
+    // 3. 슬래시 누락/중복 패턴 보정
+    correctedHtml = correctedHtml.replace(/src="\/+uploads\/*([^"]+)"/g, 'src="/uploads/$1"');
+
+    // [핵심] 중복된 /uploads/uploads 패턴 통합
     correctedHtml = correctedHtml.replace(/\/uploads\/+uploads\/*/g, '/uploads/');
 
     return correctedHtml;
@@ -235,8 +249,11 @@ export default function WritePostPage() {
     }
   };
 
+  // [최적화] 수정 모드 시 데이터 중복 페칭 방지를 위한 플래그
+  const isDataFetched = useRef(false);
+
   useEffect(() => {
-    if (editingBoardId) {
+    if (editingBoardId && !isDataFetched.current) {
        api.get(`api/board/list/detail/${editingBoardId}`)
        .then(res => {
          const post = res.data.result?.data;
@@ -249,22 +266,24 @@ export default function WritePostPage() {
            setTag(post.tagName || '');
            const files = post.fileList || post.boardFileList || post.files || [];
            setExistingFiles(files.map((f: any) => ({ ...f, displayPath: fixImagePath(f.filePath || f.saveName || f.save_Name || '') })));
+           isDataFetched.current = true; // 페칭 완료 표시
          }
        })
        .catch(() => {
          showAlert({ type: 'error', message: "게시글을 불러올 수 없거나 권한이 없습니다. ⚠️" });
          navigate(-1);
        });
-    } else if (STORAGE_KEY) {
+    } else if (!editingBoardId && STORAGE_KEY && !isDataFetched.current) {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
           if (parsed.title || parsed.content) { setTempData(parsed); setIsRestoreModalOpen(true); }
+          isDataFetched.current = true;
         } catch (e) { console.error('Failed to parse temp data'); }
       }
     }
-  }, [editingBoardId, navigate, showAlert, STORAGE_KEY]);
+  }, [editingBoardId, STORAGE_KEY, navigate, showAlert]); 
 
   const lastContent = useRef({title: '', content: ''});
   lastContent.current = {title, content:editorData};
@@ -277,31 +296,9 @@ export default function WritePostPage() {
       }
     };
 
-    const handlePopState = () => {
-      if (isSuccessfullySubmitted.current) return;
-
-      const { title, content } = lastContent.current;
-      if (title.trim() || content.trim()) {
-        setIsBackConfirmOpen(true);
-        window.history.pushState({ preventBack: true }, '', window.location.href);
-      } else {
-        // 내용이 없으면 가짜 상태와 현재 페이지를 모두 제거하며 이탈
-        isSuccessfullySubmitted.current = true;
-        window.history.go(-2);
-      }
-    };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('popstate', handlePopState);
-
-    // 페이지 진입 시 이탈 방지용 가짜 상태 하나만 생성
-    if (window.history.state?.preventBack !== true) {
-      window.history.pushState({ preventBack: true }, '', window.location.href);
-    }
-
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('popstate', handlePopState);
     };
   }, []);
 
@@ -321,7 +318,7 @@ export default function WritePostPage() {
       setEditorData(tempData.content || '');
       setTag(tempData.tag || '');
       if (editorRef.current) editorRef.current.setData(tempData.content || '');
-      showAlert({ type: 'success', message: "작성 중이던 내용을 복구했습니다. ✨" });
+      showToast("작성 중이던 내용을 복구했습니다. ✨");
     }
     setIsRestoreModalOpen(false);
   };
@@ -338,7 +335,6 @@ export default function WritePostPage() {
     const result = res.data;
     let url = result.url || result.result?.data?.[0] || '';
     
-    // 업로드 후 결과 경로 처리 시에도 중복 방지
     if (url && !url.startsWith('http')) {
       if (url.includes('uploads')) {
         url = url.startsWith('/') ? url : '/' + url;
@@ -390,14 +386,10 @@ export default function WritePostPage() {
         if (STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
         if (boardType === 'G' && !editingBoardId) updateUser({ userStatus: 'Y' });
         const targetId = editingBoardId || response.data.result?.data?.boardId;
-        showAlert({ type: 'success', message: "처리가 완료되었습니다. ✅" });
+        showToast("처리가 완료되었습니다. ✅");
         
-        // [히스토리 클리닝] 가짜 엔트리 삭제 후 진짜 엔트리를 결과 페이지로 교체
-        window.history.back();
-        setTimeout(() => {
-          if (targetId) navigate(`/exam/${targetId}?type=${boardType}`, { replace: true });
-          else navigate(`/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`, { replace: true });
-        }, 50);
+        if (targetId) navigate(`/exam/${targetId}?type=${boardType}`, { replace: true });
+        else navigate(`/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`, { replace: true });
       }
     } catch (error: any) { showAlert({ type: 'error', message: "저장 실패 ⏳" }); } finally { setIsSubmitting(false); }
   };
@@ -636,23 +628,26 @@ export default function WritePostPage() {
                             </div>
                           </div>
                         ))}
-                        {selectedFiles.filter(f => !isImageFile(f.name)).map((file, idx) => (
-                          <div key={`new-file-${idx}`} className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 border border-primary/10 dark:border-slate-700 rounded-2xl hover:shadow-md transition-all group">
-                            <div className="w-10 h-10 flex-shrink-0 bg-primary/5 text-primary rounded-xl flex items-center justify-center"><File size={20} /></div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-black text-slate-700 dark:text-slate-200 truncate">{file.name}</p>
-                              <p className="text-[10px] text-primary/60 font-bold uppercase">New Upload</p>
+                        {selectedFiles.filter(f => !isImageFile(f.name)).map((file, idx) => {
+                          const url = URL.createObjectURL(file);
+                          return (
+                            <div key={`new-file-${idx}`} className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 border border-primary/10 dark:border-slate-700 rounded-2xl hover:shadow-md transition-all group">
+                              <div className="w-10 h-10 flex-shrink-0 bg-primary/5 text-primary rounded-xl flex items-center justify-center"><File size={20} /></div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black text-slate-700 dark:text-slate-200 truncate">{file.name}</p>
+                                <p className="text-[10px] text-primary/60 font-bold uppercase">New Upload</p>
+                              </div>
+                              <button type="button" onClick={() => setSelectedFiles(prev => prev.filter(f => f !== file))} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                             </div>
-                            <button type="button" onClick={() => setSelectedFiles(prev => prev.filter(f => f !== file))} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
                 </div>
 
                 <div className="pt-10 flex items-center justify-end gap-4 border-t border-slate-50 dark:border-slate-800">
-                  <button type="button" onClick={handleCancelClick} className="px-8 py-4 rounded-2xl text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-widest text-xs">취소</button>
+                  <button type="button" onClick={handleCancelClick} className="px-8 py-4 rounded-2xl text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-widest text-xs">{getText('common.cancel')}</button>
                   <button onClick={handleSubmit} disabled={isSubmitting} className="px-10 py-4 rounded-2xl bg-primary text-white font-black hover:bg-blue-600 shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase tracking-widest text-xs">{isSubmitting ? '처리 중...' : editingBoardId ? '수정 완료' : '게시하기'}</button>
                 </div>
               </div>

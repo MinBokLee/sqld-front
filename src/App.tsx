@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Outlet, useOutletContext } from 'react-router-dom';
 import { useState, useEffect, useContext } from "react";
 import { Megaphone, BookOpen, Hand } from 'lucide-react';
 import Board from './components/Board';
@@ -12,13 +12,14 @@ import PasswordResetModal from './components/PasswordResetModal';
 import ExamScheduleModal from './components/ExamScheduleModal'; 
 import { UserProvider } from './contexts/UserContext';
 import { LanguageProvider, LanguageContext } from './contexts/LanguageContext';
-import { AlertProvider } from './contexts/AlertContext'; // Added
+import { AlertProvider } from './contexts/AlertContext'; 
 import PracticeExams from './pages/PracticeExams';
 import ExamDetailPage from './pages/ExamDetailPage';
 import WritePostPage from './pages/WritePostPage';
 import AdminMemberPage from './pages/AdminMemberPage'; 
 import MyPage from './pages/MyPage';
 import LegalPage from './pages/LegalPage';
+import api from './utils/api';
 
 function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
   const languageContext = useContext(LanguageContext);
@@ -28,15 +29,10 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
   const [greetingsPosts, setGreetingsPosts] = useState<BoardItem[]>([]);
 
   useEffect(() => {
-    // Fetch normal posts
-    fetch(`/api/board/list`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`Network response was not ok: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        if (data.result && data.result.data) {
-          const allPosts = data.result.data.map((item: any) => ({
+    api.get(`/api/board/list`)
+      .then((res) => {
+        if (res.data.success && res.data.result?.data) {
+          const allPosts = res.data.result.data.map((item: any) => ({
             title: item.title,
             createAt: item.createAt,
             viewCount: item.viewCount,
@@ -59,7 +55,6 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
   return (
     <main className="max-w-[1280px] mx-auto px-4 md:px-10 py-8">
       <Hero getText={getText} onOpenSchedule={onOpenSchedule} />
-      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Board title={getText('board.notice')} icon={Megaphone} items={noticesPosts} boardType="N" />
         <Board title={getText('board.sqld_study')} icon={BookOpen} items={sqldStudyPosts} boardType="S" />
@@ -69,7 +64,11 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
   );
 }
 
-function AppContent() {
+/**
+ * [RootLayout]
+ * 기존 AppContent의 UI 구조를 100% 보존합니다.
+ */
+function RootLayout() {
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -98,62 +97,92 @@ function AppContent() {
   };
 
   return (
-    <> {/*// <Router> 대신 빈 태그로 변경 */}
-      <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white font-sans transition-colors duration-200">
-        <Header 
-          onOpenSignUpModal={openSignUpModal} 
-          onOpenLoginModal={openLoginModal} 
-          onOpenPasswordReset={openPasswordResetModal}
-          getText={getText} 
-        />
-        
-        <div className="flex-1 relative z-0">
-          <Routes>
-            <Route path="/" element={<Home onOpenSchedule={openScheduleModal} />} />
-            <Route path="/practice-exams" element={<PracticeExams />} />
-            <Route path="/exam/:id" element={<ExamDetailPage />} />
-            <Route path="/write-post" element={<WritePostPage />} />
-            <Route path="/admin/members" element={<AdminMemberPage />} />
-            <Route path="/mypage" element={<MyPage />} />
-            <Route path="/legal" element={<LegalPage />} />
-          </Routes>
-        </div>
-
-        <Footer getText={getText} />
-        
-        {isSignUpModalOpen && <SignUpModal isOpen={isSignUpModalOpen} onClose={closeSignUpModal} getText={getText} />}
-        {isLoginModalOpen && (
-          <LoginModal 
-            isOpen={isLoginModalOpen} 
-            onClose={closeLoginModal} 
-            getText={getText} 
-            onOpenSignUpFromLogin={openSignUpFromLogin}
-            onOpenPasswordReset={openPasswordResetFromLogin}
-          />
-        )}
-        {isScheduleModalOpen && <ExamScheduleModal isOpen={isScheduleModalOpen} onClose={closeScheduleModal} />}
-        {isPasswordResetModalOpen && (
-          <PasswordResetModal 
-            isOpen={isPasswordResetModalOpen} 
-            onClose={closePasswordResetModal} 
-          />
-        )}
+    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white font-sans transition-colors duration-200">
+      <Header 
+        onOpenSignUpModal={openSignUpModal} 
+        onOpenLoginModal={openLoginModal} 
+        onOpenPasswordReset={openPasswordResetModal}
+        getText={getText} 
+      />
+      
+      <div className="flex-1 relative z-0">
+        <Outlet context={{ openScheduleModal }} />
       </div>
-    </> // </Router> 대신 빈 태그로 변경
+
+      <Footer getText={getText} />
+      
+      {isSignUpModalOpen && <SignUpModal isOpen={isSignUpModalOpen} onClose={closeSignUpModal} getText={getText} />}
+      {isLoginModalOpen && (
+        <LoginModal 
+          isOpen={isLoginModalOpen} 
+          onClose={closeLoginModal} 
+          getText={getText} 
+          onOpenSignUpFromLogin={openSignUpFromLogin}
+          onOpenPasswordReset={openPasswordResetFromLogin}
+        />
+      )}
+      {isScheduleModalOpen && <ExamScheduleModal isOpen={isScheduleModalOpen} onClose={closeScheduleModal} />}
+      {isPasswordResetModalOpen && (
+        <PasswordResetModal 
+          isOpen={isPasswordResetModalOpen} 
+          onClose={closePasswordResetModal} 
+        />
+      )}
+    </div>
   );
 }
 
+function HomeWrapper() {
+  const { openScheduleModal } = useOutletContext<{ openScheduleModal: () => void }>();
+  return <Home onOpenSchedule={openScheduleModal} />;
+}
+
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <RootLayout />,
+    children: [
+      {
+        index: true,
+        element: <HomeWrapper />,
+      },
+      {
+        path: "practice-exams",
+        element: <PracticeExams />,
+      },
+      {
+        path: "exam/:id",
+        element: <ExamDetailPage />,
+      },
+      {
+        path: "write-post",
+        element: <WritePostPage />,
+      },
+      {
+        path: "admin/members",
+        element: <AdminMemberPage />,
+      },
+      {
+        path: "mypage",
+        element: <MyPage />,
+      },
+      {
+        path: "legal",
+        element: <LegalPage />,
+      }
+    ],
+  },
+]);
+
 function App() {
   return (
-    <Router> {/*  */}
     <LanguageProvider>
       <AlertProvider>
         <UserProvider>
-          <AppContent />
+          <RouterProvider router={router} />
         </UserProvider>
       </AlertProvider>
     </LanguageProvider>
-    </Router>
   );
 }
 

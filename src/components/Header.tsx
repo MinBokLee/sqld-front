@@ -134,7 +134,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
               <Link to="/practice-exams?type=G" className={`${getMenuClass('G')} text-sm font-semibold transition-colors`}>
                 {getText('board.join_greetings')}
               </Link>
-              {user?.userRole === 'ADMIN' && (
+              {['ADMIN', 'SUPER_ADMIN'].includes(user?.userRole || '') && (
                 <Link to="/admin/members" className="text-red-500 hover:text-red-600 text-sm font-black transition-colors flex items-center gap-1">
                   <ShieldCheck size={16} /> 회원 관리
                 </Link>
@@ -275,7 +275,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
                 <Smile size={18} className={currentType === 'G' ? 'text-primary' : 'text-slate-400'} /> {getText('board.join_greetings')}
               </Link>
               
-              {user?.userRole === 'ADMIN' && (
+              {['ADMIN', 'SUPER_ADMIN'].includes(user?.userRole || '') && (
                 <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
                   <p className="text-[10px] font-black text-red-400 uppercase tracking-widest px-2 mb-2">Administrator</p>
                   <Link 

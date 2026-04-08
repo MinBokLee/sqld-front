@@ -1,7 +1,6 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useRef } from 'react';
 import api from '../utils/api'; 
 import { useAlert } from './AlertContext';
-import { useNavigate} from 'react-router-dom';
 
 interface User {
   userId: string;
@@ -31,7 +30,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const { showAlert } = useAlert(); 
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
+  const isInitialized = useRef(false);
 
   const clearUser = useCallback(() => {
     setUser(null);
@@ -68,7 +67,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const data = response.data;
       const rawData = data.result?.data || data.data || data.result || data;
 
-      
       if (rawData && rawData.accessToken) {
         const newUser: User = {
           userId: rawData.userId,
@@ -103,6 +101,8 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
+    if (isInitialized.current) return;
+
     const initializeUser = async () => {
       let storedUser = null;
       let isRemembered = false;
@@ -121,21 +121,18 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.error('Failed to parse stored user data');
         }
       } else if (isRemembered) {
-        // localStorage에 유저 정보는 없지만 rememberMe는 켜져있는 경우 (토큰 리프레시 시도)
         const success = await refreshSession();
         if (!success) clearUser();
       }
       setIsLoading(false);
+      isInitialized.current = true;
     };
 
     const handleRefreshed = (e: any) => {
       if (e.detail) {
         const rawData = e.detail;
-        
         setUser(prev => {
-          // 현재 유저의 토큰과 새로 받은 토큰이 다를 때만 상태 업데이트
           if (prev?.accessToken !== rawData.accessToken) {
-            // 원본 데이터가 User 인터페이스 필드를 포함하는지 확인 후 매핑 (기존 정보 유지)
             const newUser: User = {
               userId: rawData.userId || prev?.userId || '',
               userName: rawData.userName || prev?.userName || '',
@@ -157,7 +154,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const handleAuthError = () => {
       clearUser();
-      // 필요한 경우 로그인 페이지로 리다이렉트나 알림 표시 가능
     };
 
     window.addEventListener('auth-token-refreshed', handleRefreshed);
@@ -200,7 +196,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (rememberMe) {
             localStorage.setItem('rememberMe', 'true');
             localStorage.setItem('user', JSON.stringify(newUser));
-            sessionStorage.removeItem('user'); // 중복 방지
+            sessionStorage.removeItem('user');
           } else {
             localStorage.removeItem('rememberMe');
             localStorage.removeItem('user');
@@ -235,7 +231,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const logout = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 1. 서버에 로그아웃 알림 (토큰 포함)
       await api.post('/api/auth/logout', null, {
         headers: {
           'Authorization': `Bearer ${user?.accessToken}`,
@@ -244,14 +239,11 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       console.error('Logout API failed, but proceeding to clear local session.');
     } finally {
-      // 2. 로컬 데이터 삭제
       clearUser(); 
       setIsLoading(false);
-      // window.location.href = '/'; 
-      // 3. 핵 새로고침 없이 부드럽게 이동
-      navigate('/' , {replace: true});
+      window.location.href = '/';
     }
-  }, [user?.accessToken, clearUser, navigate]);
+  }, [user?.accessToken, clearUser]);
 
   return (
     <UserContext.Provider value={{ user, login, logout, isLoading, clearUser, updateUser }}>

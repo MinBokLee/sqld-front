@@ -1,23 +1,20 @@
-import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { 
-  Bookmark, Trash2, Calendar, MessageSquare, Eye, ThumbsUp, 
-  ChevronRight, CheckSquare, Square, Search, User, 
-  ArrowLeft, AlertCircle, FileText, PenLine
+  User, Mail, Calendar, Settings, 
+  ChevronRight, Bookmark, FileText, 
+  Trash2, MessageSquare, Eye, ThumbsUp,
+  Search, Filter, Clock, MoreVertical,
+  CheckCircle2, AlertCircle, ChevronsRight,
+  ChevronLeft, ChevronsLeft, ChevronRight as ChevronRightIcon, ChevronsRight as ChevronsRightIcon
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../contexts/UserContext';
 import { useAlert } from '../contexts/AlertContext';
-import { LanguageContext } from '../contexts/LanguageContext';
-import { formatRelativeTime } from '../utils/dateUtils';
 import api from '../utils/api';
+import { formatRelativeTime } from '../utils/dateUtils';
 
-/**
- * [MyPage.tsx]
- * @description 스크랩 관리 및 내가 쓴 글 등 회원 활동을 담당하는 마이페이지 컴포넌트입니다.
- */
-
-interface BasePost {
+interface ScrapItem {
+  scrapId: number;
   boardId: number;
   title: string;
   createAt: string;
@@ -28,302 +25,314 @@ interface BasePost {
   boardType: string;
 }
 
-interface ScrappedPost extends BasePost {
-  scrapId: number;
+interface MyPostItem {
+  boardId: number;
+  title: string;
+  createAt: string;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  boardType: string;
+  seqNumber?: number;
 }
-
-interface MyPost extends BasePost {}
-
-type TabType = 'scraps' | 'posts';
 
 export default function MyPage() {
   const { user, isLoading: isUserLoading } = useUser();
-  const { showAlert } = useAlert();
+  const { showAlert, showToast } = useAlert();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const languageContext = useContext(LanguageContext);
-  const getText = languageContext ? languageContext.getText : (key: string) => key;
 
-  // URL 파라미터에서 초기 탭 결정
-  const initialTab = (searchParams.get('tab') as TabType) || 'scraps';
-  const [activeTab, setActiveTab] = useState<TabType>(initialTab);
-  
-  const [scraps, setScraps] = useState<ScrappedPost[]>([]);
-  const [myPosts, setMyPosts] = useState<MyPost[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]); 
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // 탭 및 필터 상태
+  const activeTab = searchParams.get('tab') || 'scraps';
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const size = 10;
+  const keyword = searchParams.get('keyword') || '';
+  const boardFilter = searchParams.get('filter') || 'ALL'; // 전체, 공지, 학습, 가입인사
 
-  /**
-   * [데이터 페칭] 스크랩 목록
-   */
-  const fetchScraps = useCallback(async (keyword: string = "") => {
+  const [inputKeyword, setInputKeyword] = useState(keyword);
+  const [scraps, setScraps] = useState<ScrapItem[]>([]);
+  const [myPosts, setMyPosts] = useState<MyPostItem[]>([]);
+  const [totalElements, setTotalElements] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  const fetchScraps = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
+    setIsLoading(true);
     try {
       const response = await api.get('/api/board/searchScrapMyPage', {
-        params: { keyword: keyword.trim() },
-        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+        params: {
+          memberId: user.memberId,
+          page,
+          size,
+          keyword,
+          boardType: boardFilter === 'ALL' ? '' : boardFilter
+        }
       });
       if (response.data.success) {
-        setScraps(response.data.result?.data || []);
+        setScraps(response.data.result.data.list || []);
+        setTotalElements(response.data.result.data.total || 0);
+      } else {
+        showAlert({ type: 'error', message: "스크랩 목록을 불러오지 못했습니다." });
       }
     } catch (error) {
       console.error("Fetch scraps error:", error);
-      showAlert({ type: 'error', message: "스크랩 목록을 불러오지 못했습니다. ⏳" });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }, [user, showAlert]);
+  }, [user, page, keyword, boardFilter, showAlert]);
 
-  /**
-   * [데이터 페칭] 내가 쓴 글 목록
-   */
-  const fetchMyPosts = useCallback(async (keyword: string = "") => {
+  const fetchMyPosts = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
+    setIsLoading(true);
     try {
       const response = await api.get('/api/board/my-list', {
-        params: { 
-          page: 1, 
-          size: 100, 
+        params: {
           memberId: user.memberId,
-          keyword: keyword.trim(),
-          boardType: 'S'
-        },
-        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+          page,
+          size,
+          keyword,
+          boardType: boardFilter === 'ALL' ? '' : boardFilter
+        }
       });
       if (response.data.success) {
-        const list = response.data.result?.data?.list || response.data.result?.data || [];
-        setMyPosts(list);
+        setMyPosts(response.data.result.data.list || []);
+        setTotalElements(response.data.result.data.total || 0);
+      } else {
+        showAlert({ type: 'error', message: "내 글 목록을 불러오지 못했습니다." });
       }
     } catch (error) {
-      console.error("Fetch my posts error:", error);
-      showAlert({ type: 'error', message: "작성한 글 목록을 불러오지 못했습니다. ⏳" });
+      console.error("Fetch posts error:", error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
-  }, [user, showAlert]);
+  }, [user, page, keyword, boardFilter, showAlert]);
 
-  /**
-   * [탭 전환] 상태 변경 + URL 업데이트 + 데이터 로드 트리거
-   */
-  const handleTabChange = (tab: TabType) => {
-    if (tab === activeTab) return; // 이미 활성화된 탭이면 무시
-    
-    setActiveTab(tab);
-    setSearchParams({ tab }); // URL 파라미터 업데이트
-    setSelectedIds([]);       // 선택된 아이템 초기화
-    setSearchKeyword('');     // 검색어 초기화
-    
-    // 즉시 데이터 로드 (useEffect 의존성으로도 작동하지만 명시적 호출로 즉각성 확보)
-    if (tab === 'scraps') fetchScraps("");
-    else fetchMyPosts("");
-  };
-
-  // URL 파라미터 변경 감지 (브라우저 뒤로가기/앞으로가기 대응)
-  useEffect(() => {
-    const tabInUrl = searchParams.get('tab') as TabType;
-    if (tabInUrl && tabInUrl !== activeTab) {
-      setActiveTab(tabInUrl);
-    }
-  }, [searchParams]);
-
-  // 초기 로드 및 인증 체크
   useEffect(() => {
     if (isUserLoading) return;
     if (!user) {
-      showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" });
+      showAlert({ type: 'warning', message: "로그인이 필요한 페이지입니다. 🔒" });
       navigate('/');
       return;
     }
-    // 초기 로딩 시 현재 탭에 맞는 데이터 페칭
-    if (activeTab === 'scraps') fetchScraps("");
-    else fetchMyPosts("");
-  }, [user, isUserLoading, activeTab]); // activeTab을 의존성에 추가하여 탭 변경 시마다 자동 페칭
 
-  /**
-   * [검색 로직] 디바운싱 처리
-   */
+    if (activeTab === 'scraps') fetchScraps();
+    else fetchMyPosts();
+  }, [user, isUserLoading, activeTab, page, size, keyword, boardFilter, fetchScraps, fetchMyPosts, navigate, showAlert]);
+
+  const toggleTab = (tab: string) => {
+    setSearchParams({ tab, page: '1', keyword, filter: boardFilter });
+    setSelectedIds([]);
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setSearchParams({ tab: activeTab, page: String(newPage), keyword, filter: boardFilter });
+  };
+
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setSearchKeyword(value);
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => {
-      if (activeTab === 'scraps') fetchScraps(value);
-      else fetchMyPosts(value);
-    }, 500);
+    setInputKeyword(e.target.value);
   };
 
-  /**
-   * [선택 로직] 개별/전체 선택
-   */
+  const handleSearch = () => {
+    setSearchParams({ tab: activeTab, page: '1', keyword: inputKeyword, filter: boardFilter });
+  };
+
+  const setBoardFilter = (filter: string) => {
+    setSearchParams({ tab: activeTab, page: '1', keyword, filter });
+  };
+
   const toggleSelect = (id: number) => {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
-  const toggleSelectAll = () => {
-    const currentList = activeTab === 'scraps' ? scraps : myPosts;
-    const currentIds = activeTab === 'scraps' ? scraps.map(s => s.scrapId) : myPosts.map(p => p.boardId);
+  const handleSelectAll = () => {
+    const currentIds = activeTab === 'scraps' 
+      ? scraps.map(s => s.scrapId) 
+      : myPosts.map(p => p.boardId);
     
-    if (selectedIds.length === currentList.length && currentList.length > 0) setSelectedIds([]);
+    if (selectedIds.length === currentIds.length) setSelectedIds([]);
     else setSelectedIds(currentIds);
   };
 
-  /**
-   * [삭제 로직] 일괄 삭제 실행
-   */
   const handleDeleteSelected = async () => {
-    if (selectedIds.length === 0 || !user) return;
+    if (selectedIds.length === 0) return;
     
-    const message = activeTab === 'scraps' 
-      ? `선택한 ${selectedIds.length}개의 스크랩을 해제하시겠습니까?`
-      : `선택한 ${selectedIds.length}개의 게시글을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없으며 댓글과 첨부파일도 함께 삭제됩니다.`;
-
-    if (!window.confirm(message)) return;
-
     try {
       if (activeTab === 'scraps') {
-        const response = await api.delete('/api/board/deleteMyScrapPage', {
-          data: { scrapIds: selectedIds },
-          headers: { 'Authorization': `Bearer ${user.accessToken}` }
+        await api.delete('/api/board/deleteMyScrapPage', { 
+          data: { scrapIds: selectedIds }, 
+          headers: { 'Authorization': `Bearer ${user?.accessToken}` } 
         });
-        if (response.status === 200 || response.data.success) {
-          showAlert({ type: 'success', message: "스크랩 해제 완료 ✅" });
-          fetchScraps(searchKeyword); // 목록 갱신
-        }
       } else {
-        const response = await api.delete('/api/board/list/deleteBoardContent', {
-          data: { boardIds: selectedIds },
-          headers: { 'Authorization': `Bearer ${user.accessToken}` }
-        });
-        if (response.status === 200 || response.data.success) {
-          showAlert({ type: 'success', message: "게시글 일괄 삭제 완료 ✅" });
-          fetchMyPosts(searchKeyword); // 목록 갱신
+        // 일괄 삭제 API가 없는 경우 개별 삭제 루프
+        for (const id of selectedIds) {
+          await api.delete(`/api/board/list/${id}`, { headers: { 'Authorization': `Bearer ${user?.accessToken}` } });
         }
       }
+      showToast("정상적으로 처리되었습니다. ✅");
       setSelectedIds([]);
-    } catch (error) {
-      console.error("Delete error:", error);
-      showAlert({ type: 'error', message: "삭제 처리 중 오류가 발생했습니다. ⏳" });
+      if (activeTab === 'scraps') fetchScraps();
+      else fetchMyPosts();
+    } catch (error) { 
+      showAlert({ type: 'error', message: "처리에 실패했습니다. ⏳" }); 
     }
   };
 
+  const totalPages = Math.ceil(totalElements / size);
+  const pageRange = Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+    if (totalPages <= 5) return i + 1;
+    if (page <= 3) return i + 1;
+    if (page >= totalPages - 2) return totalPages - 4 + i;
+    return page - 2 + i;
+  });
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] transition-colors pb-20">
-      {/* Header */}
-      <div className="bg-white dark:bg-[#1a222c] border-b border-slate-200 dark:border-slate-800">
-        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-            <div className="space-y-4">
-              <Link to="/" className="inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline"><ArrowLeft size={16} /> 홈으로 돌아가기</Link>
-              <div className="flex items-center gap-4">
-                <div className="size-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary border border-primary/10 shadow-sm"><User size={32} /></div>
-                <div>
-                  <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">마이페이지</h1>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium">활동 내역과 게시글을 효율적으로 관리하세요.</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="px-6 py-3 bg-primary/5 rounded-2xl border border-primary/10">
-                <p className="text-[10px] font-black text-primary/60 uppercase tracking-widest mb-0.5">{activeTab === 'scraps' ? 'Total Scraps' : 'My Posts'}</p>
-                <div className="flex items-center gap-2">
-                  {activeTab === 'scraps' ? <Bookmark size={14} className="text-primary" /> : <FileText size={14} className="text-primary" />}
-                  <span className="text-sm font-black text-primary">{activeTab === 'scraps' ? scraps.length : myPosts.length}건</span>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white transition-colors py-10 px-4 sm:px-6 lg:px-8">
+      <main className="max-w-[1280px] mx-auto">
+        {/* Header Section */}
+        <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <nav className="flex items-center gap-2 text-sm text-slate-400 mb-4 font-bold">
+              <Link to="/" className="hover:text-primary transition-colors">홈</Link>
+              <ChevronsRight size={14} />
+              <span>마이페이지</span>
+            </nav>
+            <h1 className="text-4xl font-black tracking-tight flex items-center gap-3">
+              활동 내역 <span className="text-primary text-xl">({totalElements})</span>
+            </h1>
           </div>
-        </div>
-      </div>
 
-      <main className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 mt-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Tabs - 수정된 handleTabChange 적용 */}
-          <aside className="lg:col-span-3 space-y-2">
-            <button 
-              onClick={() => handleTabChange('scraps')} 
-              className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl font-black transition-all ${activeTab === 'scraps' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]' : 'bg-white dark:bg-[#1a222c] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'}`}
-            >
-              <Bookmark size={20} /> 스크랩 관리
-            </button>
-            <button 
-              onClick={() => handleTabChange('posts')} 
-              className={`w-full flex items-center gap-3 px-6 py-4 rounded-2xl font-black transition-all ${activeTab === 'posts' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]' : 'bg-white dark:bg-[#1a222c] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'}`}
-            >
-              <PenLine size={20} /> 내가 쓴 글 관리
-            </button>
-          </aside>
+          <div className="flex bg-white dark:bg-[#1a222c] p-1.5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 w-fit">
+            <button onClick={() => toggleTab('scraps')} className={`px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'scraps' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>스크랩 목록</button>
+            <button onClick={() => toggleTab('posts')} className={`px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'posts' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>내가 쓴 글</button>
+          </div>
+        </header>
 
-          {/* Main Content Area */}
-          <div className="lg:col-span-9 space-y-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-[#1a222c] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <div className="flex items-center gap-4 w-full sm:w-auto">
-                <button onClick={toggleSelectAll} className="flex items-center gap-2 px-4 py-2 text-xs font-black text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-all">
-                  {selectedIds.length === (activeTab === 'scraps' ? scraps.length : myPosts.length) && (activeTab === 'scraps' ? scraps.length : myPosts.length) > 0 ? <CheckSquare size={18} className="text-primary" /> : <Square size={18} />}
-                  전체 선택
+        {/* Filter & Action Section */}
+        <section className="flex flex-col xl:flex-row gap-4 mb-6">
+          <div className="flex flex-wrap items-center gap-3 flex-1">
+            {selectedIds.length > 0 && (
+              <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
+                <button onClick={handleSelectAll} className="flex items-center gap-2 h-12 px-4 bg-white dark:bg-[#1a222c] border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black text-slate-500 dark:text-slate-400 hover:text-primary transition-all shadow-sm">
+                  {selectedIds.length === (activeTab === 'scraps' ? scraps.length : myPosts.length) ? '선택 해제' : '전체 선택'}
                 </button>
-                <AnimatePresence>
-                  {selectedIds.length > 0 && (
-                    <motion.button initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} onClick={handleDeleteSelected} className="flex items-center gap-2 px-4 py-2 text-xs font-black text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded-xl hover:bg-rose-100 transition-all shadow-sm">
-                      <Trash2 size={16} /> {selectedIds.length}개 {activeTab === 'scraps' ? '해제' : '삭제'}
-                    </motion.button>
-                  )}
-                </AnimatePresence>
+                <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
+                <button onClick={handleDeleteSelected} className="flex items-center gap-2 h-12 px-6 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-2xl text-xs font-black hover:bg-rose-500 hover:text-white transition-all shadow-sm"><Trash2 size={14} /> {selectedIds.length}개 삭제</button>
               </div>
-              <div className="relative w-full sm:w-64 group">
-                <Search className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${loading && searchKeyword ? 'text-primary animate-pulse' : 'text-slate-400'}`} size={16} />
-                <input type="text" placeholder={`${activeTab === 'scraps' ? '스크랩' : '작성 글'} 내역 검색...`} value={searchKeyword} onChange={handleSearchChange} className="w-full pl-11 pr-4 py-2.5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none transition-all dark:text-white" />
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-[#1a222c] rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden min-h-[400px]">
-              {loading ? (
-                <div className="py-20 flex flex-col items-center justify-center gap-4">
-                  <div className="size-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-                  <p className="text-slate-400 font-black tracking-widest uppercase text-xs">Loading Data...</p>
-                </div>
-              ) : (activeTab === 'scraps' ? scraps.length > 0 : myPosts.length > 0) ? (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {(activeTab === 'scraps' ? scraps : myPosts).map((item) => (
-                    <motion.div key={activeTab === 'scraps' ? (item as ScrappedPost).scrapId : item.boardId} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={`group relative flex items-center gap-4 p-4 sm:p-5 transition-all hover:bg-slate-50/80 dark:hover:bg-slate-800/50 ${selectedIds.includes(activeTab === 'scraps' ? (item as ScrappedPost).scrapId : item.boardId) ? 'bg-primary/5' : ''}`}>
-                      <button onClick={() => toggleSelect(activeTab === 'scraps' ? (item as ScrappedPost).scrapId : item.boardId)} className={`flex-shrink-0 transition-colors z-10 ${selectedIds.includes(activeTab === 'scraps' ? (item as ScrappedPost).scrapId : item.boardId) ? 'text-primary' : 'text-slate-300 dark:text-slate-700 hover:text-slate-400'}`}>
-                        {selectedIds.includes(activeTab === 'scraps' ? (item as ScrappedPost).scrapId : item.boardId) ? <CheckSquare size={22} /> : <Square size={22} />}
-                      </button>
-                      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-6">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className={`px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-tighter ${item.boardType === 'N' ? 'bg-rose-100 text-rose-600 dark:bg-rose-900/30' : 'bg-primary/10 text-primary'}`}>{item.boardType === 'S' ? 'SQLD Study' : item.boardType === 'N' ? 'Notice' : 'Community'}</span>
-                            <span className="text-[10px] text-slate-400 font-bold flex items-center gap-1"><Calendar size={10} /> {formatRelativeTime(item.createAt)}</span>
-                          </div>
-                          <Link to={`/exam/${item.boardId}?type=${item.boardType}`} className="text-sm sm:text-base font-black text-slate-800 dark:text-white hover:text-primary transition-colors line-clamp-1 block mb-1">{item.title}</Link>
-                        </div>
-                        <div className="hidden sm:flex items-center gap-6 text-slate-400 font-bold text-xs flex-shrink-0">
-                          <div className="flex items-center gap-4 w-32 justify-end">
-                            <span className="flex items-center gap-1 min-w-[30px]"><Eye size={13} /> {item.viewCount}</span>
-                            <span className="flex items-center gap-1 text-primary min-w-[30px]"><MessageSquare size={13} /> {item.commentCount}</span>
-                            <span className="flex items-center gap-1 text-rose-500 min-w-[30px]"><ThumbsUp size={13} /> {item.likeCount}</span>
-                          </div>
-                          <Link to={`/exam/${item.boardId}?type=${item.boardType}`} className="p-2.5 bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-primary hover:bg-primary/10 rounded-xl transition-all group-hover:translate-x-1"><ChevronRight size={18} /></Link>
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              ) : (
-                <div className="py-32 flex flex-col items-center justify-center gap-6 text-center animate-in fade-in duration-500">
-                  <div className="size-20 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center text-slate-300">{activeTab === 'scraps' ? <Bookmark size={40} /> : <PenLine size={40} />}</div>
-                  <div className="space-y-2">
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white">{searchKeyword ? '검색 결과가 없습니다.' : activeTab === 'scraps' ? '스크랩한 글이 없습니다.' : '작성한 글이 없습니다.'}</h3>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium">{searchKeyword ? '다른 키워드로 검색해 보시겠어요? 🔍' : '새로운 활동을 시작해 보세요! ✨'}</p>
-                  </div>
-                </div>
-              )}
+            )}
+            
+            <div className="flex bg-white dark:bg-[#1a222c] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm h-12">
+              {['ALL', 'N', 'S', 'G'].map(f => (
+                <button key={f} onClick={() => { setBoardFilter(f); handlePageChange(1); }} className={`px-6 h-full rounded-xl text-xs font-black transition-all ${boardFilter === f ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
+                  {f === 'ALL' ? '전체' : f === 'N' ? '공지' : f === 'S' ? '학습' : '인사'}
+                </button>
+              ))}
             </div>
           </div>
+
+          <div className="flex-1 bg-white dark:bg-[#1a222c] p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-lg shadow-slate-200/40 dark:shadow-none flex items-center group focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary/40 transition-all duration-300 h-12">
+            <div className="w-10 h-10 flex items-center justify-center text-slate-400 group-focus-within:text-primary transition-colors">
+              <Search size={18} />
+            </div>
+            <input 
+              type="text" 
+              placeholder="제목이나 내용에서 검색..." 
+              className="w-full bg-transparent border-none py-2 text-[15px] font-semibold outline-none focus:ring-0 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" 
+              value={inputKeyword} 
+              onChange={handleSearchChange} 
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+            <button className="bg-primary text-white w-9 h-9 flex items-center justify-center rounded-full hover:bg-blue-600 transition-all shadow-md active:scale-90 shrink-0 ml-2" onClick={handleSearch} title="검색"><ChevronsRight size={18} /></button>
+          </div>
+        </section>
+
+        {/* List Section */}
+        <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/50 text-[#4c739a] dark:text-slate-400 text-xs font-black uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
+                  <th className="px-6 py-5 text-center w-16">
+                    <input type="checkbox" className="rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer" checked={selectedIds.length > 0 && selectedIds.length === (activeTab === 'scraps' ? scraps.length : myPosts.length)} onChange={handleSelectAll} />
+                  </th>
+                  <th className="px-6 py-5 text-center w-20">No</th>
+                  <th className="px-6 py-5 text-left">제목</th>
+                  {activeTab === 'scraps' && <th className="px-6 py-5 text-center w-24">작성자</th>}
+                  <th className="px-6 py-5 text-center w-32">날짜</th>
+                  <th className="px-6 py-5 text-center w-20">조회</th>
+                  <th className="px-6 py-5 text-center w-20">추천</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-20 text-center">
+                      <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
+                      <p className="text-sm font-bold text-slate-400">데이터를 불러오는 중입니다...</p>
+                    </td>
+                  </tr>
+                ) : (activeTab === 'scraps' ? scraps : myPosts).length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-20 text-center">
+                      <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
+                        <FileText className="text-slate-300" size={32} />
+                      </div>
+                      <p className="text-sm font-bold text-slate-400">활동 내역이 없습니다.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  (activeTab === 'scraps' ? scraps : myPosts).map((post, idx) => {
+                    const id = activeTab === 'scraps' ? post.scrapId : post.boardId;
+                    return (
+                      <tr key={id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => navigate(`/exam/${post.boardId}?type=${post.boardType}`)}>
+                        <td className="px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input type="checkbox" className="rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer" checked={selectedIds.includes(id)} onChange={() => toggleSelect(id)} />
+                        </td>
+                        <td className="px-6 py-5 text-sm text-[#4c739a] text-center font-bold whitespace-nowrap">
+                          {activeTab === 'posts' && typeof post.seqNumber === 'number' ? String(post.seqNumber).padStart(2, '0') : totalElements - (page-1)*size - idx}
+                        </td>
+                        <td className="px-6 py-5">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${post.boardType === 'N' ? 'bg-amber-100 text-amber-600' : post.boardType === 'S' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                {post.boardType === 'N' ? 'Notice' : post.boardType === 'S' ? 'Study' : 'Join'}
+                              </span>
+                              <h3 className="text-sm font-bold text-[#0d141b] dark:text-white group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-[400px]">{post.title}</h3>
+                              {post.commentCount > 0 && <span className="text-primary font-black text-[11px] shrink-0">[{post.commentCount}]</span>}
+                            </div>
+                          </div>
+                        </td>
+                        {activeTab === 'scraps' && (
+                          <td className="px-6 py-5 text-sm text-slate-600 dark:text-slate-400 text-center font-medium whitespace-nowrap">{(post as ScrapItem).userName}</td>
+                        )}
+                        <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center whitespace-nowrap">{formatRelativeTime(post.createAt)}</td>
+                        <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center font-bold">{post.viewCount}</td>
+                        <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center font-bold">{post.likeCount}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        {/* Pagination Section */}
+        {totalPages > 1 && (
+          <div className="mt-10 flex justify-center items-center gap-2">
+            <button onClick={() => handlePageChange(1)} disabled={page === 1} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronsLeft size={18} /></button>
+            <button onClick={() => handlePageChange(page - 1)} disabled={page === 1} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronLeft size={18} /></button>
+            
+            {pageRange.map(p => (
+              <button key={p} onClick={() => handlePageChange(p)} className={`w-10 h-10 flex items-center justify-center rounded-xl font-black text-sm transition-all ${p === page ? 'bg-primary text-white shadow-lg shadow-primary/25 scale-110' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{p}</button>
+            ))}
+
+            <button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronRightIcon size={18} /></button>
+            <button onClick={() => handlePageChange(totalPages)} disabled={page === totalPages} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronsRightIcon size={18} /></button>
+          </div>
+        )}
       </main>
     </div>
   );
