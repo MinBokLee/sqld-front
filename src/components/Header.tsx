@@ -184,7 +184,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
 
                   {/* Notification Dropdown Placeholder */}
                   {isNotificationOpen && (
-                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden z-[60] animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden z-[70] animate-in fade-in slide-in-from-top-2 duration-200">
                       <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
                         <h3 className="font-black text-slate-800 dark:text-white flex items-center gap-2">
                           알림 <span className="text-xs font-bold text-slate-400">Recent</span>

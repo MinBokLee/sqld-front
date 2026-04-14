@@ -10,10 +10,13 @@ import SignUpModal from './components/SignUpModal';
 import LoginModal from './components/LoginModal';
 import PasswordResetModal from './components/PasswordResetModal'; 
 import ExamScheduleModal from './components/ExamScheduleModal'; 
+import OpenChat from './components/OpenChat';
 import { UserProvider } from './contexts/UserContext';
 import { LanguageProvider, LanguageContext } from './contexts/LanguageContext';
 import { AlertProvider } from './contexts/AlertContext'; 
+import { StompProvider } from './contexts/StompContext';
 import { NotificationProvider } from './contexts/NotificationContext';
+import { ChatProvider } from './contexts/ChatContext';
 import PracticeExams from './pages/PracticeExams';
 import ExamDetailPage from './pages/ExamDetailPage';
 import WritePostPage from './pages/WritePostPage';
@@ -112,6 +115,9 @@ function RootLayout() {
 
       <Footer getText={getText} />
       
+      {/* Global Open Chat */}
+      <OpenChat />
+      
       {isSignUpModalOpen && <SignUpModal isOpen={isSignUpModalOpen} onClose={closeSignUpModal} getText={getText} />}
       {isLoginModalOpen && (
         <LoginModal 
@@ -180,9 +186,13 @@ function App() {
     <LanguageProvider>
       <AlertProvider>
         <UserProvider>
-          <NotificationProvider>
-            <RouterProvider router={router} />
-          </NotificationProvider>
+          <StompProvider>
+            <NotificationProvider>
+              <ChatProvider>
+                <RouterProvider router={router} />
+              </ChatProvider>
+            </NotificationProvider>
+          </StompProvider>
         </UserProvider>
       </AlertProvider>
     </LanguageProvider>
