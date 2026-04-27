@@ -11,6 +11,7 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { useAlert } from '../contexts/AlertContext';
 import { useNotification } from '../contexts/NotificationContext';
+import { useBoard } from '../contexts/BoardContext';
 import api from '../utils/api';
 import { formatRelativeTime } from '../utils/dateUtils';
 
@@ -23,7 +24,7 @@ interface ScrapItem {
   viewCount: number;
   likeCount: number;
   commentCount: number;
-  boardType: string;
+  boardCode: string;
 }
 
 interface MyPostItem {
@@ -33,13 +34,14 @@ interface MyPostItem {
   viewCount: number;
   likeCount: number;
   commentCount: number;
-  boardType: string;
+  boardCode: string;
   seqNumber?: number;
 }
 
 export default function MyPage() {
   const { user, isLoading: isUserLoading } = useUser();
   const { showAlert, showToast } = useAlert();
+  const { getBoardCode, boardConfigs } = useBoard();
   const { notifications: allNotifications, markAsRead, markAllAsRead, unreadCount } = useNotification();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -60,6 +62,8 @@ export default function MyPage() {
 
   const fetchScraps = useCallback(async () => {
     if (!user) return;
+    setScraps([]);
+    setTotalElements(0);
     setIsLoading(true);
     try {
       const response = await api.get('/api/board/searchScrapMyPage', {
@@ -67,25 +71,25 @@ export default function MyPage() {
           memberId: user.memberId,
           page,
           size,
-          keyword,
-          boardType: boardFilter === 'ALL' ? '' : boardFilter
+          keyword: keyword || undefined,
+          boardCode: boardFilter === 'ALL' ? undefined : boardFilter // [수정] 빈 문자열 대신 undefined
         }
       });
       if (response.data.success) {
         setScraps(response.data.result.data.list || []);
         setTotalElements(response.data.result.data.total || 0);
-      } else {
-        showAlert({ type: 'error', message: "스크랩 목록을 불러오지 못했습니다." });
       }
     } catch (error) {
       console.error("Fetch scraps error:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [user, page, keyword, boardFilter, showAlert]);
+  }, [user, page, keyword, boardFilter]);
 
   const fetchMyPosts = useCallback(async () => {
     if (!user) return;
+    setMyPosts([]);
+    setTotalElements(0);
     setIsLoading(true);
     try {
       const response = await api.get('/api/board/my-list', {
@@ -93,22 +97,20 @@ export default function MyPage() {
           memberId: user.memberId,
           page,
           size,
-          keyword,
-          boardType: boardFilter === 'ALL' ? '' : boardFilter
+          keyword: keyword || undefined,
+          boardCode: boardFilter === 'ALL' ? undefined : boardFilter // [수정] 빈 문자열 대신 undefined
         }
       });
       if (response.data.success) {
         setMyPosts(response.data.result.data.list || []);
         setTotalElements(response.data.result.data.total || 0);
-      } else {
-        showAlert({ type: 'error', message: "내 글 목록을 불러오지 못했습니다." });
       }
     } catch (error) {
       console.error("Fetch posts error:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [user, page, keyword, boardFilter, showAlert]);
+  }, [user, page, keyword, boardFilter]);
 
   useEffect(() => {
     if (isUserLoading) return;
@@ -144,7 +146,10 @@ export default function MyPage() {
   };
 
   const setBoardFilter = (filter: string) => {
-    setSearchParams({ tab: activeTab, page: '1', keyword, filter });
+    const params = new URLSearchParams(searchParams);
+    params.set('filter', filter);
+    params.set('page', '1');
+    setSearchParams(params);
   };
 
   const toggleSelect = (id: number) => {
@@ -172,16 +177,19 @@ export default function MyPage() {
           headers: { 'Authorization': `Bearer ${user?.accessToken}` } 
         });
       } else if (activeTab === 'posts') {
-        for (const id of selectedIds) {
-          await api.delete(`/api/board/list/${id}`, { headers: { 'Authorization': `Bearer ${user?.accessToken}` } });
-        }
+        await api.post('/api/board/list/deleteBoardContent', { 
+          boardIds: selectedIds 
+        }, { 
+          headers: { 'Authorization': `Bearer ${user?.accessToken}` } 
+        });
       }
-      showToast("정상적으로 처리되었습니다. ✅");
+      
+      showToast(`${selectedIds.length}건이 처리되었습니다. ✨`);
       setSelectedIds([]);
       if (activeTab === 'scraps') fetchScraps();
       else fetchMyPosts();
     } catch (error) { 
-      showAlert({ type: 'error', message: "처리에 실패했습니다. ⏳" }); 
+      console.error("Delete error:", error);
     }
   };
 
@@ -233,10 +241,20 @@ export default function MyPage() {
                 </div>
               )}
               
-              <div className="flex bg-white dark:bg-[#1a222c] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm h-12">
-                {['ALL', 'N', 'S', 'G'].map(f => (
-                  <button key={f} onClick={() => { setBoardFilter(f); handlePageChange(1); }} className={`px-6 h-full rounded-xl text-xs font-black transition-all ${boardFilter === f ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>
-                    {f === 'ALL' ? '전체' : f === 'N' ? '공지' : f === 'S' ? '학습' : '인사'}
+              <div className="flex bg-white dark:bg-[#1a222c] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm h-12 overflow-x-auto scrollbar-hide">
+                <button 
+                  onClick={() => setBoardFilter('ALL')} 
+                  className={`px-6 h-full rounded-xl text-xs font-black transition-all whitespace-nowrap ${boardFilter === 'ALL' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  전체
+                </button>
+                {boardConfigs.filter(b => b.useYn === 'Y').map(config => (
+                  <button 
+                    key={config.boardCode} 
+                    onClick={() => setBoardFilter(config.boardCode)} 
+                    className={`px-6 h-full rounded-xl text-xs font-black transition-all whitespace-nowrap ${boardFilter === config.boardCode ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
+                    {config.boardName}
                   </button>
                 ))}
               </div>
@@ -339,8 +357,10 @@ export default function MyPage() {
                   {isLoading ? (
                     <tr>
                       <td colSpan={7} className="px-6 py-20 text-center">
+                        {/* 
                         <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
                         <p className="text-sm font-bold text-slate-400">데이터를 불러오는 중입니다...</p>
+                        */}
                       </td>
                     </tr>
                   ) : (activeTab === 'scraps' ? scraps : myPosts).length === 0 ? (
@@ -356,7 +376,7 @@ export default function MyPage() {
                     (activeTab === 'scraps' ? scraps : myPosts).map((post, idx) => {
                       const id = activeTab === 'scraps' ? post.scrapId : post.boardId;
                       return (
-                        <tr key={id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => navigate(`/exam/${post.boardId}?type=${post.boardType}`)}>
+                        <tr key={id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => navigate(`/exam/${post.boardId}?boardCode=${post.boardCode}`)}>
                           <td className="px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
                             <input type="checkbox" className="rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer" checked={selectedIds.includes(id)} onChange={() => toggleSelect(id)} />
                           </td>
@@ -366,8 +386,8 @@ export default function MyPage() {
                           <td className="px-6 py-5">
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${post.boardType === 'N' ? 'bg-amber-100 text-amber-600' : post.boardType === 'S' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                  {post.boardType === 'N' ? 'Notice' : post.boardType === 'S' ? 'Study' : 'Join'}
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${post.boardCode === getBoardCode('G_BRD_NOTICE') ? 'bg-amber-100 text-amber-600' : post.boardCode === getBoardCode('G_BRD_LICENSE') ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                  {boardConfigs.find(b => b.boardCode === post.boardCode)?.boardName || post.boardCode}
                                 </span>
                                 <h3 className="text-sm font-bold text-[#0d141b] dark:text-white group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-[400px]">{post.title}</h3>
                                 {post.commentCount > 0 && <span className="text-primary font-black text-[11px] shrink-0">[{post.commentCount}]</span>}

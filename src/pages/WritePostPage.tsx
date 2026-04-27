@@ -52,8 +52,9 @@ import 'ckeditor5/ckeditor5.css';
 import { useUser } from '../contexts/UserContext';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
+import { useBoard } from '../contexts/BoardContext';
 import ConfirmModal from '../components/ConfirmModal';
-import api from '../utils/api'; 
+import api, { type BoardMaster, type CommonCodeDetail } from '../utils/api'; 
 import { 
   Megaphone, BookOpen, Smile, X, CloudUpload, 
   ChevronsRight, MessageCircle, Lightbulb, HelpCircle, Hash, Download, ZoomIn, FileText, Trash2, File
@@ -110,6 +111,13 @@ class MyUploadAdapter {
   }
   upload() {
     return this.loader.file.then((file: File) => new Promise((resolve, reject) => {
+      // [보안 강화] 업로드 직전 토큰 존재 여부 재확인
+      const storedUserStr = sessionStorage.getItem('user') || localStorage.getItem('user');
+      if (!storedUserStr) {
+        reject('세션이 만료되었습니다. 다시 로그인 후 이미지를 업로드해 주세요.');
+        return;
+      }
+
       const data = new FormData();
       data.append('upload', file);
       api.post(`/api/board/upload`, data, {
@@ -123,7 +131,13 @@ class MyUploadAdapter {
           reject(result.error?.message || '이미지 업로드 실패');
         }
       })
-      .catch(() => reject('네트워크 오류'));
+      .catch((err) => {
+        if (err.response?.status === 401) {
+          reject('인증이 만료되었습니다. 로그인을 다시 진행해 주세요.');
+        } else {
+          reject('이미지 전송 중 오류가 발생했습니다.');
+        }
+      });
     }));
   }
   abort() {}
@@ -132,6 +146,7 @@ class MyUploadAdapter {
 export default function WritePostPage() {
   const { user, updateUser, isLoading: isUserLoading } = useUser();
   const { showAlert, showToast } = useAlert();
+  const { boardConfigs, getBoardConfig, getBoardCode, getBoardCategories } = useBoard();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -139,13 +154,26 @@ export default function WritePostPage() {
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
 
-  const initialType = searchParams.get('type') || 'S';
-  const initialCategory = searchParams.get('category') || 'question';
+  // URL 파라미터 파싱 및 구형 코드 매핑 로직
+  const getMappedInitialCode = useCallback(() => {
+    const rawCode = searchParams.get('boardCode');
+    if (!rawCode) return getBoardCode('G_BRD_LICENSE') || '';
+    
+    if (rawCode === 'N') return getBoardCode('G_BRD_NOTICE') || rawCode;
+    if (rawCode === 'S') return getBoardCode('G_BRD_LICENSE') || rawCode;
+    if (rawCode === 'G') return getBoardCode('G_BRD_GREETING') || rawCode;
+    
+    return rawCode;
+  }, [searchParams, getBoardCode]);
+
   const editingBoardId = searchParams.get('boardId');
   
   const [title, setTitle] = useState('');
-  const [boardType, setBoardType] = useState(initialType);
-  const [category, setCategory] = useState(initialCategory);
+  const [boardCode, setBoardCode] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  
+  const boardConfig = getBoardConfig(boardCode);
+  const categories = getBoardCategories(boardCode);
   const [editorData, setEditorData] = useState('');
   const [tag, setTag] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -161,12 +189,30 @@ export default function WritePostPage() {
   const isSuccessfullySubmitted = useRef(false);
   const STORAGE_KEY = user ? `sqld_temp_post_${user.memberId}${editingBoardId ? `_${editingBoardId}` : ''}` : null;
 
+  useEffect(() => {
+    if (categories.length > 0) {
+      // 카테고리가 바뀌었을 때 현재 선택된 ID가 유효하지 않으면 첫 번째 카테고리로 강제 설정
+      if (!categoryId || !categories.find(c => c.categoryId === categoryId)) {
+        setCategoryId(categories[0].categoryId);
+      }
+    }
+  }, [categories, categoryId]);
+
+  useEffect(() => {
+    if (!boardCode && boardConfigs.length > 0) {
+      setBoardCode(getMappedInitialCode());
+    }
+  }, [boardConfigs, getMappedInitialCode, boardCode]);
+
   // [핵심] useBlocker를 사용하여 사이트 내 내비게이션(로고 클릭, 뒤로가기 등)을 가로챕니다.
   const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      !isSuccessfullySubmitted.current &&
-      (title.trim() !== '' || editorData.trim() !== '') &&
-      currentLocation.pathname !== nextLocation.pathname
+    useCallback(
+      ({ currentLocation, nextLocation }) =>
+        !isSuccessfullySubmitted.current &&
+        (title.trim() !== '' || editorData.trim() !== '') &&
+        currentLocation.pathname !== nextLocation.pathname,
+      [title, editorData]
+    )
   );
 
   // 블로커가 작동하면 이탈 방지 모달을 엽니다.
@@ -259,8 +305,8 @@ export default function WritePostPage() {
          const post = res.data.result?.data;
          if (post) {
            setTitle(post.title || '');
-           setBoardType(post.boardType || 'S');
-           setCategory(post.category || 'question');
+           setBoardCode(post.boardCode || 'S');
+           setCategoryId(post.categoryId || 'question');
            const correctedHtml = fixContentHtml(post.content || '');
            setEditorData(correctedHtml);
            setTag(post.tagName || '');
@@ -313,8 +359,8 @@ export default function WritePostPage() {
   const handleRestore = () => {
     if (tempData) {
       setTitle(tempData.title || '');
-      setBoardType(tempData.boardType || 'S');
-      setCategory(tempData.category || 'question');
+      setBoardCode(tempData.boardCode || 'S');
+      setCategoryId(tempData.categoryId || 'question');
       setEditorData(tempData.content || '');
       setTag(tempData.tag || '');
       if (editorRef.current) editorRef.current.setData(tempData.content || '');
@@ -366,8 +412,8 @@ export default function WritePostPage() {
       }
       formData.append('title', title);
       formData.append('content', currentEditorContent); 
-      formData.append('boardType', boardType);
-      formData.append('category', boardType === 'S' ? category : ''); 
+      formData.append('boardCode', boardCode);
+      formData.append('categoryId', categoryId); // 모든 게시판에서 필수
       formData.append('tagName', tag);
       formData.append('memberId', user?.memberId || '');
       if (selectedFiles && selectedFiles.length > 0) selectedFiles.forEach(file => formData.append('files', file));
@@ -381,24 +427,28 @@ export default function WritePostPage() {
           'Content-Type': 'multipart/form-data'
         } 
       });
-      if (response.status === 200 || response.status === 201) {
+
+      if (response.data.success) {
         isSuccessfullySubmitted.current = true;
         if (STORAGE_KEY) localStorage.removeItem(STORAGE_KEY);
-        if (boardType === 'G' && !editingBoardId) updateUser({ userStatus: 'Y' });
-        const targetId = editingBoardId || response.data.result?.data?.boardId;
-        showToast("처리가 완료되었습니다. ✅");
         
-        if (targetId) navigate(`/exam/${targetId}?type=${boardType}`, { replace: true });
-        else navigate(`/practice-exams?type=${boardType}${boardType === 'S' ? `&category=${category}` : ''}`, { replace: true });
-      }
-    } catch (error: any) { showAlert({ type: 'error', message: "저장 실패 ⏳" }); } finally { setIsSubmitting(false); }
-  };
+        // 가입인사 게시판 자동 등업 체크
+        if (boardCode === getBoardCode('G_BRD_GREETING') && !editingBoardId) {
+          updateUser({ userStatus: 'Y' });
+        }
 
-  const subCategories = [
-    { id: 'question', label: getText('board.category.question'), icon: MessageCircle },
-    { id: 'tip', label: getText('board.category.tip'), icon: Lightbulb },
-    { id: 'faq', label: getText('board.category.faq'), icon: HelpCircle },
-  ];
+        const targetId = editingBoardId || response.data.result?.data?.boardId;
+        showToast(response.data.msg || "처리가 완료되었습니다. ✨", 'success');
+        
+        if (targetId) navigate(`/exam/${targetId}?boardCode=${boardCode}`, { replace: true });
+        else navigate(`/practice-exams?boardCode=${boardCode}${boardCode === getBoardCode('G_BRD_LICENSE') ? `&categoryId=${categoryId}` : ''}`, { replace: true });
+      }
+    } catch (error) { 
+      console.error("Save error:", error); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
+  };
 
   const editorConfig: EditorConfig = {
     plugins: [
@@ -416,8 +466,7 @@ export default function WritePostPage() {
       'undo', 'redo'
     ],
     image: { 
-      toolbar: ['imageStyle:inline', 'imageStyle:block', 'imageStyle:side', '|', 'imageTextAlternative', '|', 'resizeImage:25', 'resizeImage:50', 'resizeImage:75', 'resizeImage:original', '|', 'linkImage'],
-      resizeOptions: [{ name: 'resizeImage:original', value: null, label: 'Original' }, { name: 'resizeImage:25', value: '25', label: '25%' }, { name: 'resizeImage:50', value: '50', label: '50%' }, { name: 'resizeImage:75', value: '75', label: '75%' }],
+      toolbar: ['imageStyle:inline', 'imageStyle:block', 'imageStyle:side', '|', 'imageTextAlternative'],
       resizeUnit: '%'
     },
     table: { contentToolbar: ['tableColumn', 'tableRow', 'mergeTableCells', '|', 'tableProperties', 'tableCellProperties', '|', 'alignment', 'tableColumnWidthEqualizer'] },
@@ -480,30 +529,37 @@ export default function WritePostPage() {
                 <div className="space-y-3">
                   <label className="text-xs font-black uppercase tracking-widest text-slate-400">게시판 선택</label>
                   <div className="flex flex-wrap p-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl w-fit gap-1">
-                    {[
-                      { id: 'N', label: getText('board.notice'), icon: Megaphone, adminOnly: true },
-                      { id: 'S', label: getText('board.sqld_study'), icon: BookOpen, adminOnly: false },
-                      { id: 'G', label: getText('board.join_greetings'), icon: Smile, adminOnly: false },
-                    ].filter(cat => !cat.adminOnly || user?.userRole === 'ADMIN').map((cat) => (
-                      <label key={cat.id} className="cursor-pointer">
-                        <input className="peer sr-only" name="boardType" type="radio" checked={boardType === cat.id} onChange={() => { setBoardType(cat.id); if (cat.id !== 'S') setTag(''); }} />
+                    {boardConfigs.filter(config => config.useYn === 'Y').map((config) => (
+                      <label key={config.boardCode} className="cursor-pointer">
+                        <input 
+                          className="peer sr-only" 
+                          name="boardCode" 
+                          type="radio" 
+                          checked={boardCode === config.boardCode} 
+                          onChange={() => {
+                            setBoardCode(config.boardCode);
+                            setTag('');
+                          }} 
+                        />
                         <div className="px-6 py-3 rounded-xl text-sm font-black text-slate-500 peer-checked:bg-white dark:peer-checked:bg-slate-700 peer-checked:text-primary peer-checked:shadow-sm transition-all flex items-center gap-2">
-                          <cat.icon size={16} /> {cat.label}
+                          {config.groupCode === 'G_BRD_NOTICE' ? <Megaphone size={16} /> : 
+                           config.groupCode === 'G_BRD_GREETING' ? <Smile size={16} /> : <BookOpen size={16} />}
+                          {config.boardName}
                         </div>
                       </label>
                     ))}
                   </div>
                 </div>
 
-                {boardType === 'S' && (
+                {categories.length > 0 && (
                   <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
                     <label className="text-xs font-black uppercase tracking-widest text-slate-400">카테고리 설정</label>
                     <div className="flex flex-wrap gap-2">
-                      {subCategories.map((sub) => (
-                        <label key={sub.id} className="cursor-pointer">
-                          <input className="peer sr-only" name="category" type="radio" checked={category === sub.id} onChange={() => setCategory(sub.id)} />
+                      {categories.map((cat) => (
+                        <label key={cat.categoryId} className="cursor-pointer">
+                          <input className="peer sr-only" name="categoryId" type="radio" checked={categoryId === cat.categoryId} onChange={() => setCategoryId(cat.categoryId)} />
                           <div className="px-5 py-2.5 rounded-xl text-sm font-bold border-2 border-transparent bg-slate-50 dark:bg-slate-800 text-slate-500 peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:text-primary transition-all flex items-center gap-2">
-                            <sub.icon size={16} /> {sub.label}
+                            {cat.categoryName}
                           </div>
                         </label>
                       ))}
@@ -516,7 +572,7 @@ export default function WritePostPage() {
                   <input className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none text-xl font-black focus:ring-2 focus:ring-primary/20 transition-all dark:text-white" placeholder="제목을 입력하세요" type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
                 </div>
 
-                {boardType === 'S' && (
+                {boardConfig?.tagYn === 'Y' && (
                   <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-500 delay-100">
                     <label className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Hash size={14} className="text-primary" /> 해시태그 (쉼표로 구분)</label>
                     <div className="relative group">
@@ -562,89 +618,91 @@ export default function WritePostPage() {
                   </div>
                 </div>
 
-                <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-black uppercase tracking-widest text-slate-400">미디어 및 첨부파일</label>
-                    <span className="text-[10px] font-bold text-slate-400">최대 50MB까지 업로드 가능</span>
-                  </div>
-                  <div 
-                    className={`border-2 border-dashed rounded-3xl p-10 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group ${isDragOver ? 'border-primary bg-primary/5' : 'border-slate-200 bg-slate-50 dark:bg-slate-800/30 dark:border-slate-700 hover:border-primary hover:bg-primary/5'}`}
-                    onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }} 
-                    onDragLeave={() => setIsDragOver(false)} 
-                    onDrop={(e) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files) setSelectedFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }} 
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors"><CloudUpload size={32} /></div>
-                    <div className="text-center">
-                      <p className="text-sm font-black text-slate-700 dark:text-slate-200">파일을 여기에 드래그하거나 클릭하여 업로드</p>
-                      <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-tighter">PNG, JPG, PDF, ZIP (MAX 10MB EACH)</p>
+                {boardConfig?.fileYn === 'Y' && (
+                  <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black uppercase tracking-widest text-slate-400">미디어 및 첨부파일</label>
+                      <span className="text-[10px] font-bold text-slate-400">최대 50MB까지 업로드 가능</span>
                     </div>
-                    <input type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => { if (e.target.files) setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]); }} />
-                  </div>
+                    <div 
+                      className={`border-2 border-dashed rounded-3xl p-10 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group ${isDragOver ? 'border-primary bg-primary/5' : 'border-slate-200 bg-slate-50 dark:bg-slate-800/30 dark:border-slate-700 hover:border-primary hover:bg-primary/5'}`}
+                      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }} 
+                      onDragLeave={() => setIsDragOver(false)} 
+                      onDrop={(e) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files) setSelectedFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }} 
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors"><CloudUpload size={32} /></div>
+                      <div className="text-center">
+                        <p className="text-sm font-black text-slate-700 dark:text-slate-200">파일을 여기에 드래그하거나 클릭하여 업로드</p>
+                        <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-tighter">PNG, JPG, PDF, ZIP (MAX 10MB EACH)</p>
+                      </div>
+                      <input type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => { if (e.target.files) setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]); }} />
+                    </div>
 
-                  {(existingFiles.filter(f => isImageFile(f.originName)).length > 0 || selectedFiles.filter(f => isImageFile(f.name)).length > 0) && (
-                    <div className="space-y-3">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><div className="w-1 h-3 bg-primary rounded-full" />이미지 라이브러리</h4>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-                        {existingFiles.filter(f => isImageFile(f.originName)).map((file, idx) => (
-                          <div key={`ex-img-${idx}`} className="group relative aspect-square rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 bg-slate-50">
-                            <img src={file.displayPath} alt="prev" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                              <button type="button" onClick={(e) => { e.stopPropagation(); setLightboxSrc(file.displayPath); }} className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-xl backdrop-blur-md transition-all active:scale-90"><ZoomIn size={16} /></button>
-                              <button type="button" onClick={(e) => { e.stopPropagation(); removeImageFromEditor(file.displayPath); setDeletedFileIds(prev => [...prev, file.fileId]); setExistingFiles(prev => prev.filter(f => f.fileId !== file.fileId)); }} className="p-2 bg-rose-500/60 hover:bg-red-600 text-white rounded-xl backdrop-blur-md transition-all active:scale-90"><X size={16} /></button>
-                            </div>
-                          </div>
-                        ))}
-                        {selectedFiles.filter(f => isImageFile(f.name)).map((file, idx) => {
-                          const url = URL.createObjectURL(file);
-                          return (
-                            <div key={`new-img-${idx}`} className="group relative aspect-square rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 bg-slate-50">
-                              <img src={url} alt="prev" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    {(existingFiles.filter(f => isImageFile(f.originName)).length > 0 || selectedFiles.filter(f => isImageFile(f.name)).length > 0) && (
+                      <div className="space-y-3">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><div className="w-1 h-3 bg-primary rounded-full" />이미지 라이브러리</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+                          {existingFiles.filter(f => isImageFile(f.originName)).map((file, idx) => (
+                            <div key={`ex-img-${idx}`} className="group relative aspect-square rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 bg-slate-50">
+                              <img src={file.displayPath} alt="prev" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                <button type="button" onClick={(e) => { e.stopPropagation(); setLightboxSrc(url); }} className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-xl backdrop-blur-md transition-all active:scale-90"><ZoomIn size={16} /></button>
-                                <button type="button" onClick={(e) => { e.stopPropagation(); removeImageFromEditor(url); setSelectedFiles(prev => prev.filter(f => f !== file)); }} className="p-2 bg-rose-500/60 hover:bg-red-600 text-white rounded-xl backdrop-blur-md transition-all active:scale-90"><X size={16} /></button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); setLightboxSrc(file.displayPath); }} className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-xl backdrop-blur-md transition-all active:scale-90"><ZoomIn size={16} /></button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); removeImageFromEditor(file.displayPath); setDeletedFileIds(prev => [...prev, file.fileId]); setExistingFiles(prev => prev.filter(f => f.fileId !== file.fileId)); }} className="p-2 bg-rose-500/60 hover:bg-red-600 text-white rounded-xl backdrop-blur-md transition-all active:scale-90"><X size={16} /></button>
                               </div>
                             </div>
-                          );
-                        })}
+                          ))}
+                          {selectedFiles.filter(f => isImageFile(f.name)).map((file, idx) => {
+                            const url = URL.createObjectURL(file);
+                            return (
+                              <div key={`new-img-${idx}`} className="group relative aspect-square rounded-2xl overflow-hidden border border-slate-100 dark:border-slate-700 bg-slate-50">
+                                <img src={url} alt="prev" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); setLightboxSrc(url); }} className="p-2 bg-white/20 hover:bg-white/40 text-white rounded-xl backdrop-blur-md transition-all active:scale-90"><ZoomIn size={16} /></button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); removeImageFromEditor(url); setSelectedFiles(prev => prev.filter(f => f !== file)); }} className="p-2 bg-rose-500/60 hover:bg-red-600 text-white rounded-xl backdrop-blur-md transition-all active:scale-90"><X size={16} /></button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {(existingFiles.filter(f => !isImageFile(f.originName)).length > 0 || selectedFiles.filter(f => !isImageFile(f.name)).length > 0) && (
-                    <div className="space-y-3">
-                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><div className="w-1 h-3 bg-blue-400 rounded-full" />기타 문서 파일</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {existingFiles.filter(f => !isImageFile(f.originName)).map((file, idx) => (
-                          <div key={`ex-file-${idx}`} className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl hover:shadow-md transition-all group">
-                            <div className="w-10 h-10 flex-shrink-0 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-xl flex items-center justify-center"><FileText size={20} /></div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-black text-slate-700 dark:text-slate-200 truncate">{file.originName}</p>
-                              <p className="text-[10px] text-slate-400 font-bold uppercase">Existing File</p>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button onClick={() => handleFileDownload(file.fileId, file.originName)} className="p-2 text-slate-300 hover:text-primary transition-colors" title="다운로드"><Download size={18} /></button>
-                              <button type="button" onClick={() => { setDeletedFileIds(prev => [...prev, file.fileId]); setExistingFiles(prev => prev.filter(f => f.fileId !== file.fileId)); }} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
-                            </div>
-                          </div>
-                        ))}
-                        {selectedFiles.filter(f => !isImageFile(f.name)).map((file, idx) => {
-                          const url = URL.createObjectURL(file);
-                          return (
-                            <div key={`new-file-${idx}`} className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 border border-primary/10 dark:border-slate-700 rounded-2xl hover:shadow-md transition-all group">
-                              <div className="w-10 h-10 flex-shrink-0 bg-primary/5 text-primary rounded-xl flex items-center justify-center"><File size={20} /></div>
+                    {(existingFiles.filter(f => !isImageFile(f.originName)).length > 0 || selectedFiles.filter(f => !isImageFile(f.name)).length > 0) && (
+                      <div className="space-y-3">
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2"><div className="w-1 h-3 bg-blue-400 rounded-full" />기타 문서 파일</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {existingFiles.filter(f => !isImageFile(f.originName)).map((file, idx) => (
+                            <div key={`ex-file-${idx}`} className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl hover:shadow-md transition-all group">
+                              <div className="w-10 h-10 flex-shrink-0 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-xl flex items-center justify-center"><FileText size={20} /></div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-black text-slate-700 dark:text-slate-200 truncate">{file.name}</p>
-                                <p className="text-[10px] text-primary/60 font-bold uppercase">New Upload</p>
+                                <p className="text-sm font-black text-slate-700 dark:text-slate-200 truncate">{file.originName}</p>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase">Existing File</p>
                               </div>
-                              <button type="button" onClick={() => setSelectedFiles(prev => prev.filter(f => f !== file))} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => handleFileDownload(file.fileId, file.originName)} className="p-2 text-slate-300 hover:text-primary transition-colors" title="다운로드"><Download size={18} /></button>
+                                <button type="button" onClick={() => { setDeletedFileIds(prev => [...prev, file.fileId]); setExistingFiles(prev => prev.filter(f => f.fileId !== file.fileId)); }} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                              </div>
                             </div>
-                          );
-                        })}
+                          ))}
+                          {selectedFiles.filter(f => !isImageFile(f.name)).map((file, idx) => {
+                            const url = URL.createObjectURL(file);
+                            return (
+                              <div key={`new-file-${idx}`} className="flex items-center gap-3 p-4 bg-white dark:bg-slate-800 border border-primary/10 dark:border-slate-700 rounded-2xl hover:shadow-md transition-all group">
+                                <div className="w-10 h-10 flex-shrink-0 bg-primary/5 text-primary rounded-xl flex items-center justify-center"><File size={20} /></div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-black text-slate-700 dark:text-slate-200 truncate">{file.name}</p>
+                                  <p className="text-[10px] text-primary/60 font-bold uppercase">New Upload</p>
+                                </div>
+                                <button type="button" onClick={() => setSelectedFiles(prev => prev.filter(f => f !== file))} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="pt-10 flex items-center justify-end gap-4 border-t border-slate-50 dark:border-slate-800">
                   <button type="button" onClick={handleCancelClick} className="px-8 py-4 rounded-2xl text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-widest text-xs">{getText('common.cancel')}</button>

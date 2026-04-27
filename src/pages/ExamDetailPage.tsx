@@ -10,8 +10,9 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../contexts/UserContext';
 import { useAlert } from '../contexts/AlertContext';
+import { useBoard } from '../contexts/BoardContext';
 import { formatRelativeTime } from '../utils/dateUtils';
-import api from '../utils/api';
+import api, { type BoardMaster } from '../utils/api';
 import ConfirmModal from '../components/ConfirmModal';
 import AttachmentSection from '../components/AttachmentSection';
 import type { Attachment } from '../components/AttachmentSection';
@@ -37,7 +38,9 @@ interface Exam {
   isScrapped: boolean;
   scrapId?: number | null; // 스크랩 취소를 위한 ID
   content: string;
-  boardType: string;
+  boardCode: string;
+  categoryId?: string;
+  categoryName?: string;
   files?: Attachment[];
   tagName?: string;
   tags?: string[];
@@ -113,9 +116,11 @@ export default function ExamDetailPage() {
   const { id } = useParams();
   const { user } = useUser();
   const { showAlert, showToast } = useAlert();
+  const { getBoardConfig } = useBoard();
   const navigate = useNavigate();
 
   const [exam, setExam] = useState<Exam | null>(null);
+  const boardConfig = exam ? getBoardConfig(exam.boardCode) : undefined;
   const [comments, setComments] = useState<Comment[]>([]);
   const [popularPosts, setPopularPosts] = useState<PopularPost[]>([]);
   const [trendingTags, setTrendingTags] = useState<string[]>([]);
@@ -193,20 +198,27 @@ export default function ExamDetailPage() {
       const response = await api.get(`/api/board/list/detail/${id}`);
       const rawData = response.data.result?.data || response.data.result;
       if (rawData) {
+        // [수정] BoardContext 정보를 활용한 카테고리 이름 보정 로직
+        const config = getBoardConfig(rawData.boardCode);
+        const categoryFromContext = config?.categories?.find(c => c.categoryId === rawData.categoryId)?.categoryName;
+        
         setExam({
           id: rawData.boardId, title: rawData.title, authorName: rawData.userName, authorId: String(rawData.memberId || ''),
           authorImage: rawData.profileImage, date: rawData.createAt, fullDate: new Date(rawData.createAt).toLocaleString('ko-KR'),
           views: rawData.viewCount, commentsCount: rawData.commentCount || 0, likeCount: rawData.likeCount || 0, 
           isLiked: !!(rawData.isLiked || rawData.liked), 
           isScrapped: !!(rawData.isScrapped || rawData.scrapped), 
-          scrapId: rawData.scrap_Id || null, // 서버에서 내려주는 scrap_Id 저장
-          content: fixContentHtml(rawData.content), boardType: rawData.boardType,
+          scrapId: rawData.scrap_Id || null, 
+          content: fixContentHtml(rawData.content), boardCode: rawData.boardCode,
+          categoryId: rawData.categoryId, 
+          // 컨텍스트에 있는 이름을 최우선, 그 다음 서버 필드들 확인
+          categoryName: categoryFromContext || rawData.categoryName || rawData.categoryNm || rawData.category_name,
           files: (rawData.fileList || rawData.files || []).map((f: any) => ({ fileId: f.fileId, originName: f.originName, filePath: fixImagePath(f.filePath || '') })),
           tags: rawData.tags || (rawData.tagName ? rawData.tagName.split(',').map((t: string) => t.trim()) : []),
         });
       }
     } catch (error) { console.error("Post detail error:", error); } finally { if (showLoading) setInitialLoading(false); }
-  }, [id]); // user 의존성 제거
+  }, [id, getBoardConfig]);
 
   const fetchPopularPosts = useCallback(async () => {
     try {
@@ -219,7 +231,7 @@ export default function ExamDetailPage() {
 
   const fetchTrendingTags = useCallback(async () => {
     try {
-      const response = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 20, boardType: 'S' } });
+      const response = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 20, boardCode: 'S' } });
       if (response.data.success && response.data.result?.data?.list) {
         const allTags = response.data.result.data.list.flatMap((p: any) => p.tags || (p.tagName ? p.tagName.split(',').map((t: string) => t.trim()) : []));
         const tagCounts: { [key: string]: number } = {};
@@ -282,21 +294,21 @@ export default function ExamDetailPage() {
   }, [user, fetchComments, showToast]);
 
   const handleLikeAction = useCallback(async () => {
-    if (!user || !exam || isLiking) { if (!user) showAlert({ type: 'warning', message: "로그인이 필요합니다. ✅" }); return; }
+    if (!user || !exam || isLiking) { if (!user) showToast("로그인이 필요합니다. 🔒", 'warning'); return; }
     setIsLiking(true);
     try {
       const response = await api.post(`/api/board/like`, null, { params: { boardId: Number(id) }, headers: { 'Authorization': `Bearer ${user.accessToken}` } });
-      if (response.status === 200) {
+      if (response.status === 200 || response.data.success) {
         const isNowLiked = !exam.isLiked;
         setExam(prev => prev ? { ...prev, isLiked: isNowLiked, likeCount: isNowLiked ? prev.likeCount + 1 : Math.max(0, prev.likeCount - 1) } : null);
-        showToast(response.data.message || response.data.msg || (isNowLiked ? "이 글을 추천했습니다. ❤️" : "추천을 취소했습니다."));
+        showToast(response.data.msg || (isNowLiked ? "이 글을 추천했습니다. ❤️" : "추천을 취소했습니다."));
       }
     } catch (error) { console.error("Like error:", error); } finally { setIsLiking(false); }
-  }, [id, user, exam, isLiking, showAlert, showToast]);
+  }, [id, user, exam, isLiking, showToast]);
 
   const handleScrap = useCallback(async () => {
     if (!user || !exam) { 
-      if (!user) showAlert({ type: 'warning', message: "로그인이 필요합니다. ✅" }); 
+      if (!user) showToast("로그인이 필요합니다. 🔒", 'warning'); 
       return; 
     }
 
@@ -306,65 +318,73 @@ export default function ExamDetailPage() {
           data: { scrapIds: [Number(exam.scrapId)] },
           headers: { 'Authorization': `Bearer ${user.accessToken}`, 'Content-Type': 'application/json' }
         });
-        if (response.status === 200 || response.data.success) {
+        if (response.data.success) {
           setExam(prev => prev ? { ...prev, isScrapped: false, scrapId: null } : null);
-          showToast(response.data.message || response.data.msg || "스크랩이 취소되었습니다. ✨");
+          showToast(response.data.msg || "스크랩이 취소되었습니다. ✨");
         }
-      } catch (error) {
-        console.error("Scrap cancel error:", error);
-        showAlert({ type: 'error', message: "스크랩 취소 중 오류가 발생했습니다. ⏳" });
-      }
+      } catch (error) { console.error("Scrap cancel error:", error); }
     } else {
       try {
         const response = await api.post(`/api/board/insertBoardScrap`, null, { 
           params: { boardId: id }, 
           headers: { 'Authorization': `Bearer ${user.accessToken}` } 
         });
-        if (response.status === 200 || response.data.success) {
-          showToast(response.data.message || response.data.msg || "스크랩 완료 ✨");
+        if (response.data.success) {
+          showToast(response.data.msg || "스크랩 완료 ✨");
           fetchPostDetail();
         }
-      } catch (error) {
-        console.error("Scrap insert error:", error);
-        showAlert({ type: 'error', message: "스크랩 처리 중 오류가 발생했습니다. ⏳" });
-      }
+      } catch (error) { console.error("Scrap insert error:", error); }
     }
-  }, [id, user, exam, showAlert, showToast, fetchPostDetail]);
+  }, [id, user, exam, showToast, fetchPostDetail]);
 
   const handleDelete = useCallback(() => {
     setConfirmModal({ isOpen: true, title: '게시글 삭제', message: '정말로 이 게시글을 삭제하시겠습니까?', type: 'danger', isLoading: false, onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
-          const response = await api.delete(`/api/board/list/${id}`, { headers: { 'Authorization': `Bearer ${user?.accessToken}` } });
-          if (response.status === 200) { 
-            showAlert({ type: 'success', message: response.data.message || response.data.msg || "삭제되었습니다. ✅" }); 
-            navigate(`/practice-exams?type=${exam?.boardType || 'S'}`); 
+          const response = await api.post(`/api/board/list/deleteBoardContent`, { 
+            boardIds: [Number(id)] 
+          }, { 
+            headers: { 'Authorization': `Bearer ${user?.accessToken}` } 
+          });
+          if (response.data.success) { 
+            showToast(response.data.msg || "삭제되었습니다. ✅"); 
+            navigate(`/practice-exams?boardCode=${exam?.boardCode || 'S'}`); 
           }
-        } catch (error) { showAlert({ type: 'error', message: "삭제 오류 ⏳" }); } finally { setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false })); }
+        } catch (error) { console.error("Delete error:", error); } finally { setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false })); }
       }
     });
-  }, [id, user, exam, navigate, showAlert]);
+  }, [id, user, exam, navigate, showToast]);
 
   const handleDownload = useCallback(async (fileId: number, fileName: string) => {
-    if (!user) { showAlert({ type: 'warning', message: "로그인이 필요합니다. ✅" }); return; }
+    if (!user) { showToast("로그인이 필요합니다. 🔒", 'warning'); return; }
     try {
       const response = await api.get(`/api/board/download/${fileId}`, { responseType: 'blob', headers: { 'Authorization': `Bearer ${user.accessToken}` } });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a'); link.href = url; link.setAttribute('download', fileName);
       document.body.appendChild(link); link.click(); link.remove(); window.URL.revokeObjectURL(url);
-    } catch (error) { showAlert({ type: 'error', message: "다운로드 오류 ⏳" }); }
-  }, [user, showAlert]);
+    } catch (error) { console.error("Download error:", error); }
+  }, [user, showToast]);
 
   if (initialLoading) return (<div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] flex items-center justify-center"><div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" /></div>);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white transition-colors relative z-10">
       <main className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <nav className="flex items-center gap-2 text-sm text-slate-400 mb-8">
+        <nav className="flex items-center gap-2 text-sm text-slate-400 mb-8 font-bold">
           <Link to="/" className="hover:text-primary transition-colors font-medium">홈</Link>
           <ChevronsRight size={14} />
-          <Link to={`/practice-exams?type=${exam?.boardType || 'S'}`} className="hover:text-primary transition-colors font-medium">{exam?.boardType === 'N' ? '공지사항' : 'SQLD 학습'}</Link>
-          <ChevronsRight size={14} /><span className="font-bold truncate max-w-xs">{exam?.title}</span>
+          <Link 
+            to={`/practice-exams?boardCode=${exam?.boardCode}`} 
+            className={`hover:text-primary transition-colors ${!exam?.categoryName ? 'text-slate-900 dark:text-white' : 'font-medium'}`}
+          >
+            {boardConfig?.boardName || '게시판'}
+          </Link>
+          {exam?.categoryName && (
+            <>
+              <ChevronsRight size={14} />
+              <span className="text-slate-900 dark:text-white font-black">{exam.categoryName}</span>
+            </>
+          )}
         </nav>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -374,7 +394,10 @@ export default function ExamDetailPage() {
                 <>
                   <div className="p-6 sm:p-10 border-b border-slate-50 dark:border-slate-800">
                     <div className="flex items-center gap-2 mb-6">
-                      <span className="px-3 py-1 bg-primary text-white text-[10px] font-black rounded-lg uppercase">{exam.boardType === 'N' ? 'Announcement' : 'Community'}</span>
+                      <span className="px-3 py-1.5 bg-primary text-white text-[11px] font-black rounded-lg shadow-lg shadow-primary/20 flex items-center gap-1.5">
+                        <div className="w-1 h-1 rounded-full bg-white animate-pulse" />
+                        {exam.categoryName || boardConfig?.boardName || '게시글'}
+                      </span>
                     </div>
                     <h1 className="text-2xl sm:text-4xl font-black leading-tight mb-8">{exam.title}</h1>
                     <div className="flex flex-wrap items-center justify-between gap-6">
@@ -403,10 +426,29 @@ export default function ExamDetailPage() {
                         <button onClick={handleScrap} className={`p-3 rounded-xl transition-all border ${exam.isScrapped ? 'bg-orange-50 text-orange-500 border-orange-100' : 'bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-slate-700'}`}><Bookmark size={22} className={exam.isScrapped ? 'fill-orange-500' : ''} /></button>
                       </Tooltip>
                     </div>
-                    {user && (String(user.memberId) === String(exam.authorId) || user.userRole === 'ADMIN') && (
+                    {user && (
                       <div className="flex items-center gap-2">
-                        <button onClick={() => navigate(`/write-post?boardId=${exam.id}&type=${exam.boardType}`)} className="p-3 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Pencil size={22} /></button>
-                        <button onClick={handleDelete} className="p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={22} /></button>
+                        {/* [수정 권한] 오직 작성자 본인만 가능 (관리자도 타인의 글 수정 불가) */}
+                        {String(user.memberId) === String(exam.authorId) && (
+                          <button 
+                            onClick={() => navigate(`/write-post?boardId=${exam.id}&boardCode=${exam.boardCode}`)} 
+                            className="p-3 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"
+                            title="게시글 수정"
+                          >
+                            <Pencil size={22} />
+                          </button>
+                        )}
+
+                        {/* [삭제 권한] 작성자 본인이거나 모든 관리자(ADMIN, SUPER_ADMIN) 가능 */}
+                        {(String(user.memberId) === String(exam.authorId) || ['ADMIN', 'SUPER_ADMIN'].includes(user.userRole)) && (
+                          <button 
+                            onClick={handleDelete} 
+                            className="p-3 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                            title="게시글 삭제"
+                          >
+                            <Trash2 size={22} />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -418,7 +460,7 @@ export default function ExamDetailPage() {
               ) : null}
             </article>
 
-            {exam && (
+            {exam && boardConfig?.replyYn === 'Y' && (
               <CommentSection 
                 comments={comments} 
                 user={user} 

@@ -15,31 +15,55 @@ export interface BoardItem {
   id?: string; 
   author?: string; 
   authorImage?: string; // Author's profile image
-  boardType?: string; 
-  category?: string; 
+  boardCode?: string; 
+  categoryId?: string; 
+  categoryName?: string;
 }
 
 interface BoardProps {
   title: string;
   icon: LucideIcon;
   items: BoardItem[];
-  boardType: 'N' | 'S' | 'G';
+  boardCode: string;
   isTable?: boolean;
+  showCategory?: boolean; // 카테고리 노출 여부 추가
 }
 
-export default function Board({ title, icon: Icon, items, boardType, isTable = false }: BoardProps) {
-  const boardUrl = `/practice-exams?type=${boardType}`;
+export default function Board({ 
+  title, 
+  icon: Icon, 
+  items, 
+  boardCode, 
+  isTable = false,
+  showCategory = false // 기본값은 false (홈 화면 등에서 숨김)
+}: BoardProps) {
+  const boardUrl = `/practice-exams?boardCode=${boardCode}`;
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
 
-  const getCategoryStyle = (category?: string) => {
-    switch (category) {
-      case 'question': return { dot: 'bg-amber-400', text: 'text-amber-600 dark:text-amber-400/80', label: getText('board.category.question') };
-      case 'tip': return { dot: 'bg-emerald-400', text: 'text-emerald-600 dark:text-emerald-400/80', label: getText('board.category.tip') };
-      case 'faq': return { dot: 'bg-blue-400', text: 'text-blue-600 dark:text-blue-400/80', label: getText('board.category.faq') };
-      default: return null;
+  const getCategoryStyle = (categoryId?: string, categoryName?: string) => {
+    if (!categoryId || !showCategory) return null; // showCategory가 false면 스타일 반환 안 함
+    
+    // 서버에서 전달받은 이름을 최우선 사용, 없으면 ID를 라벨로 사용
+    const label = categoryName || categoryId;
+    
+    // 카테고리 ID나 이름의 키워드를 기반으로 색상 매핑
+    const lowerId = categoryId.toLowerCase();
+    const lowerLabel = label.toLowerCase();
+
+    if (lowerId.includes('s01') || lowerId.includes('question') || lowerId.includes('qna') || lowerLabel.includes('질문')) {
+      return { dot: 'bg-amber-400', text: 'text-amber-600 dark:text-amber-400/80', label };
     }
+    if (lowerId.includes('s02') || lowerId.includes('tip') || lowerId.includes('info') || lowerLabel.includes('팁') || lowerLabel.includes('정보')) {
+      return { dot: 'bg-emerald-400', text: 'text-emerald-600 dark:text-emerald-400/80', label };
+    }
+    if (lowerId.startsWith('n') || lowerId.startsWith('g') || lowerLabel.includes('공지') || lowerLabel.includes('인사') || lowerLabel.includes('faq')) {
+      return { dot: 'bg-blue-400', text: 'text-blue-600 dark:text-blue-400/80', label };
+    }
+    
+    return { dot: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400', label };
   };
+
 
   return (
     <div className="flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-[#cfdbe7] dark:border-slate-800 shadow-sm overflow-hidden h-full">
@@ -65,12 +89,12 @@ export default function Board({ title, icon: Icon, items, boardType, isTable = f
 
       <div className="flex flex-col divide-y divide-[#e7edf3] dark:divide-slate-800 flex-1">
         {items.length > 0 ? items.map((item, index) => {
-          const categoryStyle = getCategoryStyle(item.category);
+          const categoryStyle = getCategoryStyle(item.categoryId, item.categoryName);
           
           return (
             <Link
               key={index}
-              to={`/exam/${item.id}?type=${boardType}`}
+              to={`/exam/${item.id}?boardCode=${boardCode}`}
               className="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
             >
               {isTable ? (

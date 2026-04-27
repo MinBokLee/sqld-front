@@ -145,7 +145,7 @@ export default function LoginModal({
             <button 
               type="submit"
               disabled={isLoading}
-              className="w-full py-4.5 bg-primary text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-primary/25 flex items-center justify-center gap-2 mt-4 active:scale-95 disabled:opacity-50"
+              className="w-full h-[56px] bg-primary text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-xl shadow-primary/25 flex items-center justify-center gap-2 mt-4 active:scale-[0.98] disabled:opacity-50"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

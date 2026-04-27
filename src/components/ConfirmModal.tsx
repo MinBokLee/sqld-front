@@ -31,13 +31,18 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
       if (e.key === 'Enter') {
         e.preventDefault();
-        onConfirm(); // 엔터키 -> 확인
+        e.stopPropagation();
+        onConfirm(); 
       } else if (e.key === 'Escape') {
-        onClose(); // ESC키 -> 취소
+        e.preventDefault();
+        e.stopPropagation();
+        onClose(); 
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    
+    // capture: true를 통해 다른 이벤트보다 우선적으로 처리
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, onConfirm, onClose]);
 
   if (!isOpen) return null;

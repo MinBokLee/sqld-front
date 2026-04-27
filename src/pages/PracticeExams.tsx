@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Search, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   MessageSquare, Eye, ThumbsUp, Clock, BookOpen,
@@ -9,8 +10,9 @@ import {
 import { useUser } from '../contexts/UserContext';
 import { LanguageContext } from '../contexts/LanguageContext';
 import { useAlert } from '../contexts/AlertContext';
+import { useBoard } from '../contexts/BoardContext';
 import { formatRelativeTime } from '../utils/dateUtils';
-import api from '../utils/api';
+import api, { type BoardMaster, type CommonCodeDetail } from '../utils/api';
 
 /**
  * [PracticeExams.tsx]
@@ -26,8 +28,8 @@ interface Post {
   views: number;
   likes: number;
   comments: number;
-  boardType: string;
-  category: string;
+  boardCode: string;
+  categoryId: string;
   tags?: string[];
   seqNumber?: number;
 }
@@ -44,26 +46,45 @@ export default function PracticeExams() {
   const { user } = useUser();
   const navigate = useNavigate();
   const { showAlert } = useAlert();
+  const { getBoardConfig, getBoardCode, getBoardCategories, isLoading: isBoardConfigLoading } = useBoard();
   const [searchParams, setSearchParams] = useSearchParams();
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
 
-  const type = searchParams.get('type') || 'S';           
-  const category = searchParams.get('category') || '';    
+  const boardCode = searchParams.get('boardCode') 
+    ? (['N', 'S', 'G'].includes(searchParams.get('boardCode')!) 
+        ? (searchParams.get('boardCode') === 'N' ? getBoardCode('G_BRD_NOTICE') : searchParams.get('boardCode') === 'S' ? getBoardCode('G_BRD_LICENSE') : getBoardCode('G_BRD_GREETING'))
+        : searchParams.get('boardCode'))
+    : getBoardCode('G_BRD_LICENSE');
+           
+  const categoryId = searchParams.get('categoryId') || '';    
   const page = parseInt(searchParams.get('page') || '1'); 
   const size = parseInt(searchParams.get('size') || '10'); // [추가]
   const searchQuery = searchParams.get('keyword') || ''; // 'search'에서 'keyword'로 통일
   const tagNameFilter = searchParams.get('tagName') || ''; 
   const mode = searchParams.get('mode') || ''; // 'my' 면 내 활동 관리 모드
 
-  const [posts, setPosts] = useState<Post[]>([]);               
-  const [popularPosts, setPopularPosts] = useState<PopularPost[]>([]); 
-  const [totalPages, setTotalPages] = useState(1);              
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [popularPosts, setPopularPosts] = useState<PopularPost[]>([]);
+  const boardConfig = getBoardConfig(boardCode);
+  const categories = getBoardCategories(boardCode);
+  const [totalPages, setTotalPages] = useState(1);
+              
   const [isLoading, setIsLoading] = useState(true);             
   const [readPosts, setReadPosts] = useState<number[]>([]);     
   const [trendingTags, setTrendingTags] = useState<string[]>([]); 
   const [inputKeyword, setInputKeyword] = useState(searchQuery); 
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // [추가] 마지막으로 불러온 데이터의 파라미터를 추적하여 잔상 방지
+  const lastFetchedParamsRef = useRef({ boardCode, categoryId, page, mode });
+
+  // 현재 URL 파라미터가 메모리의 데이터와 일치하는지 확인 (불일치 시 즉시 스켈레톤 노출)
+  const isDataStale = 
+    lastFetchedParamsRef.current.boardCode !== boardCode || 
+    lastFetchedParamsRef.current.categoryId !== categoryId || 
+    lastFetchedParamsRef.current.page !== page ||
+    lastFetchedParamsRef.current.mode !== mode;
 
   // URL 쿼리가 바뀌면 입력창도 동기화 (Header 검색 대응)
   useEffect(() => {
@@ -102,12 +123,10 @@ export default function PracticeExams() {
     
     const trimmedKeyword = inputKeyword.trim();
     
-    // 유효성 검사: 검색어가 없는 경우 알림창 출력 (Header와 일관성 유지)
+    // 유효성 검사: 검색어가 없는 경우 알림창 출력 (동적 메시지 적용)
     if (!trimmedKeyword) {
-      let message = "키워드를 입력해 주세요. ⚠️ 검색어 없이 조회를 진행할 수 없습니다.";
-      if (type === 'N') message = "확인하실 공지사항 키워드를 입력해 주세요. 📢";
-      else if (type === 'S') message = "키워드를 입력해 주세요. ⚠️ 학습 게시판 내에서 검색어를 통해 조회가 가능합니다.";
-      else if (type === 'G') message = "찾으시는 회원님이나 인사말 키워드를 입력해 주세요. 😊";
+      const boardName = boardConfig?.boardName || '게시판';
+      const message = `${boardName}에서 찾으시는 키워드를 입력해 주세요. ⚠️ 검색어 없이 조회를 진행할 수 없습니다.`;
       
       showAlert({ type: 'warning', message });
       return;
@@ -117,7 +136,7 @@ export default function PracticeExams() {
     params.set('keyword', trimmedKeyword);
     params.set('page', '1');
     setSearchParams(params);
-  }, [inputKeyword, type, searchParams, setSearchParams, showAlert]);
+  }, [inputKeyword, boardConfig, searchParams, setSearchParams, showAlert]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
@@ -147,7 +166,7 @@ export default function PracticeExams() {
   const fetchTrendingTags = useCallback(async () => {
     try {
       const response = await api.get(`/api/board/list/paging`, {
-        params: { page: 1, size: 30, boardType: 'S' }
+        params: { page: 1, size: 30, boardCode: 'S' }
       });
       const data = response.data;
       if (data.success && data.result?.data) {
@@ -171,13 +190,17 @@ export default function PracticeExams() {
   }, []);
 
   const fetchPosts = useCallback(async () => {
+    // [중요] 게시판 마스터 정보가 로드될 때까지 대기
+    if (isBoardConfigLoading || !boardCode || ['N', 'S', 'G'].includes(boardCode)) return;
+
+    setPosts([]); // [추가] 이전 데이터를 비워서 잔상 방지
     setIsLoading(true);
     try {
       const isMyMode = mode === 'my';
       let endpoint = '';
       let params: any = {
         page: page,
-        size: size, // [수정] 하드코딩된 10 대신 변수 사용
+        size: size,
       };
 
       // [핵심 분기 로직]
@@ -185,16 +208,18 @@ export default function PracticeExams() {
         // 1. 전문 검색(FTS) 모드: 검색어가 있는 경우
         endpoint = '/api/board/searchContent';
         params.keyword = searchQuery.trim();
-        params.boardType = type;
+        params.boardCode = boardCode;
       } else if (isMyMode) {
         // 2. 내 활동 관리 모드
         endpoint = '/api/board/my-list';
-        params.keyword = searchQuery.trim(); // null 대신 빈 문자열 유도
+        params.keyword = searchQuery.trim();
+        params.boardCode = boardCode; // [수정] 내 활동에서도 게시판 필터 적용
       } else {
         // 3. 일반 목록 조회 모드: 검색어가 없는 경우
         endpoint = '/api/board/list/paging';
-        params.boardType = type;
-        params.category = type === 'S' ? category : '';
+        params.boardCode = boardCode;
+        // [수정] categoryId가 있을 때만 파라미터 추가 (필수값 정책 대응)
+        if (categoryId) params.categoryId = categoryId;
         params.tagName = tagNameFilter || undefined;
         params.keyword = ''; // null 대신 빈 문자열 명시
       }
@@ -215,27 +240,32 @@ export default function PracticeExams() {
           views: item.viewCount,
           likes: item.likeCount,
           comments: item.commentCount,
-          boardType: item.boardType,
-          category: item.category,
+          boardCode: item.boardCode,
+          categoryId: item.categoryId,
+          categoryName: item.categoryName,
           tags: item.tags || (item.tagName ? item.tagName.split(',').map((t: string) => t.trim()) : []),
           seqNumber: item.seqNumber
         }));
         
         setPosts(mappedPosts);
         setTotalPages(resultData.totalPage || 1);
+        // [추가] 성공 시 현재 파라미터 기록
+        lastFetchedParamsRef.current = { boardCode, categoryId, page, mode };
       }
     } catch (error) {
       console.error("게시글 목록 로드 실패:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [type, category, page, size, searchQuery, tagNameFilter, mode]); // [수정] size 추가
+  }, [boardCode, categoryId, page, size, searchQuery, tagNameFilter, mode]); // [수정] size 추가
 
   useEffect(() => {
-    fetchPosts();
-    fetchPopularPosts();
-    fetchTrendingTags();
-  }, [fetchPosts, fetchPopularPosts, fetchTrendingTags]);
+    if (!isBoardConfigLoading) {
+      fetchPosts();
+      fetchPopularPosts();
+      fetchTrendingTags();
+    }
+  }, [fetchPosts, fetchPopularPosts, fetchTrendingTags, isBoardConfigLoading]);
 
   useEffect(() => {
     const saved = localStorage.getItem('readPosts');
@@ -262,7 +292,7 @@ export default function PracticeExams() {
   };
 
   const handleTagClick = (tag: string) => {
-    navigate(`/practice-exams?type=S&tagName=${encodeURIComponent(tag)}&page=1`);
+    navigate(`/practice-exams?boardCode=${getBoardCode('G_BRD_LICENSE') || 'S'}&tagName=${encodeURIComponent(tag)}&page=1`);
   };
 
   const clearTagFilter = () => {
@@ -297,13 +327,16 @@ export default function PracticeExams() {
     return pages;
   };
 
-  const getBoardBadge = (boardType: string) => {
-    switch (boardType) {
-      case 'N': return <span className="px-2 py-0.5 rounded bg-red-50 text-red-500 text-[10px] font-black border border-red-100">공지</span>;
-      case 'S': return <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-500 text-[10px] font-black border border-blue-100">학습</span>;
-      case 'G': return <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-500 text-[10px] font-black border border-emerald-100">자유</span>;
-      default: return null;
-    }
+  const getBoardBadge = (code: string) => {
+    const config = getBoardConfig(code);
+    if (!config) return null;
+
+    let bgColor = 'bg-slate-50 border-slate-100 text-slate-500';
+    if (code === getBoardCode('G_BRD_NOTICE')) bgColor = 'bg-red-50 border-red-100 text-red-500';
+    else if (code === getBoardCode('G_BRD_LICENSE')) bgColor = 'bg-blue-50 border-blue-100 text-blue-500';
+    else if (code === getBoardCode('G_BRD_GREETING')) bgColor = 'bg-emerald-50 border-emerald-100 text-emerald-500';
+
+    return <span className={`px-2 py-0.5 rounded ${bgColor} text-[10px] font-black border`}>{config.boardName}</span>;
   };
 
   const isMyMode = mode === 'my';
@@ -312,26 +345,41 @@ export default function PracticeExams() {
     <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] transition-colors">
       <main className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-10">
         
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+        <div className={`flex flex-col md:flex-row md:items-end justify-between gap-6 ${isMyMode ? 'mb-12' : 'mb-8'}`}>
           <div>
-            <nav className="flex items-center gap-2 text-sm text-slate-400 mb-4">
-              <Link to="/" className="hover:text-primary transition-colors font-medium">{getText('common.home')}</Link>
+            <nav className="flex items-center gap-2 text-sm text-slate-400 mb-4 font-bold">
+              <Link to="/" className="hover:text-primary transition-colors">{getText('common.home')}</Link>
               <ChevronRight size={14} />
-              <span className="text-slate-900 dark:text-white font-bold">
-                {isMyMode ? '내 활동 관리' : type === 'N' ? getText('board.notice') : type === 'G' ? getText('board.join_greetings') : getText('board.sqld_study')}
-              </span>
-            </nav>
-            <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
               {isMyMode ? (
+                <span className="text-slate-900 dark:text-white">내 활동 관리</span>
+              ) : (
                 <>
+                  <Link 
+                    to={`/practice-exams?boardCode=${boardCode}`} 
+                    className={`${!categoryId ? 'text-slate-900 dark:text-white' : 'hover:text-primary transition-colors'}`}
+                  >
+                    {boardConfig?.boardName || '게시판'}
+                  </Link>
+                  {categoryId && (
+                    <>
+                      <ChevronRight size={14} />
+                      <span className="text-slate-900 dark:text-white">
+                        {categories.find(c => c.categoryId === categoryId)?.categoryName || categoryId}
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
+            </nav>
+            {isMyMode && (
+              <>
+                <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
                   <div className="p-2 bg-primary/10 rounded-2xl text-primary"><User size={32} /></div>
                   내 활동 관리
-                </>
-              ) : (
-                type === 'N' ? '공지사항' : type === 'G' ? '가입 인사' : 'SQLD 학습 커뮤니티'
-              )}
-            </h1>
-            {isMyMode && <p className="mt-2 text-slate-500 dark:text-slate-400 font-medium ml-1">내가 작성한 게시글을 한눈에 확인하고 관리하세요.</p>}
+                </h1>
+                <p className="mt-2 text-slate-500 dark:text-slate-400 font-medium ml-1">내가 작성한 게시글을 한눈에 확인하고 관리하세요.</p>
+              </>
+            )}
           </div>
         </div>
 
@@ -339,40 +387,71 @@ export default function PracticeExams() {
           
           <div className="lg:col-span-9 space-y-6">
             
-            {!isMyMode && (
+            {isMyMode ? (
+              <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                <button
+                  onClick={() => {
+                    const params = new URLSearchParams(searchParams);
+                    params.delete('boardCode');
+                    params.set('page', '1');
+                    setSearchParams(params);
+                  }}
+                  className={`flex-shrink-0 flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[15px] font-bold transition-all shadow-sm ${!boardCode ? 'bg-primary text-white' : 'bg-white dark:bg-[#1a222c] text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-800 hover:bg-slate-50'}`}
+                >
+                  <Layers size={18} /> 전체 내역
+                </button>
+                {boardConfigs.filter(b => b.useYn === 'Y').map((config) => (
+                  <button
+                    key={config.boardCode}
+                    onClick={() => {
+                      const params = new URLSearchParams(searchParams);
+                      params.set('boardCode', config.boardCode);
+                      params.set('page', '1');
+                      setSearchParams(params);
+                    }}
+                    className={`flex-shrink-0 flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[15px] font-bold transition-all shadow-sm ${boardCode === config.boardCode ? 'bg-primary text-white' : 'bg-white dark:bg-[#1a222c] text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-800 hover:bg-slate-50'}`}
+                  >
+                    {config.boardName}
+                  </button>
+                ))}
+              </div>
+            ) : (
               <div className="flex flex-col gap-6">
                 
                 <div className="flex items-center justify-between gap-4">
-                  {type === 'S' ? ( 
+                  {categories.length > 0 && ( 
                     <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                      {[
-                        { id: '', label: '전체', icon: Layers },
-                        { id: 'question', label: '질문', icon: MessageCircle },
-                        { id: 'tip', label: '팁', icon: Lightbulb },
-                        { id: 'faq', label: '자주 묻는 질문', icon: HelpCircle },
-                      ].map((cat) => (
+                      <button
+                        onClick={() => {
+                          const params = new URLSearchParams(searchParams);
+                          params.delete('categoryId');
+                          params.set('page', '1');
+                          setSearchParams(params);
+                        }}
+                        className={`flex-shrink-0 flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[15px] font-bold transition-all shadow-sm ${!categoryId ? 'bg-[#3b82f6] text-white' : 'bg-white dark:bg-[#1a222c] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800'}`}
+                      >
+                        <Layers size={18} /> 전체
+                      </button>
+                      {categories.map((cat) => (
                         <button
-                          key={cat.id}
+                          key={cat.categoryId}
                           onClick={() => {
                             const params = new URLSearchParams(searchParams);
-                            params.set('category', cat.id);
+                            params.set('categoryId', cat.categoryId);
                             params.set('page', '1');
                             setSearchParams(params);
                           }}
-                          className={`flex-shrink-0 flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[15px] font-bold transition-all shadow-sm ${category === cat.id ? 'bg-[#3b82f6] text-white' : 'bg-white dark:bg-[#1a222c] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800'}`}
+                          className={`flex-shrink-0 flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[15px] font-bold transition-all shadow-sm ${categoryId === cat.categoryId ? 'bg-[#3b82f6] text-white' : 'bg-white dark:bg-[#1a222c] text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800'}`}
                         >
-                          <cat.icon size={18} />
-                          {cat.label}
+                          <MessageCircle size={18} />
+                          {cat.categoryName}
                         </button>
                       ))}
                     </div>
-                  ) : (
-                    <div />
                   )}
-
-                  {user && (type !== 'N' || user.userRole == 'ADMIN') && (
+                  {user && (boardCode !== 'N' || user.userRole == 'ADMIN') && (
                     <Link 
-                      to={`/write-post?type=${type}${category ? `&category=${category}` : ''}`}
+                      to={`/write-post?boardCode=${boardCode}${categoryId ? `&categoryId=${categoryId}` : ''}`}
                       className="inline-flex items-center gap-2 px-5 py-3 bg-primary text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95 text-sm flex-shrink-0"
                     >
                       <PenSquare size={18} />
@@ -432,94 +511,106 @@ export default function PracticeExams() {
             )}
 
             <div className="bg-white dark:bg-[#1a222c] rounded-[2.5rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse table-fixed">
-                  <thead>
-                    <tr className="bg-[#f6f7f8] dark:bg-slate-800/50 border-b border-[#e7edf3] dark:border-slate-800">
-                      <th className="px-6 py-4 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider w-[96px] text-center">번호</th>
-                      <th className="px-6 py-4 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider">제목</th>
-                      <th className="px-6 py-4 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider w-32 text-center">작성자</th>
-                      <th className="px-6 py-4 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider w-32 text-center">날짜</th>
-                      <th className="px-6 py-4 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider w-20 text-center">조회</th>
-                      <th className="px-6 py-4 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider w-24 text-center">좋아요</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#e7edf3] dark:divide-slate-800">
-                    {isLoading ? (
-                      Array.from({ length: 10 }).map((_, i) => (
-                        <tr key={i} className="animate-pulse">
-                          <td colSpan={6} className="px-8 py-10"><div className="h-4 bg-slate-100 dark:bg-slate-800 rounded-full w-full"></div></td>
-                        </tr>
-                      ))
-                    ) : posts.length > 0 ? (
-                      posts.map((post, idx) => {
-                        const isRead = readPosts.includes(post.id);
-                        const isNew = (new Date().getTime() - new Date(post.date).getTime()) < 24 * 60 * 60 * 1000;
-                        const displayNo = post.seqNumber || (page - 1) * 10 + idx + 1;
+              {/* 리스트 헤더 (div 기반) */}
+              <div className="hidden md:flex items-center bg-[#f6f7f8] dark:bg-slate-800/50 border-b border-[#e7edf3] dark:border-slate-800 px-8 py-4">
+                <div className="w-20 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider text-center">번호</div>
+                <div className="flex-1 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider px-4">제목</div>
+                <div className="w-32 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider text-center">작성자</div>
+                <div className="w-32 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider text-center">날짜</div>
+                <div className="w-20 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider text-center">조회</div>
+                <div className="w-24 text-[11px] font-bold text-[#4c739a] uppercase tracking-wider text-center">좋아요</div>
+              </div>
 
-                        return (
-                          <tr key={post.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer" onClick={() => { handlePostClick(post.id); navigate(`/exam/${post.id}?type=${post.boardType}`); }}>
-                            <td className="px-6 py-5 text-sm text-[#4c739a] text-center font-bold whitespace-nowrap">
-                              {String(displayNo).padStart(2, '0')}
-                            </td>
-                            <td className="px-6 py-5">
-                              <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-2">
-                                  {isMyMode && getBoardBadge(post.boardType)}
-                                  <h3 className={`text-sm font-bold transition-colors truncate ${isRead ? 'text-slate-400' : 'text-[#0d141b] dark:text-white group-hover:text-primary'}`}>
-                                    {post.title}
-                                  </h3>
-                                  {post.comments > 0 && (
-                                    <span className="text-primary font-black text-[11px] shrink-0">
-                                      [{post.comments}]
-                                    </span>
-                                  )}
-                                  {isNew && <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 text-[9px] font-black">NEW</span>}
-                                </div>
-                                {post.tags && post.tags.length > 0 && (
-                                  <div className="flex flex-wrap gap-2">
-                                    {post.tags.map((t, i) => (
-                                      <span 
-                                        key={i} 
-                                        onClick={(e) => { e.stopPropagation(); handleTagClick(t); }}
-                                        className="px-1.5 py-0.5 bg-primary/5 text-primary text-[10px] font-medium rounded border border-primary/10 hover:bg-primary/10 transition-colors"
-                                      >
-                                        #{t}
-                                      </span>
-                                    ))}
-                                  </div>
+              {/* 리스트 본문 (로딩 시 비우고 완료 시 한 번에 노출하는 방식) */}
+              <div className="min-h-[500px] divide-y divide-[#e7edf3] dark:divide-slate-800">
+                {(!isLoading && !isDataStale) ? (
+                  posts.length > 0 ? (
+                    posts.map((post, idx) => {
+                      const isRead = readPosts.includes(post.id);
+                      const isNew = (new Date().getTime() - new Date(post.date).getTime()) < 24 * 60 * 60 * 1000;
+                      const displayNo = post.seqNumber || (page - 1) * size + idx + 1;
+
+                      return (
+                        <div 
+                          key={post.id}
+                          onClick={() => { handlePostClick(post.id); navigate(`/exam/${post.id}?boardCode=${post.boardCode}`); }}
+                          className="flex flex-col md:flex-row md:items-center px-8 py-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer h-auto md:h-[84px]"
+                        >
+                          {/* 번호 */}
+                          <div className="hidden md:block w-20 text-sm text-[#4c739a] text-center font-bold flex-shrink-0">
+                            {String(displayNo).padStart(2, '0')}
+                          </div>
+                          
+                          {/* 제목 */}
+                          <div className="flex-1 px-4 min-w-0">
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center gap-2">
+                                {isMyMode && getBoardBadge(post.boardCode)}
+                                <h3 className={`text-sm font-bold transition-colors truncate ${isRead ? 'text-slate-400' : 'text-[#0d141b] dark:text-white group-hover:text-primary'}`}>
+                                  {post.title}
+                                </h3>
+                                {post.comments > 0 && (
+                                  <span className="text-primary font-black text-[11px] shrink-0">
+                                    [{post.comments}]
+                                  </span>
                                 )}
+                                {isNew && <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 text-[9px] font-black">NEW</span>}
                               </div>
-                            </td>
-                            <td className="px-6 py-5 text-sm text-center font-medium text-slate-600 dark:text-slate-300 truncate">{post.author}</td>
-                            <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center whitespace-nowrap">
-                              {getCustomDateDisplay(post.date)}
-                            </td>
-                            <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center font-medium">{post.views}</td>
-                            <td className="px-6 py-5">
-                              <div className={`flex items-center justify-center gap-1.5 ${post.likes > 0 ? 'text-primary' : 'text-slate-400'}`}>
-                                <ThumbsUp size={14} className={post.likes > 0 ? 'fill-primary/10' : ''} />
-                                <span className="text-xs font-black">{post.likes}</span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={6} className="py-32 text-center text-[#4c739a]">
-                          <Search size={40} className="mx-auto mb-4 opacity-20" />
-                          <p className="font-bold">{isMyMode ? "아직 작성한 게시글이 없습니다. 첫 글을 남겨보세요! ✍️" : "게시글이 없습니다"}</p>
-                          {isMyMode && (
-                            <Link to="/write-post?type=S" className="inline-block mt-6 px-6 py-2.5 bg-primary text-white font-black rounded-xl shadow-lg shadow-primary/20 hover:bg-blue-600 transition-all text-sm">
-                              첫 글 작성하기
-                            </Link>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                              {post.tags && post.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {post.tags.map((t, i) => (
+                                    <span 
+                                      key={i} 
+                                      onClick={(e) => { e.stopPropagation(); handleTagClick(t); }}
+                                      className="px-1.5 py-0.5 bg-primary/5 text-primary text-[10px] font-medium rounded border border-primary/10 hover:bg-primary/10 transition-colors"
+                                    >
+                                      #{t}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 작성자 */}
+                          <div className="w-full md:w-32 text-center text-[13px] font-medium text-slate-600 dark:text-slate-300 truncate mt-2 md:mt-0 flex-shrink-0">
+                            {post.author}
+                          </div>
+
+                          {/* 날짜 */}
+                          <div className="w-full md:w-32 text-center text-[13px] text-[#4c739a] dark:text-slate-400 mt-1 md:mt-0 flex-shrink-0">
+                            {getCustomDateDisplay(post.date)}
+                          </div>
+
+                          {/* 조회수 */}
+                          <div className="hidden md:block w-20 text-center text-[13px] text-[#4c739a] dark:text-slate-400 flex-shrink-0">
+                            {post.views}
+                          </div>
+
+                          {/* 좋아요 */}
+                          <div className="w-full md:w-24 flex items-center justify-center gap-1.5 mt-2 md:mt-0 flex-shrink-0">
+                            <ThumbsUp size={14} className={post.likes > 0 ? 'fill-primary/10 text-primary' : 'text-slate-400'} />
+                            <span className={`text-xs font-black ${post.likes > 0 ? 'text-primary' : 'text-slate-400'}`}>{post.likes}</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="py-32 text-center text-[#4c739a]">
+                      <Search size={40} className="mx-auto mb-4 opacity-20" />
+                      <p className="font-bold">{isMyMode ? "아직 작성한 게시글이 없습니다. 첫 글을 남겨보세요! ✍️" : "게시글이 없습니다"}</p>
+                    </div>
+                  )
+                ) : (
+                  /* 로딩 중에는 리스트 영역을 비워둠 (잔상 방지 핵심) */
+                  /* 나중에 로딩이 길어질 경우 아래 주석을 해제하여 사용하세요. */
+                  /*
+                  <div className="absolute inset-0 flex items-center justify-center z-50">
+                    <div className="w-8 h-8 border-4 border-primary/10 border-t-primary rounded-full animate-spin" />
+                  </div>
+                  */
+                  null
+                )}
               </div>
             </div>
 
@@ -546,7 +637,7 @@ export default function PracticeExams() {
                 </div>
                 <div className="space-y-5">
                   {popularPosts.length > 0 ? popularPosts.map((post) => (
-                    <Link key={post.id} to={`/exam/${post.id}?type=S`} className="block group border-b border-slate-50 dark:border-slate-800 pb-4 last:border-0 last:pb-0">
+                    <Link key={post.id} to={`/exam/${post.id}?boardCode=S`} className="block group border-b border-slate-50 dark:border-slate-800 pb-4 last:border-0 last:pb-0">
                       <p className="text-xs font-black text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors line-clamp-2 mb-2 leading-relaxed">
                         {post.title}
                       </p>

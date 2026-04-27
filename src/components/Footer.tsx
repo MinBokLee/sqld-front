@@ -23,22 +23,22 @@ export default function Footer({ getText }: FooterProps) {
             <h5 className="font-bold mb-4 text-[#0d141b] dark:text-white">{getText('footer.quick_links')}</h5>
             <ul className="space-y-2 text-sm text-[#4c739a] dark:text-slate-400">
               <li>
-                <Link to="/practice-exams?type=N" className="hover:text-primary transition-colors">
+                <Link to="/practice-exams?boardCode=N" className="hover:text-primary transition-colors">
                   {getText('footer.notice')}
                 </Link>
               </li>
               <li>
-                <Link to="/practice-exams?type=S" className="hover:text-primary transition-colors">
+                <Link to="/practice-exams?boardCode=S" className="hover:text-primary transition-colors">
                   {getText('footer.sqld_study_link')}
                 </Link>
               </li>
               <li>
-                <Link to="/practice-exams?type=G" className="hover:text-primary transition-colors">
+                <Link to="/practice-exams?boardCode=G" className="hover:text-primary transition-colors">
                   {getText('board.join_greetings')}
                 </Link>
               </li>
               <li>
-                <Link to="/practice-exams?type=S&category=faq" className="hover:text-primary transition-colors">
+                <Link to="/practice-exams?boardCode=S&categoryId=faq" className="hover:text-primary transition-colors">
                   {getText('footer.faq')}
                 </Link>
               </li>

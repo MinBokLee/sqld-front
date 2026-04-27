@@ -1,14 +1,18 @@
 import React, { useState } from 'react';
-import { X, User, Mail, ShieldCheck, Lock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, User, Mail, ShieldCheck, Lock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+
+import { useAlert } from '../contexts/AlertContext';
 
 interface PasswordResetModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess: () => void;
 }
 
-type Step = 'request' | 'verify' | 'reset' | 'success';
+type Step = 'request' | 'verify' | 'reset';
 
-const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose }) => {
+const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const { showToast } = useAlert();
   const [step, setStep] = useState<Step>('request');
   const [userId, setUserId] = useState('');
   const [email, setEmail] = useState('');
@@ -93,7 +97,9 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose
         body: JSON.stringify({ userId, email, newPassword }),
       });
       if (response.ok) {
-        setStep('success');
+        onClose();
+        showToast('비밀번호가 성공적으로 변경되었습니다. ✨ 새로운 비밀번호로 로그인해 주세요.');
+        onSuccess();
       } else {
         const data = await response.json();
         setError(data.message || '비밀번호 변경에 실패했습니다.');
@@ -149,11 +155,11 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose
               </div>
             )}
             <button
-              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-lg shadow-md shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-50"
+              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-lg shadow-md shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 h-[48px]"
               type="submit"
               disabled={loading}
             >
-              {loading ? '요청 중...' : '인증 코드 발송'}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : '인증 코드 발송'}
             </button>
           </form>
         );
@@ -187,11 +193,11 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose
               </div>
             )}
             <button
-              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-lg shadow-md shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-50"
+              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-lg shadow-md shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 h-[48px]"
               type="submit"
               disabled={loading}
             >
-              {loading ? '확인 중...' : '인증 코드 확인'}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : '인증 코드 확인'}
             </button>
             <button
               type="button"
@@ -244,35 +250,13 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose
               </div>
             )}
             <button
-              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-lg shadow-md shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-50"
+              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-lg shadow-md shadow-primary/20 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 h-[48px]"
               type="submit"
               disabled={loading}
             >
-              {loading ? '변경 중...' : '비밀번호 변경'}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : '비밀번호 변경'}
             </button>
           </form>
-        );
-      case 'success':
-        return (
-          <div className="text-center space-y-6 py-4">
-            <div className="flex justify-center">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-500">
-                <CheckCircle2 className="w-10 h-10" />
-              </div>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-slate-800 dark:text-white">변경 완료!</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-2">
-                비밀번호가 성공적으로 변경되었습니다.<br />새로운 비밀번호로 로그인해 주세요.
-              </p>
-            </div>
-            <button
-              onClick={onClose}
-              className="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-lg shadow-md shadow-primary/20 transition-all active:scale-[0.98]"
-            >
-              로그인하러 가기
-            </button>
-          </div>
         );
     }
   };
@@ -282,7 +266,6 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose
       case 'request': return '비밀번호 재설정';
       case 'verify': return '인증 코드 확인';
       case 'reset': return '새 비밀번호 설정';
-      case 'success': return '변경 완료';
     }
   };
 
@@ -291,7 +274,6 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose
       case 'request': return '가입 시 입력한 아이디와 이메일을 입력해 주세요.';
       case 'verify': return '이메일로 발송된 코드를 입력해 주세요.';
       case 'reset': return '보안을 위해 강력한 비밀번호를 설정해 주세요.';
-      case 'success': return '';
     }
   };
 

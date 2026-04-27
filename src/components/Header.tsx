@@ -7,6 +7,7 @@ import { useState, useRef, useEffect } from 'react';
 import ProfileDropdown from './ProfileDropdown';
 import WithdrawalModal from './WithdrawalModal';
 import api from '../utils/api';  
+import { useBoard } from '../contexts/BoardContext';
 
 interface HeaderProps {
   onOpenSignUpModal: () => void;
@@ -19,6 +20,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
   const { user, logout } = useUser();
   const { showAlert } = useAlert(); 
   const { unreadCount, notifications, markAsRead, markAllAsRead } = useNotification();
+  const { getBoardCode, boardConfigs } = useBoard();
   const location = useLocation();
   const navigate = useNavigate();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -32,7 +34,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
   const notiRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const searchParams = new URLSearchParams(location.search);
-  const currentType = searchParams.get('type');
+  const currentCode = searchParams.get('boardCode');
   
   const isTargetPage = ['/practice-exams', '/exam', '/write-post'].some(path => location.pathname.startsWith(path));
 
@@ -61,14 +63,14 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
   const handleHeaderSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (headerKeyword.trim()) {
-      navigate(`/practice-exams?type=S&page=1&keyword=${encodeURIComponent(headerKeyword.trim())}`);
+      navigate(`/practice-exams?boardCode=S&page=1&keyword=${encodeURIComponent(headerKeyword.trim())}`);
       setHeaderKeyword('');
       setIsMobileMenuOpen(false);
     } else {
       let message = "키워드를 입력해 주세요. ⚠️ 검색어 없이 조회를 진행할 수 없습니다.";
-      if (currentType === 'N') message = "확인하실 공지사항 키워드를 입력해 주세요. 📢";
-      else if (currentType === 'S') message = "키워드를 입력해 주세요. ⚠️ 학습 게시판 내에서 검색어를 통해 조회가 가능합니다.";
-      else if (currentType === 'G') message = "찾으시는 회원님이나 인사말 키워드를 입력해 주세요. 😊";
+      if (currentCode === 'N') message = "확인하실 공지사항 키워드를 입력해 주세요. 📢";
+      else if (currentCode === 'S') message = "키워드를 입력해 주세요. ⚠️ 학습 게시판 내에서 검색어를 통해 조회가 가능합니다.";
+      else if (currentCode === 'G') message = "찾으시는 회원님이나 인사말 키워드를 입력해 주세요. 😊";
       
       showAlert({ type: 'warning', message });
     }
@@ -82,32 +84,29 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
         headers: { 'Authorization': `Bearer ${user.accessToken}` }
       });
 
-      if (response.status === 200 || response.data.success) {
-        showAlert({ type: 'success', message: "회원 탈퇴가 완료되었습니다. ✅ 그동안 이용해 주셔서 감사합니다." });
+      if (response.data.success) {
+        showToast(response.data.msg || "회원 탈퇴가 완료되었습니다. ✨", 'success');
         setIsWithdrawalModalOpen(false);
         logout(); 
-      } else {
-        showAlert({ type: 'error', message: "탈퇴 처리 중 오류가 발생했습니다. ❌ 잠시 후 다시 시도해 주세요." });
       }
     } catch (error) {
       console.error("Withdrawal error:", error);
-      showAlert({ type: 'error', message: "서버 통신 오류가 발생했습니다. ❌ 네트워크 상태를 확인해 주세요." });
     } finally {
       setIsWithdrawing(false);
     }
   };
 
-  const getMenuClass = (type: string | null) => {
-    const isActive = isTargetPage && currentType === type;
+  const getMenuClass = (code: string | null) => {
+    const isActive = isTargetPage && currentCode === code;
     const isStudyActive = isTargetPage && (
-      (currentType === 'S') || 
-      (location.pathname === '/practice-exams' && !currentType && type === 'S')
+      (currentCode === 'S') || 
+      (location.pathname === '/practice-exams' && !currentCode && code === 'S')
     );
     
     const activeClass = "text-primary dark:text-primary";
     const inactiveClass = "text-[#4c739a] hover:text-primary dark:text-slate-400 dark:hover:text-primary";
     
-    if (type === 'S') return isStudyActive ? activeClass : inactiveClass;
+    if (code === 'S') return isStudyActive ? activeClass : inactiveClass;
     return isActive ? activeClass : inactiveClass;
   };
 
@@ -133,18 +132,18 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
               </h2>
             </Link>
             <nav className="hidden lg:flex items-center gap-6">
-              <Link to="/practice-exams?type=N" className={`${getMenuClass('N')} text-sm font-semibold transition-colors`}>
-                {getText('board.notice')}
-              </Link>
-              <Link to="/practice-exams?type=S" className={`${getMenuClass('S')} text-sm font-semibold transition-colors`}>
-                {getText('board.sqld_study')}
-              </Link>
-              <Link to="/practice-exams?type=G" className={`${getMenuClass('G')} text-sm font-semibold transition-colors`}>
-                {getText('board.join_greetings')}
-              </Link>
+              {boardConfigs.filter(config => config.useYn === 'Y').map((config) => (
+                <Link 
+                  key={config.boardCode}
+                  to={`/practice-exams?boardCode=${config.boardCode}`} 
+                  className={`${getMenuClass(config.boardCode)} text-sm font-semibold transition-colors`}
+                >
+                  {config.boardName}
+                </Link>
+              ))}
               {['ADMIN', 'SUPER_ADMIN'].includes(user?.userRole || '') && (
                 <Link to="/admin/members" className="text-red-500 hover:text-red-600 text-sm font-black transition-colors flex items-center gap-1">
-                  <ShieldCheck size={16} /> 회원 관리
+                  <ShieldCheck size={16} /> 시스템 설정
                 </Link>
               )}
             </nav>
@@ -207,7 +206,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
                                 if (!url) return '/';
                                 if (url.includes('/board/view?boardId=')) {
                                   const boardId = url.split('boardId=')[1]?.split('&')[0];
-                                  return `/exam/${boardId}?type=S`; 
+                                  return `/exam/${boardId}?boardCode=S`; 
                                 }
                                 return url;
                               };
@@ -350,36 +349,23 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
 
             <nav className="flex-1 space-y-2">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Navigation</p>
-              <Link 
-                to="/practice-exams?type=N" 
-                className={`flex items-center gap-3 p-3 rounded-xl transition-colors font-bold ${
-                  currentType === 'N' 
-                  ? 'bg-primary/10 text-primary' 
-                  : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                <Megaphone size={18} className={currentType === 'N' ? 'text-primary' : 'text-slate-400'} /> {getText('board.notice')}
-              </Link>
-              <Link 
-                to="/practice-exams?type=S" 
-                className={`flex items-center gap-3 p-3 rounded-xl transition-colors font-bold ${
-                  (currentType === 'S' || (!currentType && location.pathname === '/practice-exams'))
-                  ? 'bg-primary/10 text-primary' 
-                  : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                <FileText size={18} className={(currentType === 'S' || (!currentType && location.pathname === '/practice-exams')) ? 'text-primary' : 'text-slate-400'} /> {getText('board.sqld_study')}
-              </Link>
-              <Link 
-                to="/practice-exams?type=G" 
-                className={`flex items-center gap-3 p-3 rounded-xl transition-colors font-bold ${
-                  currentType === 'G' 
-                  ? 'bg-primary/10 text-primary' 
-                  : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                }`}
-              >
-                <Smile size={18} className={currentType === 'G' ? 'text-primary' : 'text-slate-400'} /> {getText('board.join_greetings')}
-              </Link>
+              {boardConfigs.filter(config => config.useYn === 'Y').map((config) => (
+                <Link 
+                  key={config.boardCode}
+                  to={`/practice-exams?boardCode=${config.boardCode}`} 
+                  className={`flex items-center gap-3 p-3 rounded-xl transition-colors font-bold ${
+                    currentCode === config.boardCode
+                    ? 'bg-primary/10 text-primary' 
+                    : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {config.groupCode === 'G_BRD_NOTICE' ? <Megaphone size={18} className={currentCode === config.boardCode ? 'text-primary' : 'text-slate-400'} /> : 
+                   config.groupCode === 'G_BRD_GREETING' ? <Smile size={18} className={currentCode === config.boardCode ? 'text-primary' : 'text-slate-400'} /> : 
+                   <FileText size={18} className={(currentCode === config.boardCode || (!currentCode && config.groupCode === 'G_BRD_LICENSE' && location.pathname === '/practice-exams')) ? 'text-primary' : 'text-slate-400'} />}
+                  {config.boardName}
+                </Link>
+              ))}
               
               {['ADMIN', 'SUPER_ADMIN'].includes(user?.userRole || '') && (
                 <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">

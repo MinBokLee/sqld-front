@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   X, User, Mail, Lock, CheckCircle2, ShieldCheck, Clock, Send, AlertCircle, Check,
-  Eye, EyeOff
+  Eye, EyeOff, Loader2
 } from 'lucide-react';
 import { useAlert } from '../contexts/AlertContext';
 
@@ -12,7 +12,7 @@ interface SignUpModalProps {
 }
 
 export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalProps) {
-  const { showAlert } = useAlert();
+  const { showAlert, showToast } = useAlert();
   const [formData, setSignUpData] = useState({
     userId: '',
     userName: '',
@@ -46,6 +46,29 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // [추가] 실시간 자동 중복 체크 로직 (Debouncing)
+  useEffect(() => {
+    if (!formData.userId || errors.userId) {
+      setIdChecked(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      checkIdDuplication();
+    }, 600); // 0.6초간 입력이 없으면 자동 체크
+    return () => clearTimeout(timer);
+  }, [formData.userId, errors.userId]);
+
+  useEffect(() => {
+    if (!formData.userName || errors.userName) {
+      setNameChecked(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      checkNameDuplication();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [formData.userName, errors.userName]);
+
   // 배경 스크롤 방지 로직
   useEffect(() => {
     if (isOpen) {
@@ -60,8 +83,8 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
 
   useEffect(() => {
     const newErrors = { ...errors };
-    if (formData.userId && !/^[a-z0-9]{4,20}$/.test(formData.userId)) {
-      newErrors.userId = '아이디는 4~20자의 영문 소문자, 숫자만 가능합니다.';
+    if (formData.userId && !/^[a-zA-Z0-9]{4,20}$/.test(formData.userId)) {
+      newErrors.userId = '아이디는 4~20자의 영문, 숫자만 가능합니다.';
     } else {
       newErrors.userId = '';
     }
@@ -139,7 +162,7 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
 
   const handleSendCode = async () => {
     if (errors.userEmail || !formData.userEmail) {
-      showAlert({ type: 'warning', message: "올바른 이메일을 입력해 주세요. ✍️" });
+      showToast("올바른 이메일을 입력해 주세요. ✍️");
       return;
     }
     setIsSending(true);
@@ -151,23 +174,19 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
       });
       const data = await response.json();
       
-      if (response.ok && data.success) {
+      if (data.success) {
         setIsCodeSent(true);
         setTimeLeft(300);
-        showAlert({ type: 'success', message: "인증번호가 발송되었습니다. ✅ 메일함을 확인해 주세요." });
+        showToast(data.msg);
       } else {
         setIsCodeSent(false);
+        showToast(data.msg);
         if (data.code === 'existsMemberException') {
-          showAlert({ type: 'info', message: "이미 가입된 회원입니다. 👤 로그인하시거나 다른 이메일을 사용해 주세요." });
-          setErrors(prev => ({ ...prev, userEmail: "이미 가입된 회원입니다." }));
-        } else if (data.code === 'existMailException') {
-          showAlert({ type: 'info', message: "이미 인증이 완료된 이메일입니다. ✨ 가입을 진행해 주세요." });
-        } else {
-          showAlert({ type: 'error', message: "인증번호 발송에 문제가 생겼어요. ⏳ 잠시 후 다시 시도해 주세요." });
+          setErrors(prev => ({ ...prev, userEmail: data.msg }));
         }
       }
     } catch (error) { 
-      showAlert({ type: 'error', message: "통신이 잠시 원활하지 않아요. 🌐 네트워크 상태를 확인해 주세요." }); 
+      showToast("인증 요청 중 오류가 발생했습니다."); 
     } finally { 
       setIsSending(false); 
     }
@@ -175,7 +194,7 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
 
   const handleVerifyCode = async () => {
     if (verificationCode.length !== 6) {
-      showAlert({ type: 'warning', message: "6자리 인증번호를 정확히 입력해 주세요. ✍️" });
+      showToast("6자리 인증번호를 입력해 주세요. ✍️");
       return;
     }
     setIsVerifying(true);
@@ -186,14 +205,14 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
         body: JSON.stringify({ email: formData.userEmail, code: verificationCode })
       });
       const data = await response.json();
-      if (response.ok) {
+      if (data.success) {
         setIsVerified(true);
-        showAlert({ type: 'success', message: "이메일 인증이 완료되었습니다. ✅" });
+        showToast(data.msg);
       } else { 
-        showAlert({ type: 'warning', message: "인증번호가 일치하지 않아요. ✍️ 다시 한번 확인해 주시겠어요?" }); 
+        showToast(data.msg); 
       }
     } catch (error) { 
-      showAlert({ type: 'error', message: "확인 중에 문제가 발생했어요. ⏳ 잠시 후 다시 시도해 주세요." }); 
+      showToast("확인 중에 문제가 발생했어요. ⏳"); 
     } finally { setIsVerifying(false); }
   };
 
@@ -216,16 +235,15 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
         })
       });
       const data = await response.json();
-      if (response.ok) {
-        showAlert({ type: 'success', message: "회원가입이 완료되었습니다! ✨ 환영합니다." });
+      if (data.success) {
+        showToast(data.msg, 'success');
         onClose();
-      } else { 
-        showAlert({ type: 'error', message: "가입 처리 중에 문제가 발생했어요. ⏳ 잠시 후 다시 시도해 주세요." }); 
       }
-    } catch (error) { 
-      showAlert({ type: 'error', message: "통신이 잠시 원활하지 않아요. 🌐 네트워크 상태를 확인해 주세요." }); 
-    }
-  };
+      } catch (error) { 
+      console.error("Signup error:", error);
+      }
+      };
+
 
   if (!isOpen) return null;
 
@@ -251,16 +269,16 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
                   <User className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${errors.userId ? 'text-red-400' : idChecked ? 'text-emerald-500' : 'text-slate-400 group-focus-within:text-primary'}`} size={20} />
                   <input
                     required
-                    className={`w-full h-14 pl-12 pr-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 outline-none font-bold text-sm transition-all ${errors.userId ? 'border-red-100 focus:border-red-400' : idChecked ? 'border-emerald-100' : 'border-transparent focus:ring-2 focus:ring-primary/20'}`}
+                    className={`w-full h-14 pl-12 pr-12 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 outline-none font-bold text-sm transition-all ${errors.userId ? 'border-red-100 focus:border-red-400' : idChecked ? 'border-emerald-100' : 'border-transparent focus:ring-2 focus:ring-primary/20'}`}
                     placeholder="아이디 (4~20자 영문/숫자)"
                     type="text"
                     value={formData.userId}
                     onChange={(e) => { setSignUpData({ ...formData, userId: e.target.value }); setIdChecked(false); setSuccessMsgs({...successMsgs, userId: ''}); }}
-                    onBlur={checkIdDuplication}
                   />
+                  {idChecked && !errors.userId && <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 animate-in zoom-in"><CheckCircle2 size={20} /></div>}
                 </div>
                 {errors.userId && <p className="text-[11px] text-red-500 font-bold ml-2 flex items-center gap-1"><AlertCircle size={12}/> {errors.userId}</p>}
-                {idChecked && !errors.userId && <p className="text-[11px] text-emerald-600 font-bold ml-2 flex items-center gap-1"><Check size={12}/> {successMsgs.userId}</p>}
+                {idChecked && !errors.userId && <p className="text-[11px] text-emerald-600 font-bold ml-2 flex items-center gap-1">{successMsgs.userId}</p>}
               </div>
 
               <div className="space-y-1">
@@ -268,17 +286,18 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
                   <ShieldCheck className={`absolute left-4 top-1/2 -translate-y-1/2 transition-colors ${errors.userName ? 'text-red-400' : nameChecked ? 'text-emerald-500' : 'text-slate-400 group-focus-within:text-primary'}`} size={20} />
                   <input
                     required
-                    className={`w-full h-14 pl-12 pr-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 outline-none font-bold text-sm transition-all ${errors.userName ? 'border-red-100 focus:border-red-400' : nameChecked ? 'border-emerald-100' : 'border-transparent focus:ring-2 focus:ring-primary/20'}`}
+                    className={`w-full h-14 pl-12 pr-12 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 outline-none font-bold text-sm transition-all ${errors.userName ? 'border-red-100 focus:border-red-400' : nameChecked ? 'border-emerald-100' : 'border-transparent focus:ring-2 focus:ring-primary/20'}`}
                     placeholder="이름 (실명/닉네임)"
                     type="text"
                     value={formData.userName}
                     onChange={(e) => { setSignUpData({ ...formData, userName: e.target.value }); setNameChecked(false); setSuccessMsgs({...successMsgs, userName: ''}); }}
-                    onBlur={checkNameDuplication}
                   />
+                  {nameChecked && !errors.userName && <div className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-500 animate-in zoom-in"><CheckCircle2 size={20} /></div>}
                 </div>
                 {errors.userName && <p className="text-[11px] text-red-500 font-bold ml-2 flex items-center gap-1"><AlertCircle size={12}/> {errors.userName}</p>}
-                {nameChecked && !errors.userName && <p className="text-[11px] text-emerald-600 font-bold ml-2 flex items-center gap-1"><Check size={12}/> {successMsgs.userName}</p>}
+                {nameChecked && !errors.userName && <p className="text-[11px] text-emerald-600 font-bold ml-2 flex items-center gap-1">{successMsgs.userName}</p>}
               </div>
+
 
               <div className="space-y-2">
                 <div className="flex gap-2">
@@ -287,8 +306,20 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
                     <input required readOnly={isVerified} className={`w-full h-14 pl-12 pr-4 rounded-2xl bg-slate-50 dark:bg-slate-800 border-2 outline-none font-bold text-sm transition-all ${isVerified ? 'opacity-60 bg-slate-100' : errors.userEmail ? 'border-red-100' : 'border-transparent focus:ring-2 focus:ring-primary/20'}`} placeholder="이메일 주소" type="email" value={formData.userEmail} onChange={(e) => setSignUpData({ ...formData, userEmail: e.target.value })} />
                   </div>
                   {!isVerified && (
-                    <button type="button" disabled={isSending || !formData.userEmail || !!errors.userEmail} onClick={handleSendCode} className="px-4 h-14 bg-primary text-white font-black text-xs rounded-2xl hover:bg-blue-600 transition-all disabled:opacity-30 min-w-[90px] shadow-lg shadow-primary/20">
-                      {isSending ? '...' : isCodeSent ? '재발송' : '인증요청'}
+                    <button 
+                      type="button" 
+                      disabled={isSending || !formData.userEmail || !!errors.userEmail} 
+                      onClick={handleSendCode} 
+                      className="px-4 h-14 bg-primary text-white font-black text-xs rounded-2xl hover:bg-blue-600 transition-all disabled:opacity-50 min-w-[100px] shadow-lg shadow-primary/20 flex items-center justify-center"
+                    >
+                      {isSending ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <Loader2 size={16} className="animate-spin" />
+                          <span className="text-[9px]">발송중</span>
+                        </div>
+                      ) : (
+                        isCodeSent ? '재발송' : '인증요청'
+                      )}
                     </button>
                   )}
                   {isVerified && <div className="h-14 px-4 flex items-center gap-1.5 text-emerald-500 bg-emerald-50 rounded-2xl border border-emerald-100"><CheckCircle2 size={18} /><span className="text-xs font-black">완료</span></div>}
@@ -301,7 +332,14 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
                       <input required className="w-full h-14 pl-12 pr-16 rounded-2xl bg-white border-2 border-primary outline-none font-black text-sm tracking-[0.3em]" placeholder="인증번호" maxLength={6} type="text" value={verificationCode} onChange={(e) => setVerificationCode(e.target.value)} />
                       <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black text-primary bg-primary/5 px-2 py-1 rounded-lg">{formatTime(timeLeft)}</span>
                     </div>
-                    <button type="button" disabled={isVerifying || verificationCode.length !== 6 || timeLeft === 0} onClick={handleVerifyCode} className="px-6 h-14 bg-slate-900 text-white font-black text-xs rounded-2xl hover:bg-black transition-all">{isVerifying ? '..' : '확인'}</button>
+                    <button 
+                      type="button" 
+                      disabled={isVerifying || verificationCode.length !== 6 || timeLeft === 0} 
+                      onClick={handleVerifyCode} 
+                      className="px-6 h-14 bg-slate-900 text-white font-black text-xs rounded-2xl hover:bg-black transition-all min-w-[80px] flex items-center justify-center disabled:opacity-50"
+                    >
+                      {isVerifying ? <Loader2 size={18} className="animate-spin" /> : '확인'}
+                    </button>
                   </div>
                 )}
               </div>

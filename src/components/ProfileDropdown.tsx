@@ -6,6 +6,7 @@ import {
 import { Link, useNavigate } from 'react-router-dom';
 import { useUser } from '../contexts/UserContext';
 import { useAlert } from '../contexts/AlertContext';
+import api from '../utils/api';
 
 interface ProfileDropdownProps {
   isOpen: boolean;
@@ -28,7 +29,7 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
 }) => {
   const navigate = useNavigate();
   const { updateUser } = useUser();
-  const { showAlert } = useAlert();
+  const { showAlert, showToast } = useAlert();
   const [loading, setLoading] = useState(false);
   
   const [stats, setStats] = useState({ 
@@ -56,15 +57,16 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
   }, [isOpen, user?.memberId]);
 
   const fetchMyActivity = async () => {
+    if (!user?.memberId) return;
     setLoading(true);
     try {
-      const response = await fetch(`/api/member/readMemberSimpleInfo?memberId=${user.memberId}`, {
-        headers: { 'Authorization': `Bearer ${user.accessToken}` }
+      const response = await api.get(`/api/member/readMemberSimpleInfo`, {
+        params: { memberId: user.memberId }
       });
-      const data = await response.json();
+      const data = response.data;
       
-      if (data.success && data.result && data.result.data) {
-        const info = data.result.data;
+      if (data.success && data.result) {
+        const info = data.result.data || data.result;
         setStats({ 
           postCount: info.postCount ?? 0, 
           commentCount: info.commentCount ?? 0 
@@ -92,31 +94,25 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
     formData.append('memberId', user.memberId);
 
     try {
-      const response = await fetch(`/api/board/upload`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${user.accessToken}` },
-        body: formData,
+      const response = await api.post(`/api/board/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const result = await response.json();
+      const result = response.data;
       const imageUrl = result.url || result.result?.data?.[0];
 
       if (imageUrl) {
-        const saveRes = await fetch(`/api/member/profile-image`, {
-          method: 'PATCH',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${user.accessToken}` 
-          },
-          body: JSON.stringify({ memberId: user.memberId, profileImage: imageUrl }),
+        const saveRes = await api.patch(`/api/member/profile-image`, { 
+          memberId: user.memberId, 
+          profileImage: imageUrl 
         });
 
-        if (saveRes.ok) {
+        if (saveRes.data.success || saveRes.status === 200) {
           updateUser({ profileImage: imageUrl });
-          showAlert({ type: 'success', message: "프로필 이미지가 성공적으로 변경되었습니다. ✨" });
+          showToast("프로필 이미지가 성공적으로 변경되었습니다. ✨", 'success');
         }
       }
     } catch (error) {
-      showAlert({ type: 'error', message: "이미지를 올리는 중에 문제가 생겼어요. ⏳ 잠시 후 다시 시도해 주시겠어요?" });
+      showToast("이미지를 올리는 중에 문제가 생겼어요. ⏳", 'error');
     } finally {
       setUploading(false);
     }
@@ -210,16 +206,6 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
           <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
             <Lock size={16} className="text-slate-400 group-hover:text-amber-500 transition-colors" />
             <span className="text-xs font-bold">비밀번호 변경</span>
-          </div>
-          <ChevronRight size={12} className="text-slate-300 group-hover:translate-x-0.5 transition-transform" />
-        </button>
-
-        <button 
-          className="flex items-center justify-between w-full p-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
-        >
-          <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300">
-            <Settings size={16} className="text-slate-400 group-hover:text-blue-500 transition-colors" />
-            <span className="text-xs font-bold">정보 수정</span>
           </div>
           <ChevronRight size={12} className="text-slate-300 group-hover:translate-x-0.5 transition-transform" />
         </button>

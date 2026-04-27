@@ -15,7 +15,7 @@ interface MyInfoModalProps {
 
 export default function MyInfoModal({ isOpen, onClose, getText }: MyInfoModalProps) {
   const { user, updateUser } = useUser();
-  const { showAlert } = useAlert();
+  const { showAlert, showToast } = useAlert();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -60,11 +60,11 @@ export default function MyInfoModal({ isOpen, onClose, getText }: MyInfoModalPro
 
         if (saveRes.ok) {
           updateUser({ profileImage: imageUrl });
-          showAlert({ type: 'success', message: "프로필 이미지가 성공적으로 변경되었습니다. ✨" });
+          showToast("프로필 이미지가 성공적으로 변경되었습니다. ✨", 'success');
         }
       }
     } catch (error) {
-      showAlert({ type: 'error', message: "이미지를 올리는 중에 문제가 생겼어요. ⏳ 잠시 후 다시 시도해 주시겠어요?" });
+      showToast("이미지를 올리는 중에 문제가 생겼어요. ⏳", 'error');
     } finally {
       setUploading(false);
     }

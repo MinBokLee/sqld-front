@@ -1,6 +1,6 @@
-import { createBrowserRouter, RouterProvider, Outlet, useOutletContext } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Outlet, useOutletContext, useLocation } from 'react-router-dom';
 import { useState, useEffect, useContext } from "react";
-import { Megaphone, BookOpen, Hand } from 'lucide-react';
+import { Megaphone, BookOpen, Hand, Layout, MessageSquare, Users } from 'lucide-react';
 import Board from './components/Board';
 import type { BoardItem } from './components/Board';
 import Hero from './components/Hero';
@@ -13,10 +13,11 @@ import ExamScheduleModal from './components/ExamScheduleModal';
 import OpenChat from './components/OpenChat';
 import { UserProvider } from './contexts/UserContext';
 import { LanguageProvider, LanguageContext } from './contexts/LanguageContext';
-import { AlertProvider } from './contexts/AlertContext'; 
+import { AlertProvider, useAlert } from './contexts/AlertContext'; 
 import { StompProvider } from './contexts/StompContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ChatProvider } from './contexts/ChatContext';
+import { BoardProvider, useBoard } from './contexts/BoardContext';
 import PracticeExams from './pages/PracticeExams';
 import ExamDetailPage from './pages/ExamDetailPage';
 import WritePostPage from './pages/WritePostPage';
@@ -28,11 +29,13 @@ import api from './utils/api';
 function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
-  const [noticesPosts, setNoticesPosts] = useState<BoardItem[]>([]);
-  const [sqldStudyPosts, setSqldStudyPosts] = useState<BoardItem[]>([]);
-  const [greetingsPosts, setGreetingsPosts] = useState<BoardItem[]>([]);
+  const { boardConfigs, isLoading: isBoardLoading } = useBoard();
+  
+  const [groupedPosts, setGroupedPosts] = useState<Record<string, BoardItem[]>>({});
+  const [isPostsLoading, setIsPostsLoading] = useState(true);
 
   useEffect(() => {
+    setIsPostsLoading(true);
     api.get(`/api/board/list`)
       .then((res) => {
         if (res.data.success && res.data.result?.data) {
@@ -44,25 +47,75 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
             id: item.boardId,
             author: item.userName,
             authorImage: item.profileImage, 
-            boardType: item.boardType,
-            category: item.category,
+            boardCode: item.boardCode,
+            categoryId: item.categoryId,
+            categoryName: item.categoryName,
           }));
 
-          setNoticesPosts(allPosts.filter((item: BoardItem) => item.boardType === 'N').slice(0, 5));
-          setSqldStudyPosts(allPosts.filter((item: BoardItem) => item.boardType === 'S').slice(0, 5));
-          setGreetingsPosts(allPosts.filter((item: BoardItem) => item.boardType === 'G').slice(0, 5));
+          // 게시판 코드별로 그룹화
+          const groups = allPosts.reduce((acc: any, post: BoardItem) => {
+            const code = post.boardCode || 'unknown';
+            if (!acc[code]) acc[code] = [];
+            if (acc[code].length < 5) acc[code].push(post);
+            return acc;
+          }, {});
+
+          setGroupedPosts(groups);
         }
       })
-      .catch(error => console.error("Failed to fetch posts:", error));
+      .catch(error => console.error("Failed to fetch posts:", error))
+      .finally(() => setIsPostsLoading(false));
   }, []);
 
+  /**
+   * [동적 아이콘 매핑]
+   * 하드코딩된 그룹 코드 대신 키워드 기반으로 아이콘을 결정합니다.
+   */
+  const getBoardIcon = (groupCode: string, boardName: string = '') => {
+    const code = groupCode?.toUpperCase() || '';
+    const name = boardName?.toLowerCase() || '';
+
+    if (code.includes('NOTICE') || name.includes('공지')) return Megaphone;
+    if (code.includes('LICENSE') || code.includes('STUDY') || name.includes('학습') || name.includes('시험')) return BookOpen;
+    if (code.includes('GREETING') || name.includes('인사')) return Hand;
+    if (code.includes('COMMUNITY') || name.includes('커뮤니티') || name.includes('자유')) return MessageSquare;
+    if (code.includes('MEMBER') || name.includes('회원')) return Users;
+    
+    return Layout; // 기본 아이콘
+  };
+
+  const activeBoards = boardConfigs
+    .filter(b => b.useYn === 'Y')
+    .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+
   return (
-    <main className="max-w-[1280px] mx-auto px-4 md:px-10 py-8">
+    <main className="max-w-[1440px] mx-auto px-4 md:px-10 py-12">
       <Hero getText={getText} onOpenSchedule={onOpenSchedule} />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Board title={getText('board.notice')} icon={Megaphone} items={noticesPosts} boardType="N" />
-        <Board title={getText('board.sqld_study')} icon={BookOpen} items={sqldStudyPosts} boardType="S" />
-        <Board title={getText('board.join_greetings')} icon={Hand} items={greetingsPosts} boardType="G" />
+      
+      <div className={`grid gap-8 mt-12 ${
+        activeBoards.length === 1 ? 'grid-cols-1 max-w-2xl mx-auto' :
+        activeBoards.length === 2 ? 'grid-cols-1 lg:grid-cols-2' :
+        'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+      }`}>
+        {isBoardLoading || isPostsLoading ? (
+          // 로딩 스켈레톤
+          [...Array(3)].map((_, i) => (
+            <div key={i} className="h-[400px] bg-white dark:bg-slate-900 rounded-3xl animate-pulse border border-slate-100 dark:border-slate-800 shadow-sm" />
+          ))
+        ) : activeBoards.map((board, idx) => (
+          <div 
+            key={board.boardCode} 
+            className="animate-in fade-in slide-in-from-bottom-6 duration-700 fill-mode-both"
+            style={{ animationDelay: `${idx * 150}ms` }}
+          >
+            <Board 
+              title={board.boardName} 
+              icon={getBoardIcon(board.groupCode || '', board.boardName)} 
+              items={groupedPosts[board.boardCode] || []} 
+              boardCode={board.boardCode} 
+            />
+          </div>
+        ))}
       </div>
     </main>
   );
@@ -70,9 +123,12 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
 
 /**
  * [RootLayout]
- * 기존 AppContent의 UI 구조를 100% 보존합니다.
+ * 레이아웃 및 모달 전역 상태 관리
  */
 function RootLayout() {
+  const { showToast } = useAlert();
+  const { pathname, search } = useLocation();
+  
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -80,6 +136,11 @@ function RootLayout() {
 
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
+
+  // 페이지 이동 및 쿼리 파라미터 변경 시 스크롤 최상단 리셋
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname, search]);
 
   const openSignUpModal = () => setIsSignUpModalOpen(true);
   const closeSignUpModal = () => setIsSignUpModalOpen(false);
@@ -99,6 +160,28 @@ function RootLayout() {
     closeLoginModal();
     openPasswordResetModal();
   };
+
+  // 전역 인증 및 API 에러 핸들러
+  useEffect(() => {
+    const handleAuthError = (event: any) => {
+      const message = event.detail?.message || '세션이 만료되었습니다. 다시 로그인해 주세요.';
+      showToast(message, 'warning', 4000);
+      openLoginModal();
+    };
+
+    const handleApiError = (event: any) => {
+      const { message, status } = event.detail;
+      const duration = status >= 500 ? 5000 : 3000;
+      showToast(message, 'error', duration);
+    };
+
+    window.addEventListener('auth-error', handleAuthError);
+    window.addEventListener('api-error', handleApiError);
+    return () => {
+      window.removeEventListener('auth-error', handleAuthError);
+      window.removeEventListener('api-error', handleApiError);
+    };
+  }, [showToast]);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white font-sans transition-colors duration-200">
@@ -133,6 +216,7 @@ function RootLayout() {
         <PasswordResetModal 
           isOpen={isPasswordResetModalOpen} 
           onClose={closePasswordResetModal} 
+          onSuccess={openLoginModal}
         />
       )}
     </div>
@@ -186,13 +270,15 @@ function App() {
     <LanguageProvider>
       <AlertProvider>
         <UserProvider>
-          <StompProvider>
-            <NotificationProvider>
-              <ChatProvider>
-                <RouterProvider router={router} />
-              </ChatProvider>
-            </NotificationProvider>
-          </StompProvider>
+          <BoardProvider>
+            <StompProvider>
+              <NotificationProvider>
+                <ChatProvider>
+                  <RouterProvider router={router} />
+                </ChatProvider>
+              </NotificationProvider>
+            </StompProvider>
+          </BoardProvider>
         </UserProvider>
       </AlertProvider>
     </LanguageProvider>
@@ -200,4 +286,3 @@ function App() {
 }
 
 export default App;
-

@@ -45,7 +45,7 @@ const PostSidebar = memo(({ popularPosts, trendingTags }: PostSidebarProps) => {
               popularPosts.map((post) => (
                 <Link 
                   key={post.id} 
-                  to={`/exam/${post.id}?type=S`} 
+                  to={`/exam/${post.id}?boardCode=S`} 
                   className="block group border-b border-slate-50 dark:border-slate-800 pb-5 last:border-0 last:pb-0"
                 >
                   <p className="text-sm font-black text-slate-700 dark:text-slate-300 group-hover:text-primary transition-colors line-clamp-2 mb-3 leading-relaxed">
@@ -87,7 +87,7 @@ const PostSidebar = memo(({ popularPosts, trendingTags }: PostSidebarProps) => {
               trendingTags.map((tag, i) => (
                 <Link 
                   key={i} 
-                  to={`/practice-exams?type=S&tagName=${encodeURIComponent(tag)}`} 
+                  to={`/practice-exams?boardCode=S&tagName=${encodeURIComponent(tag)}`} 
                   className="px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-white/5 text-[11px] font-black text-slate-500 dark:text-slate-400 hover:bg-primary hover:text-white transition-all border border-slate-100 dark:border-white/5 active:scale-95"
                 >
                   #{tag}
