@@ -3,427 +3,241 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { 
   User, Mail, Calendar, Settings, 
   ChevronRight, Bookmark, FileText, 
-  Trash2, MessageSquare, Eye, ThumbsUp,
-  Search, Filter, Clock, MoreVertical,
-  CheckCircle2, AlertCircle, ChevronsRight, Bell,
-  ChevronLeft, ChevronsLeft, ChevronRight as ChevronRightIcon, ChevronsRight as ChevronsRightIcon
+  Trash2, MessageSquare, Clock, Shield,
+  ArrowUpRight, ExternalLink, Inbox, CheckCircle2,
+  AlertCircle, LayoutGrid, List as ListIcon,
+  ChevronsLeft as ChevronsLeftIcon,
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
+  ChevronsRight as ChevronsRightIcon
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useUser } from '../contexts/UserContext';
 import { useAlert } from '../contexts/AlertContext';
-import { useNotification } from '../contexts/NotificationContext';
 import { useBoard } from '../contexts/BoardContext';
 import api from '../utils/api';
-import { formatRelativeTime } from '../utils/dateUtils';
+import ConfirmModal from '../components/ConfirmModal';
 
-interface ScrapItem {
+/**
+ * [MyPage.tsx]
+ * @description 사용자 활동 관리 페이지 - 500 에러 방지를 위한 호출 로직 보정
+ */
+
+interface MyPost {
+  boardId: number;
+  title: string;
+  createAt: string;
+  viewCount: number;
+  commentCount: number;
+  boardCode: string;
+}
+
+interface Scrap {
   scrapId: number;
   boardId: number;
   title: string;
   createAt: string;
   userName: string;
-  viewCount: number;
-  likeCount: number;
-  commentCount: number;
   boardCode: string;
-}
-
-interface MyPostItem {
-  boardId: number;
-  title: string;
-  createAt: string;
-  viewCount: number;
-  likeCount: number;
-  commentCount: number;
-  boardCode: string;
-  seqNumber?: number;
 }
 
 export default function MyPage() {
-  const { user, isLoading: isUserLoading } = useUser();
-  const { showAlert, showToast } = useAlert();
-  const { getBoardCode, boardConfigs } = useBoard();
-  const { notifications: allNotifications, markAsRead, markAllAsRead, unreadCount } = useNotification();
+  const { user } = useUser();
+  const { showToast } = useAlert();
+  const { getBoardConfig } = useBoard();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  // 탭 및 필터 상태
-  const activeTab = searchParams.get('tab') || 'scraps';
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  const size = 10;
-  const keyword = searchParams.get('keyword') || '';
-  const boardFilter = searchParams.get('filter') || 'ALL'; // 전체, 공지, 학습, 가입인사
-
-  const [inputKeyword, setInputKeyword] = useState(keyword);
-  const [scraps, setScraps] = useState<ScrapItem[]>([]);
-  const [myPosts, setMyPosts] = useState<MyPostItem[]>([]);
-  const [totalElements, setTotalElements] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  
+  const activeTab = searchParams.get('tab') || 'profile';
+  const [scraps, setScraps] = useState<Scrap[]>([]);
+  const [myPosts, setMyPosts] = useState<MyPost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedItems, setSelectedItems] = useState<number[]>([]);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
   const fetchScraps = useCallback(async () => {
     if (!user) return;
-    setScraps([]);
-    setTotalElements(0);
-    setIsLoading(true);
+    setLoading(true);
     try {
-      const response = await api.get('/api/board/searchScrapMyPage', {
-        params: {
-          memberId: user.memberId,
-          page,
-          size,
-          keyword: keyword || undefined,
-          boardCode: boardFilter === 'ALL' ? undefined : boardFilter // [수정] 빈 문자열 대신 undefined
-        }
-      });
-      if (response.data.success) {
-        setScraps(response.data.result.data.list || []);
-        setTotalElements(response.data.result.data.total || 0);
-      }
-    } catch (error) {
-      console.error("Fetch scraps error:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, page, keyword, boardFilter]);
+      /**
+       * [보정] 500 에러 방지를 위해 빈 객체 파라미터라도 전달하여 
+       * 서버의 파라미터 파싱 예외 상황을 원천 차단 시도
+       */
+      const data: any = await api.get('/api/board/searchScrapMyPage', { params: {} });
+      
+      const list = Array.isArray(data) ? data : (data?.list || data?.data || []);
+      setScraps(list);
+    } catch (error) { 
+      console.error("Scrap load error:", error); 
+      setScraps([]);
+    } finally { setLoading(false); }
+  }, [user]);
 
   const fetchMyPosts = useCallback(async () => {
     if (!user) return;
-    setMyPosts([]);
-    setTotalElements(0);
-    setIsLoading(true);
+    setLoading(true);
     try {
-      const response = await api.get('/api/board/my-list', {
-        params: {
-          memberId: user.memberId,
-          page,
-          size,
-          keyword: keyword || undefined,
-          boardCode: boardFilter === 'ALL' ? undefined : boardFilter // [수정] 빈 문자열 대신 undefined
-        }
-      });
-      if (response.data.success) {
-        setMyPosts(response.data.result.data.list || []);
-        setTotalElements(response.data.result.data.total || 0);
-      }
-    } catch (error) {
-      console.error("Fetch posts error:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, page, keyword, boardFilter]);
+      const data: any = await api.get('/api/board/my-list', { params: {} });
+      const list = data?.list || (Array.isArray(data) ? data : []);
+      setMyPosts(list);
+    } catch (error) { 
+      console.error("Posts load error:", error); 
+      setMyPosts([]);
+    } finally { setLoading(false); }
+  }, [user]);
 
   useEffect(() => {
-    if (isUserLoading) return;
-    if (!user) {
-      showAlert({ type: 'warning', message: "로그인이 필요한 페이지입니다. 🔒" });
-      navigate('/');
-      return;
-    }
-
+    if (!user) { navigate('/'); return; }
     if (activeTab === 'scraps') fetchScraps();
     else if (activeTab === 'posts') fetchMyPosts();
-    else {
-      setTotalElements(allNotifications.length);
-      setIsLoading(false);
-    }
-  }, [user, isUserLoading, activeTab, page, size, keyword, boardFilter, fetchScraps, fetchMyPosts, allNotifications.length, navigate, showAlert]);
+  }, [activeTab, fetchScraps, fetchMyPosts, user, navigate]);
 
-  const toggleTab = (tab: string) => {
-    setSearchParams({ tab, page: '1', keyword, filter: boardFilter });
-    setSelectedIds([]);
-  };
-
-  const handlePageChange = (newPage: number) => {
-    setSearchParams({ tab: activeTab, page: String(newPage), keyword, filter: boardFilter });
-  };
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputKeyword(e.target.value);
-  };
-
-  const handleSearch = () => {
-    setSearchParams({ tab: activeTab, page: '1', keyword: inputKeyword, filter: boardFilter });
-  };
-
-  const setBoardFilter = (filter: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('filter', filter);
-    params.set('page', '1');
-    setSearchParams(params);
+  const handleDeleteSelected = async () => {
+    if (selectedItems.length === 0) return;
+    const isScrap = activeTab === 'scraps';
+    setConfirmModal({
+      isOpen: true,
+      title: isScrap ? '스크랩 삭제' : '게시글 삭제',
+      message: `선택한 ${selectedItems.length}개의 항목을 삭제하시겠습니까?`,
+      onConfirm: async () => {
+        setIsDeleting(true);
+        try {
+          const endpoint = isScrap ? '/api/board/deleteMyScrapPage' : '/api/board/list/deleteBoardContent';
+          const payload = isScrap ? { scrapIds: selectedItems } : { boardIds: selectedItems };
+          await api.delete(endpoint, { data: payload });
+          if (isScrap) fetchScraps(); else fetchMyPosts();
+          setSelectedItems([]);
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        } catch (error) {
+          console.error(error);
+        } finally { setIsDeleting(false); }
+      }
+    });
   };
 
   const toggleSelect = (id: number) => {
-    setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setSelectedItems(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
 
-  const handleSelectAll = () => {
-    const currentIds = activeTab === 'scraps' 
-      ? scraps.map(s => s.scrapId) 
-      : activeTab === 'posts' ? myPosts.map(p => p.boardId) : [];
-    
-    if (selectedIds.length === currentIds.length) setSelectedIds([]);
-    else setSelectedIds(currentIds);
-  };
+  const getBoardName = (code: string) => getBoardConfig(code)?.boardName || '게시판';
 
-  const handleDeleteSelected = async () => {
-    if (selectedIds.length === 0) return;
-    
-    try {
-      if (activeTab === 'scraps') {
-        await api.delete('/api/board/deleteMyScrapPage', { 
-          data: { scrapIds: selectedIds }, 
-          headers: { 'Authorization': `Bearer ${user?.accessToken}` } 
-        });
-      } else if (activeTab === 'posts') {
-        await api.post('/api/board/list/deleteBoardContent', { 
-          boardIds: selectedIds 
-        }, { 
-          headers: { 'Authorization': `Bearer ${user?.accessToken}` } 
-        });
-      }
-      
-      showToast(`${selectedIds.length}건이 처리되었습니다. ✨`);
-      setSelectedIds([]);
-      if (activeTab === 'scraps') fetchScraps();
-      else fetchMyPosts();
-    } catch (error) { 
-      console.error("Delete error:", error);
-    }
-  };
-
-  const totalPages = Math.ceil(totalElements / size);
-  const pageRange = Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-    if (totalPages <= 5) return i + 1;
-    if (page <= 3) return i + 1;
-    if (page >= totalPages - 2) return totalPages - 4 + i;
-    return page - 2 + i;
-  });
+  if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white transition-colors py-10 px-4 sm:px-6 lg:px-8">
-      <main className="max-w-[1280px] mx-auto">
-        {/* Header Section */}
-        <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div>
-            <nav className="flex items-center gap-2 text-sm text-slate-400 mb-4 font-bold">
-              <Link to="/" className="hover:text-primary transition-colors">홈</Link>
-              <ChevronsRight size={14} />
-              <span>마이페이지</span>
-            </nav>
-            <h1 className="text-4xl font-black tracking-tight flex items-center gap-3">
-              활동 내역 <span className="text-primary text-xl">({totalElements})</span>
-            </h1>
-          </div>
-
-          <div className="flex bg-white dark:bg-[#1a222c] p-1.5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 w-fit">
-            <button onClick={() => toggleTab('scraps')} className={`px-6 sm:px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'scraps' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>스크랩</button>
-            <button onClick={() => toggleTab('posts')} className={`px-6 sm:px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'posts' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>작성글</button>
-            <button onClick={() => toggleTab('notifications')} className={`px-6 sm:px-8 py-3 rounded-xl text-sm font-black transition-all flex items-center gap-2 ${activeTab === 'notifications' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>
-              알림
-              {unreadCount > 0 && <span className={`size-2 rounded-full ${activeTab === 'notifications' ? 'bg-white' : 'bg-red-500 animate-pulse'}`} />}
-            </button>
-          </div>
+    <div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] transition-colors duration-300 font-sans">
+      <main className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <header className="mb-12">
+          <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+            <User className="text-primary" size={36} /> 마이페이지
+          </h1>
+          <p className="mt-2 text-slate-500 dark:text-slate-400 font-medium ml-1">나의 활동과 계정 설정을 관리하세요.</p>
         </header>
 
-        {/* Filter & Action Section (Hidden for notifications) */}
-        {activeTab !== 'notifications' && (
-          <section className="flex flex-col xl:flex-row gap-4 mb-6">
-            <div className="flex flex-wrap items-center gap-3 flex-1">
-              {selectedIds.length > 0 && (
-                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2">
-                  <button onClick={handleSelectAll} className="flex items-center gap-2 h-12 px-4 bg-white dark:bg-[#1a222c] border border-slate-200 dark:border-slate-800 rounded-2xl text-sm font-black text-slate-500 dark:text-slate-400 hover:text-primary transition-all shadow-sm">
-                    {selectedIds.length === (activeTab === 'scraps' ? scraps.length : myPosts.length) ? '선택 해제' : '전체 선택'}
-                  </button>
-                  <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
-                  <button onClick={handleDeleteSelected} className="flex items-center gap-2 h-12 px-6 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-2xl text-xs font-black hover:bg-rose-500 hover:text-white transition-all shadow-sm"><Trash2 size={14} /> {selectedIds.length}개 삭제</button>
-                </div>
-              )}
-              
-              <div className="flex bg-white dark:bg-[#1a222c] p-1 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm h-12 overflow-x-auto scrollbar-hide">
-                <button 
-                  onClick={() => setBoardFilter('ALL')} 
-                  className={`px-6 h-full rounded-xl text-xs font-black transition-all whitespace-nowrap ${boardFilter === 'ALL' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  전체
-                </button>
-                {boardConfigs.filter(b => b.useYn === 'Y').map(config => (
-                  <button 
-                    key={config.boardCode} 
-                    onClick={() => setBoardFilter(config.boardCode)} 
-                    className={`px-6 h-full rounded-xl text-xs font-black transition-all whitespace-nowrap ${boardFilter === config.boardCode ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                  >
-                    {config.boardName}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex-1 bg-white dark:bg-[#1a222c] p-1.5 rounded-2xl border border-slate-200/60 dark:border-slate-800 shadow-lg shadow-slate-200/40 dark:shadow-none flex items-center group focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary/40 transition-all duration-300 h-12">
-              <div className="w-10 h-10 flex items-center justify-center text-slate-400 group-focus-within:text-primary transition-colors">
-                <Search size={18} />
-              </div>
-              <input 
-                type="text" 
-                placeholder="제목이나 내용에서 검색..." 
-                className="w-full bg-transparent border-none py-2 text-[15px] font-semibold outline-none focus:ring-0 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600" 
-                value={inputKeyword} 
-                onChange={handleSearchChange} 
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              />
-              <button className="bg-primary text-white w-9 h-9 flex items-center justify-center rounded-full hover:bg-blue-600 transition-all shadow-md active:scale-90 shrink-0 ml-2" onClick={handleSearch} title="검색"><ChevronsRight size={18} /></button>
-            </div>
-          </section>
-        )}
-
-        {/* Notifications Specific Action Bar */}
-        {activeTab === 'notifications' && (
-          <section className="flex items-center justify-between mb-6 px-2">
-            <p className="text-sm font-bold text-slate-500">
-              최근 30일간 수신된 알림입니다.
-            </p>
-            {unreadCount > 0 && (
-              <button 
-                onClick={markAllAsRead}
-                className="flex items-center gap-2 h-10 px-4 bg-white dark:bg-[#1a222c] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-black text-primary hover:bg-primary hover:text-white transition-all shadow-sm"
-              >
-                <CheckCircle2 size={14} /> 모두 읽음 처리
-              </button>
-            )}
-          </section>
-        )}
-
-        {/* List Section */}
-        <div className="bg-white dark:bg-[#1a222c] rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden min-h-[400px]">
-          {activeTab === 'notifications' ? (
-            <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-              {allNotifications.length === 0 ? (
-                <div className="py-20 text-center">
-                  <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                    <Bell className="text-slate-300" size={32} />
-                  </div>
-                  <p className="text-sm font-bold text-slate-400">알림 내역이 없습니다.</p>
-                </div>
-              ) : (
-                allNotifications.map((noti) => (
-                  <div 
-                    key={noti.id} 
-                    onClick={() => {
-                      markAsRead(noti.id);
-                      navigate(noti.targetUrl);
-                    }}
-                    className={`p-6 flex items-start gap-4 hover:bg-slate-50 dark:hover:bg-white/5 transition-colors cursor-pointer group ${!noti.isRead ? 'bg-blue-50/20 dark:bg-primary/5' : ''}`}
-                  >
-                    <div className={`size-10 rounded-2xl flex-shrink-0 flex items-center justify-center ${!noti.isRead ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
-                      <Bell size={18} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${!noti.isRead ? 'text-primary' : 'text-slate-400'}`}>
-                          {noti.type || 'SYSTEM'}
-                        </span>
-                        <span className="text-[11px] text-slate-400 font-bold">{noti.timestamp}</span>
-                      </div>
-                      <p className={`text-sm leading-relaxed ${!noti.isRead ? 'text-slate-900 dark:text-white font-black' : 'text-slate-600 dark:text-slate-400 font-semibold'}`}>
-                        {noti.content}
-                      </p>
-                    </div>
-                    {!noti.isRead && (
-                      <div className="size-2.5 bg-primary rounded-full mt-2 ring-4 ring-primary/20" />
-                    )}
-                    <ChevronRight className="text-slate-300 group-hover:text-primary group-hover:translate-x-1 transition-all mt-1" size={20} />
-                  </div>
-                ))
-              )}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/50 text-[#4c739a] dark:text-slate-400 text-xs font-black uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
-                    <th className="px-6 py-5 text-center w-16">
-                      <input type="checkbox" className="rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer" checked={selectedIds.length > 0 && selectedIds.length === (activeTab === 'scraps' ? scraps.length : myPosts.length)} onChange={handleSelectAll} />
-                    </th>
-                    <th className="px-6 py-5 text-center w-20">No</th>
-                    <th className="px-6 py-5 text-left">제목</th>
-                    {activeTab === 'scraps' && <th className="px-6 py-5 text-center w-24">작성자</th>}
-                    <th className="px-6 py-5 text-center w-32">날짜</th>
-                    <th className="px-6 py-5 text-center w-20">조회</th>
-                    <th className="px-6 py-5 text-center w-20">추천</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 dark:divide-slate-800/50">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-20 text-center">
-                        {/* 
-                        <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin mx-auto mb-4" />
-                        <p className="text-sm font-bold text-slate-400">데이터를 불러오는 중입니다...</p>
-                        */}
-                      </td>
-                    </tr>
-                  ) : (activeTab === 'scraps' ? scraps : myPosts).length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-20 text-center">
-                        <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-3xl flex items-center justify-center mx-auto mb-4">
-                          <FileText className="text-slate-300" size={32} />
-                        </div>
-                        <p className="text-sm font-bold text-slate-400">활동 내역이 없습니다.</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    (activeTab === 'scraps' ? scraps : myPosts).map((post, idx) => {
-                      const id = activeTab === 'scraps' ? post.scrapId : post.boardId;
-                      return (
-                        <tr key={id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group cursor-pointer" onClick={() => navigate(`/exam/${post.boardId}?boardCode=${post.boardCode}`)}>
-                          <td className="px-6 py-5 text-center" onClick={(e) => e.stopPropagation()}>
-                            <input type="checkbox" className="rounded-md border-slate-300 text-primary focus:ring-primary cursor-pointer" checked={selectedIds.includes(id)} onChange={() => toggleSelect(id)} />
-                          </td>
-                          <td className="px-6 py-5 text-sm text-[#4c739a] text-center font-bold whitespace-nowrap">
-                            {activeTab === 'posts' && typeof post.seqNumber === 'number' ? String(post.seqNumber).padStart(2, '0') : totalElements - (page-1)*size - idx}
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${post.boardCode === getBoardCode('G_BRD_NOTICE') ? 'bg-amber-100 text-amber-600' : post.boardCode === getBoardCode('G_BRD_LICENSE') ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                  {boardConfigs.find(b => b.boardCode === post.boardCode)?.boardName || post.boardCode}
-                                </span>
-                                <h3 className="text-sm font-bold text-[#0d141b] dark:text-white group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-[400px]">{post.title}</h3>
-                                {post.commentCount > 0 && <span className="text-primary font-black text-[11px] shrink-0">[{post.commentCount}]</span>}
-                              </div>
-                            </div>
-                          </td>
-                          {activeTab === 'scraps' && (
-                            <td className="px-6 py-5 text-sm text-slate-600 dark:text-slate-400 text-center font-medium whitespace-nowrap">{(post as ScrapItem).userName}</td>
-                          )}
-                          <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center whitespace-nowrap">{formatRelativeTime(post.createAt)}</td>
-                          <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center font-bold">{post.viewCount}</td>
-                          <td className="px-6 py-5 text-sm text-[#4c739a] dark:text-slate-400 text-center font-bold">{post.likeCount}</td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
+        <div className="flex bg-white dark:bg-[#1a222c] p-1.5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 w-fit mb-10">
+          <button onClick={() => setSearchParams({ tab: 'profile' })} className={`px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'profile' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>프로필</button>
+          <button onClick={() => setSearchParams({ tab: 'scraps' })} className={`px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'scraps' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>스크랩</button>
+          <button onClick={() => setSearchParams({ tab: 'posts' })} className={`px-8 py-3 rounded-xl text-sm font-black transition-all ${activeTab === 'posts' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'}`}>내 글</button>
         </div>
 
-        {/* Pagination Section */}
-        {activeTab !== 'notifications' && totalPages > 1 && (
-          <div className="mt-10 flex justify-center items-center gap-2">
-            <button onClick={() => handlePageChange(1)} disabled={page === 1} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronsLeft size={18} /></button>
-            <button onClick={() => handlePageChange(page - 1)} disabled={page === 1} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronLeft size={18} /></button>
-            
-            {pageRange.map(p => (
-              <button key={p} onClick={() => handlePageChange(p)} className={`w-10 h-10 flex items-center justify-center rounded-xl font-black text-sm transition-all ${p === page ? 'bg-primary text-white shadow-lg shadow-primary/25 scale-110' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>{p}</button>
-            ))}
-
-            <button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronRightIcon size={18} /></button>
-            <button onClick={() => handlePageChange(totalPages)} disabled={page === totalPages} className="w-10 h-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#1a222c] text-slate-400 hover:bg-slate-50 disabled:opacity-30 transition-all"><ChevronsRightIcon size={18} /></button>
-          </div>
+        {activeTab === 'profile' && (
+          <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              <div className="md:col-span-1 bg-white dark:bg-[#1a222c] rounded-[2.5rem] p-10 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col items-center text-center">
+                <div className="size-32 rounded-[2.5rem] overflow-hidden bg-primary/10 flex items-center justify-center border-4 border-white dark:border-slate-800 shadow-xl mb-6">
+                  {user.profileImage ? <img src={user.profileImage} alt="P" className="w-full h-full object-cover" /> : <User className="text-primary" size={48} />}
+                </div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white">{user.userName}</h2>
+                <p className="text-slate-400 font-bold mt-1 uppercase tracking-widest text-xs">{user.userRole}</p>
+                <div className="w-full h-px bg-slate-100 dark:bg-slate-800 my-8" />
+                <div className="space-y-4 w-full text-left">
+                  <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400 font-bold"><Mail size={16} /><span className="text-sm truncate">{user.userEmail || user.userId}</span></div>
+                  <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400 font-bold"><Shield size={16} /><span className="text-sm">계정 상태: {user.userStatus === 'Y' ? '활성' : '미승인'}</span></div>
+                </div>
+              </div>
+              <div className="md:col-span-2 space-y-8">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="bg-white dark:bg-[#1a222c] p-8 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-800 group hover:border-primary/30 transition-all">
+                    <FileText className="text-emerald-500 mb-4" size={24} />
+                    <p className="text-slate-400 font-bold text-xs uppercase tracking-tighter">작성한 게시글</p>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{user.postCount || 0}</p>
+                  </div>
+                  <div className="bg-white dark:bg-[#1a222c] p-8 rounded-[2.5rem] shadow-xl border border-slate-200 dark:border-slate-800 group hover:border-primary/30 transition-all">
+                    <MessageSquare className="text-blue-500 mb-4" size={24} />
+                    <p className="text-slate-400 font-bold text-xs uppercase tracking-tighter">작성한 댓글</p>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white mt-1">{user.commentCount || 0}</p>
+                  </div>
+                </div>
+                <div className="bg-slate-900 dark:bg-primary rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 size-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl group-hover:scale-110 transition-transform duration-700" />
+                  <div className="relative z-10">
+                    <h3 className="text-2xl font-black mb-2">프리미엄 학습 경험 🚀</h3>
+                    <p className="text-white/70 font-bold text-sm mb-8 leading-relaxed">SQLD 자격증 취득을 위한 최적의 커뮤니티에서<br />다양한 학습 자료와 실시간 정보를 공유받으세요.</p>
+                    <button className="px-8 py-3.5 bg-white text-slate-900 rounded-2xl font-black text-sm shadow-xl hover:scale-105 transition-all">혜택 더보기</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
         )}
+
+        {(activeTab === 'scraps' || activeTab === 'posts') && (
+          <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="bg-white dark:bg-[#1a222c] rounded-[2.5rem] shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
+                <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  {activeTab === 'scraps' ? <Bookmark className="text-primary" /> : <FileText className="text-primary" />}
+                  {activeTab === 'scraps' ? '나의 스크랩 내역' : '내가 쓴 게시글'}
+                  <span className="text-xs font-bold text-slate-400 ml-2">Total {activeTab === 'scraps' ? scraps.length : myPosts.length}</span>
+                </h3>
+                {selectedItems.length > 0 && (
+                  <button onClick={handleDeleteSelected} className="flex items-center gap-2 px-6 py-3 bg-red-500 text-white text-sm font-black rounded-2xl hover:bg-red-600 transition-all shadow-lg active:scale-95 text-xs uppercase tracking-widest"><Trash2 size={16} /> 선택 삭제 ({selectedItems.length})</button>
+                )}
+              </div>
+
+              <div className="hidden md:flex items-center bg-slate-50/30 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 px-8 py-4 text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                <div className="w-16 text-center">선택</div>
+                <div className="flex-1 px-4">제목 및 게시판 정보</div>
+                <div className="w-32 text-center">작성일</div>
+                <div className="w-20 text-center">보기</div>
+              </div>
+
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 min-h-[400px]">
+                {loading ? (
+                  [...Array(3)].map((_, i) => (
+                    <div key={i} className="px-8 py-10 animate-pulse"><div className="h-12 bg-slate-50 dark:bg-slate-800 rounded-2xl w-full" /></div>
+                  ))
+                ) : (activeTab === 'scraps' ? scraps : myPosts).length > 0 ? (activeTab === 'scraps' ? scraps : myPosts).map((item) => {
+                  const itemId = activeTab === 'scraps' ? (item as Scrap).scrapId : (item as MyPost).boardId;
+                  return (
+                    <div key={itemId} className={`flex flex-col md:flex-row md:items-center px-8 py-6 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${selectedItems.includes(itemId) ? 'bg-primary/5' : ''}`}>
+                      <div className="w-16 flex justify-center mb-4 md:mb-0">
+                        <input type="checkbox" className="size-5 rounded-md border-2 border-slate-200 text-primary focus:ring-primary/20 cursor-pointer" checked={selectedItems.includes(itemId)} onChange={() => toggleSelect(itemId)} />
+                      </div>
+                      <div className="flex-1 px-0 md:px-4 min-w-0">
+                        <Link to={`/exam/${item.boardId}?boardCode=${item.boardCode}`} className="group/link block">
+                          <p className="text-base font-black text-slate-900 dark:text-white group-hover/link:text-primary transition-colors line-clamp-1">{item.title}</p>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-black text-slate-500 uppercase tracking-tighter border border-slate-200/50">{getBoardName(item.boardCode)}</span>
+                            {activeTab === 'scraps' && <span className="text-[10px] text-slate-400 font-bold tracking-tight">By {(item as Scrap).userName}</span>}
+                          </div>
+                        </Link>
+                      </div>
+                      <div className="w-full md:w-32 text-center text-xs font-bold text-slate-400 mt-4 md:mt-0">{new Date(item.createAt).toLocaleDateString()}</div>
+                      <div className="w-full md:w-20 flex justify-center mt-4 md:mt-0">
+                        <Link to={`/exam/${item.boardId}?boardCode=${item.boardCode}`} className="p-2.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-primary hover:border-primary/30 rounded-xl transition-all shadow-sm active:scale-90"><ArrowUpRight size={18} /></Link>
+                      </div>
+                    </div>
+                  );
+                }) : (
+                  <div className="py-32 text-center text-slate-300 dark:text-slate-700"><Inbox size={64} strokeWidth={1} className="mx-auto mb-4" /><p className="text-xl font-black">내역이 없습니다.</p></div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        <ConfirmModal isOpen={confirmModal.isOpen} onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} onConfirm={confirmModal.onConfirm} title={confirmModal.title} message={confirmModal.message} type="danger" isLoading={isDeleting} />
       </main>
     </div>
   );

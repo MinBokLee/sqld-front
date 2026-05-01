@@ -14,7 +14,7 @@ import api from "../utils/api";
 import ConfirmModal from "../components/ConfirmModal";
 
 /**
- * [인터페이스] 회원 정보 데이터 구조
+ * [인터페이스] 데이터 구조 정의
  */
 interface Member {
   userId: string;      
@@ -29,6 +29,32 @@ interface Member {
   profileImage?: string;
   userProfileImage?: string;
   userImage?: string;
+}
+
+interface BoardMaster {
+  boardCode: string;
+  boardName: string;
+  groupCode: string;
+  fileYn: string;
+  replyYn: string;
+  tagYn: string;
+  useYn: string;
+  sortOrder?: number;
+}
+
+interface CommonCodeGroup {
+  groupCode: string;
+  groupName: string;
+  sortOrder: number;
+  useYn: string;
+}
+
+interface CommonCodeDetail {
+  groupCode: string;
+  codeId: string;
+  codeName: string;
+  sortOrder: number;
+  useYn: string;
 }
 
 export default function AdminMemberPage() {
@@ -68,10 +94,10 @@ export default function AdminMemberPage() {
   const fetchBoards = useCallback(async () => {
     setIsBoardLoading(true);
     try {
-      const response = await api.get('/api/boardMaster/getBoardConfigList');
-      const data = response.data.result;
-      // 데이터가 배열이면 그대로 사용, 아니면 내부의 data 필드 확인
-      setBoards(Array.isArray(data) ? data : (data?.data || []));
+      const data: any = await api.get('/api/boardMaster/getBoardConfigList');
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      const sortedList = [...list].sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+      setBoards(sortedList);
     } catch (error) {
       console.error("Failed to fetch boards:", error);
     } finally {
@@ -85,9 +111,9 @@ export default function AdminMemberPage() {
   const fetchGroups = useCallback(async () => {
     setIsCodeLoading(true);
     try {
-      const response = await api.get('/api/common-code-group/getGroupCodeList');
-      const data = response.data.result;
-      setGroups(Array.isArray(data) ? data : (data?.data || []));
+      const data: any = await api.get('/api/common-code-group/getGroupCodeList');
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      setGroups(list);
     } catch (error) {
       console.error("Failed to fetch groups:", error);
     } finally {
@@ -101,11 +127,12 @@ export default function AdminMemberPage() {
   const fetchDetails = useCallback(async (groupCode: string) => {
     setIsCodeLoading(true);
     try {
-      const response = await api.get(`/api/common-code-group-detail/getCommonDetailCode`, {
+      const data: any = await api.get(`/api/common-code-group-detail/readDetailCommonDetailCode/`, {
         params: { groupCode }
       });
-      const data = response.data.result;
-      setDetails(Array.isArray(data) ? data : (data?.data || []));
+      const list = Array.isArray(data) ? data : (data?.data || []);
+      const sortedList = [...list].sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+      setDetails(sortedList);
       setSelectedGroup(groupCode);
     } catch (error) {
       console.error("Failed to fetch details:", error);
@@ -149,15 +176,28 @@ export default function AdminMemberPage() {
       const url = isEdit ? `/api/boardMaster/updateBoardMaster/${boardModal.data.boardCode}` : '/api/boardMaster/addBoardMaster';
       const method = isEdit ? 'patch' : 'post';
       
-      const response = await api[method](url, formData);
-      if (response.data.success) {
-        showToast(`게시판이 성공적으로 ${isEdit ? '수정' : '등록'}되었습니다. ✅`, 'success');
-        await refreshConfigs();
-        fetchBoards();
-        setBoardModal({ ...boardModal, isOpen: false });
-      }
+      await api[method](url, formData);
+      showToast(`게시판이 성공적으로 ${isEdit ? '수정' : '등록'}되었습니다. ✅`, 'success');
+      await refreshConfigs();
+      fetchBoards();
+      setBoardModal({ ...boardModal, isOpen: false });
     } catch (error) {
       console.error("Board error:", error);
+    }
+  };
+
+  /**
+   * [핸들러] 게시판 상세 정보 조회 후 수정 모달 오픈
+   */
+  const handleBoardEditClick = async (boardCode: string) => {
+    try {
+      const data: any = await api.get(`/api/boardMaster/readBoardMasterDetail/${boardCode}`);
+      if (data) {
+        setBoardModal({ isOpen: true, mode: 'edit', data });
+      }
+    } catch (error) {
+      console.error("Failed to fetch board detail:", error);
+      showToast("게시판 상세 정보를 불러오지 못했습니다. 🌐", "error");
     }
   };
 
@@ -170,13 +210,11 @@ export default function AdminMemberPage() {
       const url = isEdit ? `/api/common-code-group/updateGroupCode/${groupModal.data.groupCode}` : '/api/common-code-group/addGroupCode';
       const method = isEdit ? 'patch' : 'post';
       
-      const response = await api[method](url, formData);
-      if (response.data.success) {
-        showToast(`그룹 코드가 ${isEdit ? '수정' : '등록'}되었습니다. ✅`, 'success');
-        await refreshConfigs();
-        fetchGroups();
-        setGroupModal({ ...groupModal, isOpen: false });
-      }
+      await api[method](url, formData);
+      showToast(`그룹 코드가 ${isEdit ? '수정' : '등록'}되었습니다. ✅`, 'success');
+      await refreshConfigs();
+      fetchGroups();
+      setGroupModal({ ...groupModal, isOpen: false });
     } catch (error) {
       console.error("Group error:", error);
     }
@@ -205,13 +243,11 @@ export default function AdminMemberPage() {
         : '/api/common-code-group-detail/addCommonDetailCode';
       const method = isEdit ? 'patch' : 'post';
       
-      const response = await api[method](url, formData);
-      if (response.data.success) {
-        showToast(`상세 코드가 ${isEdit ? '수정' : '등록'}되었습니다. ✅`, 'success');
-        await refreshConfigs();
-        fetchDetails(formData.groupCode);
-        setDetailModal({ ...detailModal, isOpen: false });
-      }
+      await api[method](url, formData);
+      showToast(`상세 코드가 ${isEdit ? '수정' : '등록'}되었습니다. ✅`, 'success');
+      await refreshConfigs();
+      fetchDetails(formData.groupCode);
+      setDetailModal({ ...detailModal, isOpen: false });
     } catch (error) {
       console.error("Detail error:", error);
     }
@@ -227,33 +263,27 @@ export default function AdminMemberPage() {
     
     setLoading(true);
     try {
-      const response = await api.get(`/api/admin/getMemberList`, {
-        headers: { 'Authorization': `Bearer ${user.accessToken}` }
-      });
-      const data = response.data;
+      const data: any = await api.get(`/api/admin/getMemberList`);
+      const list = Array.isArray(data) ? data : (data?.data || []);
       
-      if (data.success) {
-        // [보완] 서버 응답 데이터를 다듬어서 저장 (이미지 필드 통일)
-        const rawList = data.result?.data || data.result || [];
-        const mappedList = (Array.isArray(rawList) ? rawList : []).map((m: any) => ({
-          ...m,
-          profileImage: m.userProfileImage || m.profileImage || m.userImage // 필드명 정규화
-        }));
-        setMembers(mappedList);
-      }
-    } catch (error) {
+      const mappedList = list.map((m: any) => ({
+        ...m,
+        profileImage: m.userProfileImage || m.profileImage || m.userImage
+      }));
+      setMembers(mappedList);
+    } catch (error: any) {
+      if (error.isAuthError) return;
       console.error("Failed to fetch members:", error);
-      showAlert({ type: 'error', message: "회원 목록을 가져오는 중에 문제가 생겼어요. 🌐" });
+      showToast("회원 목록을 가져오는 중에 문제가 생겼어요. 🌐", "error");
     } finally {
       setLoading(false);
     }
-  }, [user, showAlert]);
+  }, [user, showToast]);
 
   useEffect(() => {
-    window.scrollTo(0, 0); // 진입 시 최상단으로 이동
+    window.scrollTo(0, 0);
 
     if (isLoading) return;
-
 
     if (!user) {
       navigate('/');
@@ -268,7 +298,7 @@ export default function AdminMemberPage() {
   }, [user, isLoading, navigate, fetchMembers, showAlert]);
 
   /**
-   * [권한 토글 로직] USER <-> ADMIN (서버 사이드 토글)
+   * [권한 토글 로직] USER <-> ADMIN
    */
   const handleRoleToggle = (targetMember: Member) => {
     const isPromoting = targetMember.userRole === 'USER';
@@ -283,24 +313,20 @@ export default function AdminMemberPage() {
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
-          const response = await api.patch(`/api/admin/changeRoleAdmin/${targetMember.memberId}`, null, {
+          const result: any = await api.patch(`/api/admin/changeRoleAdmin/${targetMember.memberId}`, null, {
             headers: { 'Authorization' : `Bearer ${user?.accessToken}` }
           });
           
-          const data = response.data;
-          if(data.success || data.code === 200) {
-            showToast(data.msg || "권한 변경이 완료되었습니다. ✅", 'success');
-            
-            // 실시간 상태 업데이트 (Partial Update)
-            if (data.result) {
-              setMembers(prev => prev.map(m => 
-                m.memberId === targetMember.memberId ? { ...m, ...data.result.data || data.result } : m
-              ));
-            } else {
-              fetchMembers(); // 백업 로직
-            }
-            closeConfirmModal();
+          showToast("권한 변경이 완료되었습니다. ✅", 'success');
+          
+          if (result) {
+            setMembers(prev => prev.map(m => 
+              m.memberId === targetMember.memberId ? { ...m, ...result.data || result } : m
+            ));
+          } else {
+            fetchMembers();
           }
+          closeConfirmModal();
         } catch(error: any) {
           console.error("Role toggle error:", error);
         } finally {
@@ -323,18 +349,15 @@ export default function AdminMemberPage() {
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
-          // [수정 완료] POST 방식 및 일관된 엔드포인트 사용, 데이터는 Body에 담아 보냅니다.
-          const response = await api.post(`/api/admin/deleteMembersBySuperAdmin`, 
+          await api.post(`/api/admin/deleteMembersBySuperAdmin`, 
             { memberIds: [targetMember.memberId] }, 
             { headers: { 'Authorization': `Bearer ${user?.accessToken}` } }
           );
 
-          if (response.status === 200 || response.data.success) {
-            showToast(response.data.msg || "강제 탈퇴 처리가 완료되었습니다. ✅", 'success');
-            setMembers(prev => prev.filter(m => m.memberId !== targetMember.memberId));
-            setSelectedUsers(prev => prev.filter(id => id !== targetMember.memberId));
-            closeConfirmModal();
-          }
+          showToast("강제 탈퇴 처리가 완료되었습니다. ✅", 'success');
+          setMembers(prev => prev.filter(m => m.memberId !== targetMember.memberId));
+          setSelectedUsers(prev => prev.filter(id => id !== targetMember.memberId));
+          closeConfirmModal();
         } catch (error) {
           console.error("Individual kick error:", error);
         } finally {
@@ -362,17 +385,16 @@ export default function AdminMemberPage() {
       onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
-          const response = await api.post(`/api/admin/deleteMembersBySuperAdmin`, { 
+          await api.post(`/api/admin/deleteMembersBySuperAdmin`, { 
             memberIds: selectedUsers 
           }, {
             headers: { 'Authorization': `Bearer ${user?.accessToken}` }
           });
-          if(response.data.code === 200 || response.status === 200 || response.data.success){
-            showToast(response.data.msg || "일괄 처리가 완료되었습니다. ✅", 'success');
-            setSelectedUsers([]);
-            fetchMembers();
-            closeConfirmModal();
-          }
+          
+          showToast("일괄 처리가 완료되었습니다. ✅", 'success');
+          setSelectedUsers([]);
+          fetchMembers();
+          closeConfirmModal();
         } catch (error) {
           console.error("Bulk kick error:", error);
         } finally {
@@ -405,39 +427,30 @@ export default function AdminMemberPage() {
     );
   };
 
-  /**
-   * 클라이언트 측 검색 필터링 (원본 로직 보존)
-   */
   const filteredMembers = members.filter(m => 
     m.userId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.userName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     m.userEmail?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  /**
-   * [보안 위계 검증] 해당 타겟에 대해 작업이 가능한지 여부 판단
-   */
   const canModifyRole = (target: Member) => {
     if (!user) return false;
-    if (user.memberId === target.memberId) return false; // 본인 제외
-    if (target.userRole === 'SUPER_ADMIN') return false; // 슈퍼 어드민 보호
+    if (user.memberId === target.memberId) return false;
+    if (target.userRole === 'SUPER_ADMIN') return false;
     
-    if (user.userRole === 'SUPER_ADMIN') return true; // 슈퍼 어드민은 타겟이 슈퍼 어드민만 아니면 가능
+    if (user.userRole === 'SUPER_ADMIN') return true;
     if (user.userRole === 'ADMIN') {
-      return target.userRole === 'USER'; // 일반 어드민은 유저 승격만 가능
+      return target.userRole === 'USER';
     }
     return false;
   };
 
-  /**
-   * [강퇴 권한 검증] SUPER_ADMIN만 가능하도록 사양 변경
-   */
   const canKick = (target: Member) => {
-    if (!user || user.userRole !== 'SUPER_ADMIN') return false; // SUPER_ADMIN 외에는 권한 없음
-    if (user.memberId === target.memberId) return false; // 본인 제외
-    if (target.userRole === 'SUPER_ADMIN') return false; // 다른 SUPER_ADMIN 보호
+    if (!user || user.userRole !== 'SUPER_ADMIN') return false;
+    if (user.memberId === target.memberId) return false;
+    if (target.userRole === 'SUPER_ADMIN') return false;
     
-    return true; // SUPER_ADMIN은 본인과 다른 SUPER_ADMIN 외에는 모두 강퇴 가능
+    return true;
   };
 
   return (
@@ -486,7 +499,6 @@ export default function AdminMemberPage() {
                 />
               </div>
               
-              {/* 일괄 강퇴 버튼: SUPER_ADMIN에게만 노출 */}
               {user?.userRole === 'SUPER_ADMIN' && (
                 <button 
                   onClick={handleBulkKick}
@@ -498,85 +510,53 @@ export default function AdminMemberPage() {
               )}
             </section>
 
-            {/* Members Table */}
+            {/* Members List */}
             <div className="bg-white dark:bg-[#1a222c] rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden mb-10">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[1100px]">
-                  <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-6 w-20 text-center">
-                        <div className="relative flex justify-center group/all">
-                          <input 
-                            type="checkbox" 
-                            disabled={(() => {
-                              const selectable = filteredMembers.filter(m => !(m.memberId === user?.memberId && ['ADMIN', 'SUPER_ADMIN'].includes(m.userRole)));
-                              return selectable.length === 0;
-                            })()}
-                            className={`w-5 h-5 rounded-md border-2 transition-all ${
-                              (() => {
-                                const selectable = filteredMembers.filter(m => !(m.memberId === user?.memberId && ['ADMIN', 'SUPER_ADMIN'].includes(m.userRole)));
-                                return selectable.length === 0;
-                              })() 
-                              ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-30' 
-                              : 'border-slate-200 text-primary focus:ring-primary/20 cursor-pointer'
-                            }`} 
-                            checked={(() => {
-                              const selectable = filteredMembers.filter(m => !(m.memberId === user?.memberId && ['ADMIN', 'SUPER_ADMIN'].includes(m.userRole)));
-                              return selectable.length > 0 && selectedUsers.length === selectable.length;
-                            })()} 
-                            onChange={toggleSelectAll} 
-                          />
-                          {(() => {
-                            const selectable = filteredMembers.filter(m => !(m.memberId === user?.memberId && ['ADMIN', 'SUPER_ADMIN'].includes(m.userRole)));
-                            return selectable.length === 0;
-                          })() && (
-                            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-2 bg-slate-800 text-white text-[10px] font-black rounded-xl opacity-0 group-hover/all:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl scale-95 group-hover/all:scale-100 z-30">
-                              선택 가능한 다른 회원이 없습니다.
-                              <div className="absolute right-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-slate-800" />
-                            </div>
-                          )}
-                        </div>
-                      </th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">사용자 정보</th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">권한</th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">상태</th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">최근 접속</th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">작업</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                    {loading ? (
-                      [...Array(5)].map((_, i) => (
-                        <tr key={`member-skeleton-${i}`} className="animate-pulse">
-                          <td colSpan={6} className="px-8 py-8"><div className="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl w-full" /></td>
-                        </tr>
-                      ))
-                    ) : filteredMembers.length > 0 ? filteredMembers.map((member) => {
-                      const isSelf = member.memberId === user?.memberId;
-                      const isSelfAdmin = isSelf && ['ADMIN', 'SUPER_ADMIN'].includes(member.userRole);
+              <div className="hidden lg:flex items-center px-8 py-6 bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                <div className="w-12 flex justify-center">선택</div>
+                <div className="flex-1 px-8">사용자 정보</div>
+                <div className="w-32 text-center">권한</div>
+                <div className="w-24 text-center">상태</div>
+                <div className="w-48 text-center">최근 접속</div>
+                <div className="w-48 text-center">작업</div>
+              </div>
 
-                      return (
-                        <tr key={member.memberId} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${selectedUsers.includes(member.memberId) ? 'bg-primary/5 dark:bg-primary/5' : ''}`}>
-                          <td className="px-8 py-6 text-center">
-                            <div className="relative flex justify-center group/tooltip">
-                              <input 
-                                type="checkbox" 
-                                disabled={isSelfAdmin}
-                                className={`w-5 h-5 rounded-md border-2 transition-all ${isSelfAdmin ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-50' : 'border-slate-200 text-primary focus:ring-primary/20 cursor-pointer'}`} 
-                                checked={selectedUsers.includes(member.memberId)} 
-                                onChange={() => toggleSelectUser(member.memberId)} 
-                              />
-                              {isSelfAdmin && (
-                                <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black rounded-xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-2xl z-20 scale-95 group-hover/tooltip:scale-100 origin-left">
-                                  본인의 아이디는 강퇴할 수 없습니다.
-                                  <div className="absolute right-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-slate-900 dark:border-r-white" />
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                        <td className="px-8 py-6">
+              <div className="divide-y divide-slate-50 dark:divide-slate-800">
+                {loading ? (
+                  [...Array(5)].map((_, i) => (
+                    <div key={`member-skeleton-${i}`} className="px-8 py-8">
+                      <div className="h-16 bg-slate-50 dark:bg-slate-800 rounded-2xl w-full" />
+                    </div>
+                  ))
+                ) : filteredMembers.length > 0 ? (
+                  filteredMembers.map((member) => {
+                    const isSelf = member.memberId === user?.memberId;
+                    const isSelfAdmin = isSelf && ['ADMIN', 'SUPER_ADMIN'].includes(member.userRole);
+
+                    return (
+                      <div key={member.memberId} className={`flex flex-col lg:flex-row lg:items-center px-8 py-6 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${selectedUsers.includes(member.memberId) ? 'bg-primary/5' : ''}`}>
+                        <div className="flex items-center justify-between lg:justify-center lg:w-12 mb-4 lg:mb-0">
+                          <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">선택</span>
+                          <div className="relative group/tooltip">
+                            <input 
+                              type="checkbox" 
+                              disabled={isSelfAdmin}
+                              className={`w-5 h-5 rounded-md border-2 transition-all ${isSelfAdmin ? 'border-slate-100 bg-slate-50 cursor-not-allowed opacity-50' : 'border-slate-200 text-primary focus:ring-primary/20 cursor-pointer'}`} 
+                              checked={selectedUsers.includes(member.memberId)} 
+                              onChange={() => toggleSelectUser(member.memberId)} 
+                            />
+                            {isSelfAdmin && (
+                              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-black rounded-xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-2xl z-20 scale-95 group-hover/tooltip:scale-100 origin-left">
+                                본인의 아이디는 강퇴할 수 없습니다.
+                                <div className="absolute right-full top-1/2 -translate-y-1/2 border-[5px] border-transparent border-r-slate-900 dark:border-r-white" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex-1 lg:px-8 mb-4 lg:mb-0">
                           <div className="flex items-center gap-4">
-                            <div className="size-12 rounded-2xl overflow-hidden bg-primary/10 flex items-center justify-center font-black text-primary border border-primary/5 shadow-inner uppercase">
+                            <div className="size-12 rounded-2xl overflow-hidden bg-primary/10 flex items-center justify-center font-black text-primary border border-primary/5 shadow-inner uppercase flex-shrink-0">
                               {(() => {
                                 const fullUrl = getFullImageUrl(member.profileImage);
                                 if (fullUrl) {
@@ -605,86 +585,86 @@ export default function AdminMemberPage() {
                               <p className="text-xs text-slate-400 font-bold tracking-tight">{member.userId} • {member.userEmail}</p>
                             </div>
                           </div>
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <div className="flex justify-center">
-                            {member.userRole === 'SUPER_ADMIN' ? (
-                              <span className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter bg-indigo-600 text-white border border-indigo-700 shadow-sm flex items-center gap-1">
-                                <Crown size={10} /> SUPER ADMIN
-                              </span>
-                            ) : (
-                              <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${
-                                member.userRole === 'ADMIN' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-primary text-white'
-                              }`}>
-                                {member.userRole}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-8 py-6 text-center">
+                        </div>
+
+                        <div className="flex items-center justify-between lg:justify-center lg:w-32 mb-4 lg:mb-0">
+                          <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">권한</span>
+                          {member.userRole === 'SUPER_ADMIN' ? (
+                            <span className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter bg-indigo-600 text-white border border-indigo-700 shadow-sm flex items-center gap-1">
+                              <Crown size={10} /> SUPER ADMIN
+                            </span>
+                          ) : (
+                            <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${
+                              member.userRole === 'ADMIN' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-primary text-white'
+                            }`}>
+                              {member.userRole}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between lg:justify-center lg:w-24 mb-4 lg:mb-0">
+                          <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">상태</span>
                           <span className={`px-3 py-1 rounded-lg text-[10px] font-black ${
                             member.userStatus === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
                           }`}>
                             {member.userStatus === 'Y' ? '승인' : '미승인'}
                           </span>
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <div className="flex flex-col items-center gap-1 text-slate-500 dark:text-slate-400 font-bold">
+                        </div>
+
+                        <div className="flex items-center justify-between lg:justify-center lg:w-48 mb-4 lg:mb-0">
+                          <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">최근 접속</span>
+                          <div className="flex flex-col lg:items-center gap-1 text-slate-500 dark:text-slate-400 font-bold">
                             <span className="text-xs">{member.lastLoginAt || member.lastLogAt || '-'}</span>
-                            <span className="text-[10px] opacity-50 font-medium italic">Joined: {member.createAt ? new Date(member.createAt).toLocaleDateString() : '-'}</span>
+                            <span className="text-[10px] opacity-50 font-medium italic lg:hidden">Joined: {member.createAt ? new Date(member.createAt).toLocaleDateString() : '-'}</span>
                           </div>
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <div className="flex items-center justify-center gap-3">
+                        </div>
+
+                        <div className="flex items-center justify-between lg:justify-center lg:w-48">
+                          <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">작업</span>
+                          <div className="flex items-center gap-3">
                             <button
                               onClick={() => handleRoleToggle(member)}
                               disabled={!canModifyRole(member)}
-                              className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-black rounded-xl transition-all border shadow-sm group disabled:opacity-0 ${
+                              className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-black rounded-xl transition-all border shadow-sm disabled:opacity-0 ${
                                 member.userRole === 'USER' 
-                                  ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:text-emerald-400 border-emerald-100/50' 
-                                  : 'text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400 border-amber-100/50'
+                                  ? 'text-emerald-600 bg-emerald-50 border-emerald-100/50 hover:bg-emerald-100' 
+                                  : 'text-amber-600 bg-amber-50 border-amber-100/50 hover:bg-amber-100'
                               }`}
-                              title={member.userRole === 'USER' ? "관리자로 승격시킵니다." : "일반 유저로 강등시킵니다."}
                             >
                               {member.userRole === 'USER' ? <ShieldAlert size={16} /> : <UserCheck size={16} />}
                               <span>{member.userRole === 'USER' ? '승격' : '강등'}</span>
                             </button>
 
-                            {/* 강퇴 버튼: SUPER_ADMIN 권한이 있을 때만 노출 및 활성화 */}
                             {user?.userRole === 'SUPER_ADMIN' && (
                               <button 
                                 onClick={() => handleKick(member)}
                                 disabled={!canKick(member)}
-                                className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-black text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 rounded-xl transition-all border border-red-100/50 shadow-sm disabled:opacity-0 group"
-                                title="해당 사용자를 강제로 탈퇴시킵니다."
+                                className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-black text-red-600 bg-red-50 border border-red-100/50 rounded-xl transition-all shadow-sm disabled:opacity-0 hover:bg-red-100"
                               >
-                                <Trash2 size={16} className="group-hover:scale-110 transition-transform" />
+                                <Trash2 size={16} />
                                 <span>강퇴</span>
                               </button>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </div>
+                      </div>
                     );
-                  }) : (
-                    <tr>
-                      <td colSpan={6} className="py-32 text-center">
-                          <div className="flex flex-col items-center gap-4 text-slate-300 dark:text-slate-700">
-                            <Users size={64} strokeWidth={1} />
-                            <p className="text-xl font-black">검색 결과가 없습니다.</p>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                  })
+                ) : (
+                  <div className="py-32 text-center">
+                    <div className="flex flex-col items-center gap-4 text-slate-300 dark:text-slate-700">
+                      <Users size={64} strokeWidth={1} />
+                      <p className="text-xl font-black">검색 결과가 없습니다.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </>
         )}
 
         {activeTab === 'boards' && (
-          <section className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+          <section className="space-y-6">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
                 <Layout className="text-primary" size={24} /> 게시판 마스터 관리
@@ -698,77 +678,85 @@ export default function AdminMemberPage() {
             </div>
 
             <div className="bg-white dark:bg-[#1a222c] rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left min-w-[1000px]">
-                  <thead>
-                    <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest">게시판 정보</th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">댓글</th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">파일</th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">태그</th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">상태</th>
-                      <th className="px-8 py-6 text-[11px] font-black text-slate-400 uppercase tracking-widest text-center">작업</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                    {isBoardLoading ? (
-                      [...Array(3)].map((_, i) => (
-                        <tr key={`board-skeleton-${i}`} className="animate-pulse">
-                          <td colSpan={6} className="px-8 py-8"><div className="h-12 bg-slate-50 dark:bg-slate-800 rounded-xl w-full" /></td>
-                        </tr>
-                      ))
-                    ) : boards.length > 0 ? boards.map((board) => (
-                      <tr key={board.boardCode} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group">
-                        <td className="px-8 py-6">
-                          <div className="flex items-center gap-4">
-                            <div className="size-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500"><MessageSquare size={20} /></div>
-                            <div>
-                              <p className="text-sm font-black text-slate-900 dark:text-white leading-none mb-1.5">{board.boardName}</p>
-                              <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">{board.boardCode}</p>
-                            </div>
+              <div className="hidden lg:flex items-center px-8 py-6 bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                <div className="flex-1">게시판 정보</div>
+                <div className="w-24 text-center">댓글</div>
+                <div className="w-24 text-center">파일</div>
+                <div className="w-24 text-center">태그</div>
+                <div className="w-24 text-center">상태</div>
+                <div className="w-20 text-center">작업</div>
+              </div>
+
+              <div className="divide-y divide-slate-50 dark:divide-slate-800">
+                {isBoardLoading ? (
+                  [...Array(3)].map((_, i) => (
+                    <div key={`board-skeleton-${i}`} className="px-8 py-8 animate-pulse">
+                      <div className="h-12 bg-slate-50 dark:bg-slate-800 rounded-xl w-full" />
+                    </div>
+                  ))
+                ) : boards.length > 0 ? (
+                  boards.map((board) => (
+                    <div key={board.boardCode} className="flex flex-col lg:flex-row lg:items-center px-8 py-6 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group">
+                      <div className="flex-1 flex items-center gap-4 mb-4 lg:mb-0">
+                        <div className="size-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-500">
+                          <MessageSquare size={20} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <p className="text-sm font-black text-slate-900 dark:text-white leading-none">{board.boardName}</p>
+                            <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[9px] font-black text-slate-400 border border-slate-200 dark:border-slate-700">
+                              #{board.sortOrder}
+                            </span>
                           </div>
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${board.replyYn === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                          <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">{board.boardCode}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-4 lg:flex items-center lg:gap-0 gap-2 mb-4 lg:mb-0">
+                        <div className="flex flex-col lg:items-center gap-2 lg:w-24">
+                          <span className="lg:hidden text-[9px] font-black text-slate-400 uppercase tracking-tighter">댓글</span>
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black text-center ${board.replyYn === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                             {board.replyYn === 'Y' ? '사용' : '미사용'}
                           </span>
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${board.fileYn === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                        </div>
+                        <div className="flex flex-col lg:items-center gap-2 lg:w-24">
+                          <span className="lg:hidden text-[9px] font-black text-slate-400 uppercase tracking-tighter">파일</span>
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black text-center ${board.fileYn === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                             {board.fileYn === 'Y' ? '사용' : '미사용'}
                           </span>
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${board.tagYn === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                        </div>
+                        <div className="flex flex-col lg:items-center gap-2 lg:w-24">
+                          <span className="lg:hidden text-[9px] font-black text-slate-400 uppercase tracking-tighter">태그</span>
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-black text-center ${board.tagYn === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                             {board.tagYn === 'Y' ? '사용' : '미사용'}
                           </span>
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <span className={`px-3 py-1 rounded-lg text-[10px] font-black ${board.useYn === 'Y' ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600'}`}>
+                        </div>
+                        <div className="flex flex-col lg:items-center gap-2 lg:w-24">
+                          <span className="lg:hidden text-[9px] font-black text-slate-400 uppercase tracking-tighter">상태</span>
+                          <span className={`px-3 py-1 rounded-lg text-[10px] font-black text-center ${board.useYn === 'Y' ? 'bg-blue-50 text-blue-600' : 'bg-rose-50 text-rose-600'}`}>
                             {board.useYn === 'Y' ? '활성' : '비활성'}
                           </span>
-                        </td>
-                        <td className="px-8 py-6 text-center">
-                          <button 
-                            onClick={() => setBoardModal({ isOpen: true, mode: 'edit', data: board })}
-                            className="p-2 text-slate-400 hover:text-primary transition-colors"
-                          >
-                            <Settings2 size={18} />
-                          </button>
-                        </td>
+                        </div>
+                      </div>
 
-                      </tr>
-                    )) : (
-                      <tr>
-                        <td colSpan={6} className="py-20 text-center text-slate-400 font-bold">등록된 게시판이 없습니다.</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                      <div className="flex items-center justify-end lg:justify-center lg:w-20">
+                        <button 
+                          onClick={() => handleBoardEditClick(board.boardCode)}
+                          className="p-2 text-slate-400 hover:text-primary transition-colors"
+                        >
+                          <Settings2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                )) : (
+                  <div className="py-20 text-center text-slate-400 font-bold">등록된 게시판이 없습니다.</div>
+                )}
               </div>
             </div>
           </section>
         )}
+
         {activeTab === 'codes' && (
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in slide-in-from-bottom-2">
             {/* Group Codes List */}
@@ -836,46 +824,44 @@ export default function AdminMemberPage() {
               </div>
               <div className="bg-white dark:bg-[#1a222c] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden min-h-[400px]">
                 {selectedGroup ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead>
-                        <tr className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800">
-                          <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">코드/명칭</th>
-                          <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">순서</th>
-                          <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">상태</th>
-                          <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">작업</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                        {details.filter(detail => detail.groupCode === selectedGroup).map((detail) => (
-                          <tr key={`${detail.groupCode}_${detail.codeId}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group">
-                            <td className="px-6 py-4">
-                              <p className="text-sm font-black text-slate-900 dark:text-white">{detail.codeName}</p>
-                              <p className="text-[10px] text-slate-400 font-bold uppercase">{detail.codeId}</p>
-                            </td>
-                            <td className="px-6 py-4 text-center text-xs font-bold text-slate-500">{detail.sortOrder}</td>
-                            <td className="px-6 py-4 text-center">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black ${detail.useYn === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                                {detail.useYn === 'Y' ? '사용' : '미사용'}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <button 
-                                onClick={() => setDetailModal({ isOpen: true, mode: 'edit', data: detail })}
-                                className="p-1.5 text-slate-300 hover:text-primary transition-colors"
-                              >
-                                <Settings2 size={16} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                        {details.length === 0 && !isCodeLoading && (
-                          <tr>
-                            <td colSpan={4} className="py-20 text-center text-slate-400 text-sm font-medium">상세 코드가 없습니다.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+                  <div className="flex flex-col h-full">
+                    <div className="hidden lg:flex items-center px-6 py-4 bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      <div className="flex-1">코드/명칭</div>
+                      <div className="w-16 text-center">순서</div>
+                      <div className="w-20 text-center">상태</div>
+                      <div className="w-16 text-center">작업</div>
+                    </div>
+                    <div className="divide-y divide-slate-50 dark:divide-slate-800">
+                      {details.filter(detail => detail.groupCode === selectedGroup).map((detail) => (
+                        <div key={`${detail.groupCode}_${detail.codeId}`} className="flex flex-col lg:flex-row lg:items-center px-6 py-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group">
+                          <div className="flex-1 mb-2 lg:mb-0">
+                            <p className="text-sm font-black text-slate-900 dark:text-white">{detail.codeName}</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase">{detail.codeId}</p>
+                          </div>
+                          <div className="flex items-center justify-between lg:justify-center lg:w-16 mb-2 lg:mb-0">
+                            <span className="lg:hidden text-[9px] font-black text-slate-400 uppercase tracking-tighter">순서</span>
+                            <span className="text-xs font-bold text-slate-500">{detail.sortOrder}</span>
+                          </div>
+                          <div className="flex items-center justify-between lg:justify-center lg:w-20 mb-2 lg:mb-0">
+                            <span className="lg:hidden text-[9px] font-black text-slate-400 uppercase tracking-tighter">상태</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black ${detail.useYn === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                              {detail.useYn === 'Y' ? '사용' : '미사용'}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-end lg:justify-center lg:w-16">
+                            <button 
+                              onClick={() => setDetailModal({ isOpen: true, mode: 'edit', data: detail })}
+                              className="p-1.5 text-slate-300 hover:text-primary transition-colors"
+                            >
+                              <Settings2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {details.length === 0 && !isCodeLoading && (
+                        <div className="py-20 text-center text-slate-400 text-sm font-medium">상세 코드가 없습니다.</div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-[400px] text-slate-300 gap-4">
@@ -899,7 +885,6 @@ export default function AdminMemberPage() {
         isLoading={confirmModal.isLoading}
       />
 
-      {/* 모달 렌더링 섹션 */}
       {boardModal.isOpen && <BoardFormModal modal={boardModal} onClose={() => setBoardModal({ ...boardModal, isOpen: false })} onSubmit={handleBoardSubmit} groups={groups} />}
       {groupModal.isOpen && <GroupFormModal modal={groupModal} onClose={() => setGroupModal({ ...groupModal, isOpen: false })} onSubmit={handleGroupSubmit} currentCount={groups.length} />}
       {detailModal.isOpen && <DetailFormModal modal={detailModal} onClose={() => setDetailModal({ ...detailModal, isOpen: false })} onSubmit={handleDetailSubmit} />}
@@ -912,7 +897,25 @@ export default function AdminMemberPage() {
  */
 function BoardFormModal({ modal, onClose, onSubmit, groups }: any) {
   const isEdit = modal.mode === 'edit';
-  const [formData, setFormData] = useState(modal.data || { boardName: '', groupCode: '', fileYn: 'Y', replyYn: 'Y', useYn: 'Y' });
+  const [formData, setFormData] = useState(modal.data || { boardName: '', groupCode: '', fileYn: 'Y', replyYn: 'Y', useYn: 'Y', sortOrder: 1 });
+
+  // 데이터 동기화 로직 추가
+  useEffect(() => {
+    if (modal.data && modal.isOpen) {
+      setFormData(modal.data);
+    }
+  }, [modal.data, modal.isOpen]);
+
+  useEffect(() => {
+    if (modal.isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [modal.isOpen]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -928,11 +931,19 @@ function BoardFormModal({ modal, onClose, onSubmit, groups }: any) {
             <input required className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.boardName} onChange={(e) => setFormData({...formData, boardName: e.target.value})} />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">연결 그룹 코드</label>
-            <select required className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white appearance-none" value={formData.groupCode} onChange={(e) => setFormData({...formData, groupCode: e.target.value})}>
-              <option value="">그룹 선택</option>
-              {groups.map((g: any) => <option key={g.groupCode} value={g.groupCode}>{g.groupName} ({g.groupCode})</option>)}
-            </select>
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">그룹코드</label>
+            <input 
+              required 
+              disabled={isEdit}
+              className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white disabled:opacity-50" 
+              placeholder="예: G_BRD_NOTICE"
+              value={formData.groupCode} 
+              onChange={(e) => setFormData({...formData, groupCode: e.target.value})} 
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">정렬 순서</label>
+            <input required type="number" min="1" className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.sortOrder} onChange={(e) => setFormData({...formData, sortOrder: parseInt(e.target.value) || 1})} />
           </div>
           <div className="grid grid-cols-4 gap-3">
             {['fileYn', 'replyYn', 'tagYn', 'useYn'].map(field => (
@@ -962,6 +973,17 @@ function BoardFormModal({ modal, onClose, onSubmit, groups }: any) {
 function GroupFormModal({ modal, onClose, onSubmit, currentCount }: any) {
   const isEdit = modal.mode === 'edit';
   const [formData, setFormData] = useState(modal.data || { groupCode: '', groupName: '', sortOrder: currentCount + 1, useYn: 'Y' });
+
+  useEffect(() => {
+    if (modal.isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [modal.isOpen]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -1010,6 +1032,17 @@ function GroupFormModal({ modal, onClose, onSubmit, currentCount }: any) {
 function DetailFormModal({ modal, onClose, onSubmit }: any) {
   const isEdit = modal.mode === 'edit';
   const [formData, setFormData] = useState(modal.data || { groupCode: '', codeId: '', codeName: '', sortOrder: 1, useYn: 'Y' });
+
+  useEffect(() => {
+    if (modal.isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [modal.isOpen]);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">

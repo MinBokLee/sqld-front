@@ -1,96 +1,159 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import SockJS from 'sockjs-client';
-import { Client } from '@stomp/stompjs';
+import { Client, IMessage, StompSubscription } from '@stomp/stompjs';
 import { useUser } from './UserContext';
+import { isTokenExpired } from '../utils/api';
 
 interface StompContextType {
-  client: Client | null;
   isConnected: boolean;
+  status: 'CONNECTING' | 'CONNECTED' | 'DISCONNECTED';
+  subscribe: (destination: string, callback: (message: IMessage) => void, headers?: any) => () => void;
+  publish: (destination: string, body: any) => void;
 }
 
-const StompContext = createContext<StompContextType>({ client: null, isConnected: false });
+const StompContext = createContext<StompContextType | undefined>(undefined);
 
 export const StompProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useUser();
   const stompClientRef = useRef<Client | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [status, setStatus] = useState<'CONNECTING' | 'CONNECTED' | 'DISCONNECTED'>('DISCONNECTED');
+  const isConnected = status === 'CONNECTED';
+  const connectingRef = useRef(false);
 
+  // 구독 함수: 중복 방지를 위해 로그를 강화하고 인스턴스 존재 여부를 체크
+  const subscribe = useCallback((destination: string, callback: (message: IMessage) => void, headers: any = {}) => {
+    const client = stompClientRef.current;
+    if (client && client.connected) {
+      const token = user?.accessToken;
+      // [사전검증] 토큰 만료 시 구독 시도 차단
+      if (isTokenExpired(token)) {
+        console.warn('📡 [STOMP] Subscribe blocked: Token expired');
+        return () => {};
+      }
+
+      const authHeaders = token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
+      
+      console.log(`📡 [STOMP] >>> SUBSCRIBE Request to: ${destination}`);
+      const subscription: StompSubscription = client.subscribe(destination, callback, authHeaders);
+      
+      return () => {
+        console.log(`🔌 [STOMP] <<< UNSUBSCRIBE from: ${destination}`);
+        subscription.unsubscribe();
+      };
+    }
+    return () => {};
+  }, [isConnected, user?.accessToken]);
+
+  const publish = useCallback((destination: string, body: any) => {
+    const client = stompClientRef.current;
+    if (client && client.connected) {
+      // [사전검증] 토큰 만료 시 발행 차단
+      if (isTokenExpired(user?.accessToken)) {
+        console.warn('📡 [STOMP] Publish blocked: Token expired');
+        return;
+      }
+
+      client.publish({
+        destination,
+        body: JSON.stringify(body)
+      });
+    }
+  }, [user?.accessToken]);
+
+  // [전략 3] 전역 인증 실패 이벤트 발생 시 연결 즉시 차단
   useEffect(() => {
-    const token = user?.accessToken || localStorage.getItem('token');
-
-    // [선제적 차단] 토큰 만료 여부 체크 (JWT exp 해석)
-    const isExpired = (() => {
-      try {
-        const base64Url = token.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const payload = JSON.parse(decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
-        return payload.exp < Math.floor(Date.now() / 1000);
-      } catch { return true; }
-    })();
-
-    // 유효한 사용자 정보나 토큰이 없거나, 이미 만료되었다면 기존 연결 종료 및 재연결 차단
-    if (!user || !user.memberId || !token || isExpired) {
+    const handleAuthError = () => {
       if (stompClientRef.current) {
-        console.log('🔌 [STOMP] Deactivating main connection due to missing or expired auth.');
+        console.log('🔌 [STOMP] Auth Error detected, forcing deactivation...');
         stompClientRef.current.deactivate();
         stompClientRef.current = null;
-        setIsConnected(false);
+        setStatus('DISCONNECTED');
+        connectingRef.current = false;
+      }
+    };
+
+    window.addEventListener('auth-error', handleAuthError);
+    return () => window.removeEventListener('auth-error', handleAuthError);
+  }, []);
+
+  useEffect(() => {
+    const token = user?.accessToken;
+    const memberId = user?.memberId;
+
+    if (!memberId || !token || isTokenExpired(token)) {
+      if (stompClientRef.current) {
+        console.log('🔌 [STOMP] No session or expired token, deactivating...');
+        stompClientRef.current.deactivate();
+        stompClientRef.current = null;
+        setStatus('DISCONNECTED');
       }
       return;
     }
 
-    // 이미 연결이 존재하거나 활성화 중이면 중복 실행 방지
-    if (stompClientRef.current && (stompClientRef.current.connected || stompClientRef.current.active)) {
-      return;
-    }
+    if (connectingRef.current || stompClientRef.current?.active) return;
 
-    console.log('🚀 [STOMP] Initializing MAIN unified connection for:', user.userName);
-
-    const socketUrl = import.meta.env.VITE_API_BASE_URL 
-      ? `${import.meta.env.VITE_API_BASE_URL}/ws-stomp` 
-      : '/ws-stomp';
+    connectingRef.current = true;
+    setStatus('CONNECTING');
+    console.log('📡 [STOMP] Initiating connection for:', memberId);
 
     const client = new Client({
-      webSocketFactory: () => new SockJS(socketUrl),
-      connectHeaders: {
-        Authorization: `Bearer ${token}`,
-      },
+      webSocketFactory: () => new SockJS('/ws-stomp'),
+      connectHeaders: { Authorization: `Bearer ${token}` },
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
-      onConnect: (frame) => {
-        console.log('✅ [STOMP] MAIN WebSocket Connected Successfully.', frame.headers['user-name'] || '');
-        setIsConnected(true);
+      debug: (str) => console.log('🛠️ [STOMP Debug]', str),
+      onConnect: () => {
+        console.log('✅ [STOMP] Protocol Connected');
+        setStatus('CONNECTED');
+        connectingRef.current = false;
       },
       onDisconnect: () => {
-        console.log('⚠️ [STOMP] MAIN WebSocket Disconnected.');
-        setIsConnected(false);
+        console.log('🔌 [STOMP] Protocol Disconnected');
+        setStatus('DISCONNECTED');
+        connectingRef.current = false;
       },
       onStompError: (frame) => {
-        console.error('❌ [STOMP] Main Broker Error:', frame.headers['message']);
-        setIsConnected(false);
+        const errorMessage = frame.headers['message'] || '';
+        console.error('❌ [STOMP] Error:', errorMessage);
+        
+        // [전략 2] 인증 에러(401/Expired)인 경우 자동 재연결 중단
+        if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('expired')) {
+          console.warn('🔌 [STOMP] Fatal Auth Error. Stopping auto-reconnect.');
+          client.deactivate();
+          if (stompClientRef.current === client) {
+            stompClientRef.current = null;
+          }
+        }
+        
+        setStatus('DISCONNECTED');
+        connectingRef.current = false;
       },
     });
 
     client.activate();
     stompClientRef.current = client;
 
-    // 클린업 함수: 컴포넌트 언마운트 시 연결 해제
     return () => {
-      if (stompClientRef.current) {
-        console.log('🧹 [STOMP] Cleaning up main connection.');
-        stompClientRef.current.deactivate();
+      console.log('🔌 [STOMP] Cleanup: Finalizing instance');
+      client.deactivate();
+      if (stompClientRef.current === client) {
         stompClientRef.current = null;
-        setIsConnected(false);
       }
+      setStatus('DISCONNECTED');
+      connectingRef.current = false;
     };
-  }, [user]); // user가 변경될 때만 재실행됨
+  }, [user?.accessToken, user?.memberId]);
 
   return (
-    <StompContext.Provider value={{ client: stompClientRef.current, isConnected }}>
+    <StompContext.Provider value={{ isConnected, status, subscribe, publish }}>
       {children}
     </StompContext.Provider>
   );
 };
 
-export const useStomp = () => useContext(StompContext);
+export const useStomp = () => {
+  const context = useContext(StompContext);
+  if (!context) throw new Error('useStomp must be used within a StompProvider');
+  return context;
+};

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   X, Camera, User, Mail, Shield, 
   CheckCircle2, AlertCircle, Loader2, Bookmark, ChevronRight
@@ -18,6 +18,18 @@ export default function MyInfoModal({ isOpen, onClose, getText }: MyInfoModalPro
   const { showAlert, showToast } = useAlert();
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 배경 스크롤 방지 로직
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   if (!isOpen || !user) return null;
 

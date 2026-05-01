@@ -219,7 +219,7 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!idChecked || !nameChecked || !isVerified) {
-      showAlert({ type: 'warning', message: "필수 확인 및 인증 절차를 완료해 주세요. ⚠️" });
+      showToast("필수 확인 및 인증 절차를 완료해 주세요. ⚠️", 'warning');
       return;
     }
 

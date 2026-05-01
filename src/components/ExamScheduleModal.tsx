@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Calendar, CheckCircle2, Clock, AlertCircle, Info } from 'lucide-react';
 
 interface ExamScheduleModalProps {
@@ -55,6 +55,18 @@ const EXAM_SCHEDULE = [
 ];
 
 export default function ExamScheduleModal({ isOpen, onClose }: ExamScheduleModalProps) {
+  // 배경 스크롤 방지 로직
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const today = new Date();

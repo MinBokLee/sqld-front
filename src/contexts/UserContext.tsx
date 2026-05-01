@@ -27,7 +27,7 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { showAlert } = useAlert(); 
+  const { showToast } = useAlert(); 
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const isInitialized = useRef(false);
@@ -169,13 +169,10 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = useCallback(async (username: string, password: string, rememberMe: boolean): Promise<boolean> => {
     setIsLoading(true);
     try {
-      const response = await api.post('/api/auth/signIn', { 
+      const rawData = await api.post('/api/auth/signIn', { 
         userId: username, 
         userPass: password 
       });
-
-      const data = response.data;
-      const rawData = data.result?.data || data.data || data.result || data;
 
       if (rawData) {
         const newUser: User = {
@@ -209,24 +206,13 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       return false;
     } catch (error: any) {
-      console.error("Login Error:", error);
-      if (error.response?.status === 401) {
-        showAlert({ 
-          type: 'info', 
-          title: "로그인 안내",
-          message: "입력하신 정보가 등록된 내용과 조금 달라요. ✍️ 아이디와 비밀번호를 다시 한번 확인해 주시겠어요?" 
-        });
-      } else if (error.response?.status === 500) {
-        showAlert({ type: 'error', message: "서버 내부 오류가 발생했습니다. ❌ 잠시 후 다시 시도해 주세요." });
-      } else {
-        showAlert({ type: 'error', message: "일시적인 오류로 로그인을 처리할 수 없습니다. ❌ 네트워크 상태를 확인해 주세요." });
-      }
-      clearUser();
+      // ❌ 로그인 시도 실패 시 clearUser()를 호출하면 인터셉터의 에러 처리와 충돌할 수 있으므로 제거
+      console.error("Login process failed:", error);
       return false;
     } finally {
       setIsLoading(false);
     }
-  }, [clearUser, showAlert]);
+  }, []);
 
   const logout = useCallback(async () => {
     setIsLoading(true);

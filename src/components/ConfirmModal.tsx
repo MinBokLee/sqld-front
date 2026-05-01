@@ -45,6 +45,18 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isOpen, onConfirm, onClose]);
 
+  // 배경 스크롤 방지 로직
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const themes = {

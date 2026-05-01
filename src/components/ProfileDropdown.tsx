@@ -60,20 +60,19 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
     if (!user?.memberId) return;
     setLoading(true);
     try {
-      const response = await api.get(`/api/member/readMemberSimpleInfo`, {
+      // api.get은 인터셉터에 의해 이미 data 필드 내용만 반환합니다.
+      const info: any = await api.get(`/api/member/readMemberSimpleInfo`, {
         params: { memberId: user.memberId }
       });
-      const data = response.data;
       
-      if (data.success && data.result) {
-        const info = data.result.data || data.result;
+      if (info) {
         setStats({ 
           postCount: info.postCount ?? 0, 
           commentCount: info.commentCount ?? 0 
         });
       }
     } catch (error) {
-      console.error("Failed to fetch simple member info:", error);
+      console.error("Failed to fetch member info:", error);
     } finally {
       setLoading(false);
     }
@@ -94,6 +93,7 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
     formData.append('memberId', user.memberId);
 
     try {
+      // 1. 이미지 서버 업로드
       const response = await api.post(`/api/board/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
@@ -101,18 +101,17 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
       const imageUrl = result.url || result.result?.data?.[0];
 
       if (imageUrl) {
+        // 2. 회원 프로필 정보 패치 (Patch)
         const saveRes = await api.patch(`/api/member/profile-image`, { 
           memberId: user.memberId, 
           profileImage: imageUrl 
         });
 
-        if (saveRes.data.success || saveRes.status === 200) {
-          updateUser({ profileImage: imageUrl });
-          showToast("프로필 이미지가 성공적으로 변경되었습니다. ✨", 'success');
-        }
+        updateUser({ profileImage: imageUrl });
+        showToast(saveRes.data.msg || "프로필 이미지가 변경되었습니다. ✨", 'success');
       }
     } catch (error) {
-      showToast("이미지를 올리는 중에 문제가 생겼어요. ⏳", 'error');
+      console.error("Upload error:", error);
     } finally {
       setUploading(false);
     }

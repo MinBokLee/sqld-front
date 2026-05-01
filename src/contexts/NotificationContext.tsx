@@ -6,8 +6,8 @@ import { useStomp } from './StompContext';
 import api from '../utils/api';
 
 interface Notification {
-  id: string; // 내부 관리를 위한 ID (notiId를 여기에 매핑)
-  notiId?: number | string; // 백엔드 고유 ID
+  id: string; 
+  notiId?: number | string; 
   type: string;
   senderId: string;
   targetId: string;
@@ -30,7 +30,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useUser();
   const { showToast } = useAlert();
-  const { client, isConnected } = useStomp(); // 통합 StompClient 가져오기
+  const { isConnected, subscribe } = useStomp();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -38,16 +38,29 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const fetchNotifications = useCallback(async () => {
     if (!user || !user.memberId) return;
     try {
-      const response = await api.get(`/api/notification/list/${user.memberId}`);
-      const rawList = response.data.list || response.data.result?.data?.list || [];
+      const resData: any = await api.get(`/api/notification/list/${user.memberId}`);
+      let rawList: any[] = [];
+      let unread = 0;
+
+      if (Array.isArray(resData)) {
+        rawList = resData;
+      } else if (resData && typeof resData === 'object') {
+        rawList = resData.list || resData.data || resData.result || [];
+        unread = resData.unreadCount || resData.unread_count || 0;
+      }
+
       const mappedList = rawList.map((item: any) => ({
         ...item,
-        id: String(item.notiId || item.id || `hist_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`),
+        id: String(item.notiId || item.id || `hist_${Date.now()}`),
+        // Map content flexibly
+        content: item.content || item.message || item.notiContent || '새로운 알림이 있습니다.',
+        // Map timestamp flexibly
+        timestamp: item.timestamp || item.createAt || item.createdAt || new Date().toLocaleString(),
         isRead: item.isRead === true || item.readStatus === 'Y'
       }));
 
       setNotifications(mappedList);
-      setUnreadCount(response.data.unreadCount || response.data.result?.data?.unreadCount || 0);
+      setUnreadCount(unread);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     }
@@ -79,47 +92,54 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // 초기 알림 히스토리 로드
   useEffect(() => {
-    if (!user || !user.memberId) return;
+    if (!user || !user.memberId) {
+      setNotifications([]);
+      setUnreadCount(0);
+      return;
+    }
     fetchNotifications();
   }, [user, fetchNotifications]);
 
-  // WebSocket 구독 설정 (통합 client가 활성화되었을 때만 실행)
+  // WebSocket 구독 설정
   useEffect(() => {
-    if (!client || !isConnected || !user?.memberId) return;
+    if (!isConnected || !user?.memberId) return;
 
-    console.log('📡 [NOTI] Subscribing to:', `/sub/user/${user.memberId}`);
+    const topic = `/sub/user/${user.memberId}`;
+    console.log(`📡 [NOTI] Subscribing to: ${topic}`);
     
-    const subscription = client.subscribe(`/sub/user/${user.memberId}`, (message: IMessage) => {
-      console.log('🔔 [NOTI] Received (Raw):', message.body);
-      
+    const unsubscribe = subscribe(topic, (message: IMessage) => {
       try {
-        const rawData = JSON.parse(message.body);
+        const response = JSON.parse(message.body);
+        // response.data가 있으면 사용하고, 없으면 response 자체를 데이터로 사용
+        const rawData = response.data || response;
         
+        if (!rawData || (typeof rawData === 'object' && Object.keys(rawData).length === 0)) return;
+
         const actualId = rawData.notiId || rawData.id;
         const newNoti: Notification = {
           ...rawData,
-          id: actualId ? String(actualId) : `noti_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          id: actualId ? String(actualId) : `noti_${Date.now()}`,
           notiId: rawData.notiId,
+          content: rawData.content || rawData.message || rawData.notiContent || '새로운 알림이 도착했습니다.',
           isRead: false,
-          timestamp: rawData.timestamp || new Date().toLocaleString()
+          timestamp: rawData.timestamp || rawData.createAt || new Date().toLocaleString()
         };
 
         setNotifications(prev => [newNoti, ...prev]);
         setUnreadCount(prev => prev + 1);
         
-        const displayContent = newNoti.content || '새로운 댓글 알림이 도착했습니다.';
+        const displayContent = newNoti.content || '새로운 알림이 도착했습니다.';
         showToast(displayContent, 'info');
       } catch (e) {
-        console.error('❌ [NOTI] Failed to parse notification:', e);
+        console.error('❌ [NOTI] Parse error:', e);
       }
     });
 
-    // 클린업 함수: 컴포넌트 언마운트 또는 재실행 시 기존 구독 해제
     return () => {
-      console.log('🔌 [NOTI] Unsubscribing from notifications');
-      subscription.unsubscribe();
+      console.log('🔌 [NOTI] Unsubscribing');
+      unsubscribe();
     };
-  }, [client, isConnected, user, showToast]);
+  }, [isConnected, user, subscribe, showToast]);
 
   return (
     <NotificationContext.Provider value={{ 

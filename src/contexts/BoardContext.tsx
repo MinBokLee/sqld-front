@@ -19,16 +19,30 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const fetchConfigs = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/api/boardMaster/getBoardConfigList');
-      const resData = response.data;
+      /**
+       * [최종 적용] api.get은 인터셉터가 다중 경로 탐색을 통해 
+       * res.data 또는 res.result.data를 자동으로 언래핑하여 반환합니다.
+       */
+      const resData: any = await api.get('/api/boardMaster/getBoardConfigList');
       
-      if (resData.success) {
-        // [보안] 데이터 계층 구조가 { result: { data: [...] } } 또는 { result: [...] } 인 경우 모두 대응
-        const configs = resData.result?.data || resData.result || [];
-        setBoardConfigs(Array.isArray(configs) ? configs : []);
+      let configList: BoardMaster[] = [];
+      
+      if (Array.isArray(resData)) {
+        configList = resData;
+      } else if (resData && typeof resData === 'object') {
+        // 객체로 반환된 경우 내부의 list나 data 필드를 한 번 더 탐색
+        configList = resData.data || resData.list || resData.result || [];
+        // 만약 result가 또 data를 가지고 있다면 (예: { result: { data: [...] } })
+        if (!Array.isArray(configList) && (configList as any).data) {
+          configList = (configList as any).data;
+        }
       }
+
+      setBoardConfigs(Array.isArray(configList) ? configList : []);
+      console.log('✅ Board System Synced. Count:', configList.length);
     } catch (error) {
-      console.error('Failed to fetch board configurations:', error);
+      console.error('Board Config load error:', error);
+      setBoardConfigs([]); 
     } finally {
       setIsLoading(false);
     }
@@ -39,14 +53,19 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [fetchConfigs]);
 
   const getBoardCode = useCallback((groupCode: string) => {
-    return boardConfigs.find(config => config.groupCode === groupCode || config.boardCode === groupCode)?.boardCode;
+    if (!groupCode) return undefined;
+    return boardConfigs.find(config => 
+      config.groupCode === groupCode || config.boardCode === groupCode
+    )?.boardCode;
   }, [boardConfigs]);
 
   const getBoardConfig = useCallback((boardCode: string) => {
+    if (!boardCode) return undefined;
     return boardConfigs.find(config => config.boardCode === boardCode);
   }, [boardConfigs]);
 
   const getBoardCategories = useCallback((boardCode: string) => {
+    if (!boardCode) return [];
     const config = boardConfigs.find(c => c.boardCode === boardCode);
     return config?.categories || [];
   }, [boardConfigs]);

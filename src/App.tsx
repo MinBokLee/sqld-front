@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider, Outlet, useOutletContext, useLocation } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Outlet, useOutletContext, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useContext } from "react";
 import { Megaphone, BookOpen, Hand, Layout, MessageSquare, Users } from 'lucide-react';
 import Board from './components/Board';
@@ -11,7 +11,7 @@ import LoginModal from './components/LoginModal';
 import PasswordResetModal from './components/PasswordResetModal'; 
 import ExamScheduleModal from './components/ExamScheduleModal'; 
 import OpenChat from './components/OpenChat';
-import { UserProvider } from './contexts/UserContext';
+import { UserProvider, useUser } from './contexts/UserContext';
 import { LanguageProvider, LanguageContext } from './contexts/LanguageContext';
 import { AlertProvider, useAlert } from './contexts/AlertContext'; 
 import { StompProvider } from './contexts/StompContext';
@@ -37,9 +37,9 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
   useEffect(() => {
     setIsPostsLoading(true);
     api.get(`/api/board/list`)
-      .then((res) => {
-        if (res.data.success && res.data.result?.data) {
-          const allPosts = res.data.result.data.map((item: any) => ({
+      .then((res: any) => {
+        if (res) {
+          const allPosts = res.map((item: any) => ({
             title: item.title,
             createAt: item.createAt,
             viewCount: item.viewCount,
@@ -52,7 +52,6 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
             categoryName: item.categoryName,
           }));
 
-          // 게시판 코드별로 그룹화
           const groups = allPosts.reduce((acc: any, post: BoardItem) => {
             const code = post.boardCode || 'unknown';
             if (!acc[code]) acc[code] = [];
@@ -67,21 +66,15 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
       .finally(() => setIsPostsLoading(false));
   }, []);
 
-  /**
-   * [동적 아이콘 매핑]
-   * 하드코딩된 그룹 코드 대신 키워드 기반으로 아이콘을 결정합니다.
-   */
   const getBoardIcon = (groupCode: string, boardName: string = '') => {
     const code = groupCode?.toUpperCase() || '';
     const name = boardName?.toLowerCase() || '';
-
     if (code.includes('NOTICE') || name.includes('공지')) return Megaphone;
     if (code.includes('LICENSE') || code.includes('STUDY') || name.includes('학습') || name.includes('시험')) return BookOpen;
     if (code.includes('GREETING') || name.includes('인사')) return Hand;
     if (code.includes('COMMUNITY') || name.includes('커뮤니티') || name.includes('자유')) return MessageSquare;
     if (code.includes('MEMBER') || name.includes('회원')) return Users;
-    
-    return Layout; // 기본 아이콘
+    return Layout;
   };
 
   const activeBoards = boardConfigs
@@ -91,14 +84,12 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
   return (
     <main className="max-w-[1440px] mx-auto px-4 md:px-10 py-12">
       <Hero getText={getText} onOpenSchedule={onOpenSchedule} />
-      
       <div className={`grid gap-8 mt-12 ${
         activeBoards.length === 1 ? 'grid-cols-1 max-w-2xl mx-auto' :
         activeBoards.length === 2 ? 'grid-cols-1 lg:grid-cols-2' :
         'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
       }`}>
         {isBoardLoading || isPostsLoading ? (
-          // 로딩 스켈레톤
           [...Array(3)].map((_, i) => (
             <div key={i} className="h-[400px] bg-white dark:bg-slate-900 rounded-3xl animate-pulse border border-slate-100 dark:border-slate-800 shadow-sm" />
           ))
@@ -121,14 +112,10 @@ function Home({ onOpenSchedule }: { onOpenSchedule: () => void }) {
   );
 }
 
-/**
- * [RootLayout]
- * 레이아웃 및 모달 전역 상태 관리
- */
 function RootLayout() {
   const { showToast } = useAlert();
+  const navigate = useNavigate();
   const { pathname, search } = useLocation();
-  
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -137,7 +124,6 @@ function RootLayout() {
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
 
-  // 페이지 이동 및 쿼리 파라미터 변경 시 스크롤 최상단 리셋
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [pathname, search]);
@@ -161,11 +147,11 @@ function RootLayout() {
     openPasswordResetModal();
   };
 
-  // 전역 인증 및 API 에러 핸들러
   useEffect(() => {
     const handleAuthError = (event: any) => {
       const message = event.detail?.message || '세션이 만료되었습니다. 다시 로그인해 주세요.';
       showToast(message, 'warning', 4000);
+      navigate('/');
       openLoginModal();
     };
 
@@ -181,7 +167,7 @@ function RootLayout() {
       window.removeEventListener('auth-error', handleAuthError);
       window.removeEventListener('api-error', handleApiError);
     };
-  }, [showToast]);
+  }, [showToast, navigate]);
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0d141b] text-slate-900 dark:text-white font-sans transition-colors duration-200">
@@ -191,16 +177,11 @@ function RootLayout() {
         onOpenPasswordReset={openPasswordResetModal}
         getText={getText} 
       />
-      
       <div className="flex-1 relative z-0">
         <Outlet context={{ openScheduleModal }} />
       </div>
-
       <Footer getText={getText} />
-      
-      {/* Global Open Chat */}
       <OpenChat />
-      
       {isSignUpModalOpen && <SignUpModal isOpen={isSignUpModalOpen} onClose={closeSignUpModal} getText={getText} />}
       {isLoginModalOpen && (
         <LoginModal 
@@ -233,52 +214,40 @@ const router = createBrowserRouter([
     path: "/",
     element: <RootLayout />,
     children: [
-      {
-        index: true,
-        element: <HomeWrapper />,
-      },
-      {
-        path: "practice-exams",
-        element: <PracticeExams />,
-      },
-      {
-        path: "exam/:id",
-        element: <ExamDetailPage />,
-      },
-      {
-        path: "write-post",
-        element: <WritePostPage />,
-      },
-      {
-        path: "admin/members",
-        element: <AdminMemberPage />,
-      },
-      {
-        path: "mypage",
-        element: <MyPage />,
-      },
-      {
-        path: "legal",
-        element: <LegalPage />,
-      }
+      { index: true, element: <HomeWrapper /> },
+      { path: "practice-exams", element: <PracticeExams /> },
+      { path: "exam/:id", element: <ExamDetailPage /> },
+      { path: "write-post", element: <WritePostPage /> },
+      { path: "admin/members", element: <AdminMemberPage /> },
+      { path: "mypage", element: <MyPage /> },
+      { path: "legal", element: <LegalPage /> }
     ],
   },
 ]);
+
+function AppContent() {
+  const { user } = useUser();
+  
+  // [핵심] user.memberId를 key로 사용하여 계정 전환 시 모든 하위 상태를 물리적으로 폭파/초기화
+  return (
+    <BoardProvider>
+      <StompProvider key={user?.memberId || 'guest'}>
+        <NotificationProvider>
+          <ChatProvider>
+            <RouterProvider router={router} />
+          </ChatProvider>
+        </NotificationProvider>
+      </StompProvider>
+    </BoardProvider>
+  );
+}
 
 function App() {
   return (
     <LanguageProvider>
       <AlertProvider>
         <UserProvider>
-          <BoardProvider>
-            <StompProvider>
-              <NotificationProvider>
-                <ChatProvider>
-                  <RouterProvider router={router} />
-                </ChatProvider>
-              </NotificationProvider>
-            </StompProvider>
-          </BoardProvider>
+          <AppContent />
         </UserProvider>
       </AlertProvider>
     </LanguageProvider>

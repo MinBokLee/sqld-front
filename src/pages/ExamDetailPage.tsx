@@ -187,18 +187,19 @@ export default function ExamDetailPage() {
 
   const fetchComments = useCallback(async () => {
     try {
-      const response = await api.get(`/api/board/readComment`, { params: { boardId: id } });
-      if (response.data.success) setComments(buildCommentTree(response.data.result.data || []));
-    } catch (error) { console.error("Fetch comments error:", error); }
+      const data: any = await api.get(`/api/board/readComment`, { params: { boardId: id } });
+      setComments(buildCommentTree(data || []));
+    } catch (error: any) { 
+      if (error.isAuthError) return;
+      console.error("Fetch comments error:", error); 
+    }
   }, [id]);
 
   const fetchPostDetail = useCallback(async (showLoading = false) => {
     if (showLoading) setInitialLoading(true);
     try {
-      const response = await api.get(`/api/board/list/detail/${id}`);
-      const rawData = response.data.result?.data || response.data.result;
+      const rawData: any = await api.get(`/api/board/list/detail/${id}`);
       if (rawData) {
-        // [수정] BoardContext 정보를 활용한 카테고리 이름 보정 로직
         const config = getBoardConfig(rawData.boardCode);
         const categoryFromContext = config?.categories?.find(c => c.categoryId === rawData.categoryId)?.categoryName;
         
@@ -211,128 +212,129 @@ export default function ExamDetailPage() {
           scrapId: rawData.scrap_Id || null, 
           content: fixContentHtml(rawData.content), boardCode: rawData.boardCode,
           categoryId: rawData.categoryId, 
-          // 컨텍스트에 있는 이름을 최우선, 그 다음 서버 필드들 확인
           categoryName: categoryFromContext || rawData.categoryName || rawData.categoryNm || rawData.category_name,
           files: (rawData.fileList || rawData.files || []).map((f: any) => ({ fileId: f.fileId, originName: f.originName, filePath: fixImagePath(f.filePath || '') })),
           tags: rawData.tags || (rawData.tagName ? rawData.tagName.split(',').map((t: string) => t.trim()) : []),
         });
       }
-    } catch (error) { console.error("Post detail error:", error); } finally { if (showLoading) setInitialLoading(false); }
+    } catch (error: any) { 
+      if (error.isAuthError) return;
+      console.error("Post detail error:", error); 
+    } finally { 
+      if (showLoading) setInitialLoading(false); 
+    }
   }, [id, getBoardConfig]);
 
   const fetchPopularPosts = useCallback(async () => {
     try {
-      const response = await api.get(`/api/board/popularBoards`);
-      if (response.data.success && response.data.result?.data) {
-        setPopularPosts(response.data.result.data.map((item: any) => ({ id: item.boardId, title: item.title, date: item.createAt, views: item.viewCount || 0, likeCount: item.likeCount || 0 })));
-      }
-    } catch (error) { console.error("Popular posts error:", error); }
+      const data: any = await api.get(`/api/board/popularBoards`);
+      setPopularPosts((data || []).map((item: any) => ({ id: item.boardId, title: item.title, date: item.createAt, views: item.viewCount || 0, likeCount: item.likeCount || 0 })));
+    } catch (error: any) { 
+      if (error.isAuthError) return;
+      console.error("Popular posts error:", error); 
+    }
   }, []);
 
   const fetchTrendingTags = useCallback(async () => {
     try {
-      const response = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 20, boardCode: 'S' } });
-      if (response.data.success && response.data.result?.data?.list) {
-        const allTags = response.data.result.data.list.flatMap((p: any) => p.tags || (p.tagName ? p.tagName.split(',').map((t: string) => t.trim()) : []));
+      const data: any = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 20, boardCode: 'S' } });
+      const list = data?.list || [];
+      if (list.length > 0) {
+        const allTags = list.flatMap((p: any) => p.tags || (p.tagName ? p.tagName.split(',').map((t: string) => t.trim()) : []));
         const tagCounts: { [key: string]: number } = {};
         allTags.filter((t: string) => t).forEach((t: string) => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
         setTrendingTags(Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 12));
       }
-    } catch (error) { console.error("Tags error:", error); }
+    } catch (error: any) { 
+      if (error.isAuthError) return;
+      console.error("Tags error:", error); 
+    }
   }, []);
 
   useEffect(() => {
-    // [핵심 해결] ID가 바뀌었을 때만 데이터를 새로 불러옴
     if (id && lastFetchedId.current !== id) {
       fetchPostDetail(true); 
       fetchComments(); 
       fetchPopularPosts(); 
       fetchTrendingTags();
-      lastFetchedId.current = id; // 현재 ID를 마지막 페칭 ID로 기록
+      lastFetchedId.current = id;
     }
   }, [id, fetchPostDetail, fetchComments, fetchPopularPosts, fetchTrendingTags]);
 
   const handleCommentSubmit = useCallback(async (content: string, parentId: number | null = null): Promise<boolean> => {
-    if (!user) { showAlert({ type: 'warning', message: "로그인이 필요한 서비스입니다. ✅" }); return false; }
+    if (!user) { showToast("로그인이 필요한 서비스입니다. ✅", 'warning'); return false; }
     if (!content.trim()) return false;
     if (parentId === null) setIsSubmittingMainComment(true);
     try {
       const commentData = { boardId: Number(id), content: content, parentCommentId: parentId };
-      const response = await api.post(`/api/board/writeComment`, commentData, { headers: { 'Authorization': `Bearer ${user.accessToken}` } });
-      if (response.status === 200 || response.status === 201) {
-        await fetchComments();
-        setExam(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
-        showToast(response.data.message || response.data.msg || "댓글이 등록되었습니다. ✅");
-        return true;
-      }
-      return false;
-    } catch (error) { console.error("Comment error:", error); return false; } finally { if (parentId === null) setIsSubmittingMainComment(false); }
-  }, [id, user, showAlert, showToast, fetchComments]);
+      const response = await api.post(`/api/board/writeComment`, commentData);
+      
+      await fetchComments();
+      setExam(prev => prev ? { ...prev, commentsCount: prev.commentsCount + 1 } : null);
+      showToast((response as any).msg || "댓글이 등록되었습니다. ✅");
+      return true;
+    } catch (error) { 
+      return false; 
+    } finally { 
+      if (parentId === null) setIsSubmittingMainComment(false); 
+    }
+  }, [id, user, showToast, fetchComments]);
 
   const handleDeleteComment = useCallback(async (commentId: number) => {
     if (!user) return;
     try {
-      const response = await api.delete(`/api/board/deleteComment/${commentId}`, { headers: { 'Authorization': `Bearer ${user.accessToken}` } });
-      if (response.status === 200) { 
-        await fetchComments(); 
-        setExam(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null); 
-        showToast(response.data.message || response.data.msg || "댓글 삭제 완료 ✅"); 
-      }
-    } catch (error) { console.error("Delete error:", error); }
+      const response = await api.delete(`/api/board/deleteComment/${commentId}`);
+      await fetchComments(); 
+      setExam(prev => prev ? { ...prev, commentsCount: Math.max(0, prev.commentsCount - 1) } : null); 
+      showToast((response as any).msg || "댓글 삭제 완료 ✅"); 
+    } catch (error) { 
+      console.error("Delete error:", error); 
+    }
   }, [user, fetchComments, showToast]);
 
   const handleUpdateComment = useCallback(async (commentId: number, content: string) => {
     if (!user) return;
     try {
       const formData = new FormData(); formData.append('commentId', String(commentId)); formData.append('content', content);
-      const response = await api.put(`/api/board/modifyComment`, formData, { headers: { 'Authorization': `Bearer ${user.accessToken}`, 'Content-Type': 'multipart/form-data' } });
-      if (response.status === 200) { 
-        await fetchComments(); 
-        showToast(response.data.message || response.data.msg || "댓글 수정 완료 ✨"); 
-      }
-    } catch (error) { console.error("Update error:", error); }
+      const response = await api.put(`/api/board/modifyComment`, formData);
+      await fetchComments(); 
+      showToast((response as any).msg || "댓글 수정 완료 ✨"); 
+    } catch (error) { 
+      console.error("Update error:", error); 
+    }
   }, [user, fetchComments, showToast]);
 
   const handleLikeAction = useCallback(async () => {
     if (!user || !exam || isLiking) { if (!user) showToast("로그인이 필요합니다. 🔒", 'warning'); return; }
     setIsLiking(true);
     try {
-      const response = await api.post(`/api/board/like`, null, { params: { boardId: Number(id) }, headers: { 'Authorization': `Bearer ${user.accessToken}` } });
-      if (response.status === 200 || response.data.success) {
-        const isNowLiked = !exam.isLiked;
-        setExam(prev => prev ? { ...prev, isLiked: isNowLiked, likeCount: isNowLiked ? prev.likeCount + 1 : Math.max(0, prev.likeCount - 1) } : null);
-        showToast(response.data.msg || (isNowLiked ? "이 글을 추천했습니다. ❤️" : "추천을 취소했습니다."));
-      }
-    } catch (error) { console.error("Like error:", error); } finally { setIsLiking(false); }
+      const response = await api.post(`/api/board/like`, null, { params: { boardId: Number(id) } });
+      const isNowLiked = !exam.isLiked;
+      setExam(prev => prev ? { ...prev, isLiked: isNowLiked, likeCount: isNowLiked ? prev.likeCount + 1 : Math.max(0, prev.likeCount - 1) } : null);
+      showToast((response as any).msg || (isNowLiked ? "이 글을 추천했습니다. ❤️" : "추천을 취소했습니다."));
+    } catch (error) { 
+      console.error("Like error:", error); 
+    } finally { 
+      setIsLiking(false); 
+    }
   }, [id, user, exam, isLiking, showToast]);
 
   const handleScrap = useCallback(async () => {
-    if (!user || !exam) { 
-      if (!user) showToast("로그인이 필요합니다. 🔒", 'warning'); 
-      return; 
-    }
+    if (!user || !exam) { if (!user) showToast("로그인이 필요합니다. 🔒", 'warning'); return; }
 
     if (exam.isScrapped && exam.scrapId) {
       try {
         const response = await api.delete('/api/board/deleteMyScrapPage', {
-          data: { scrapIds: [Number(exam.scrapId)] },
-          headers: { 'Authorization': `Bearer ${user.accessToken}`, 'Content-Type': 'application/json' }
+          data: { scrapIds: [Number(exam.scrapId)] }
         });
-        if (response.data.success) {
-          setExam(prev => prev ? { ...prev, isScrapped: false, scrapId: null } : null);
-          showToast(response.data.msg || "스크랩이 취소되었습니다. ✨");
-        }
+        setExam(prev => prev ? { ...prev, isScrapped: false, scrapId: null } : null);
+        showToast((response as any).msg || "스크랩이 취소되었습니다. ✨");
       } catch (error) { console.error("Scrap cancel error:", error); }
     } else {
       try {
-        const response = await api.post(`/api/board/insertBoardScrap`, null, { 
-          params: { boardId: id }, 
-          headers: { 'Authorization': `Bearer ${user.accessToken}` } 
-        });
-        if (response.data.success) {
-          showToast(response.data.msg || "스크랩 완료 ✨");
-          fetchPostDetail();
-        }
+        const response = await api.post(`/api/board/insertBoardScrap`, null, { params: { boardId: id } });
+        showToast((response as any).msg || "스크랩 완료 ✨");
+        fetchPostDetail();
       } catch (error) { console.error("Scrap insert error:", error); }
     }
   }, [id, user, exam, showToast, fetchPostDetail]);
@@ -341,28 +343,28 @@ export default function ExamDetailPage() {
     setConfirmModal({ isOpen: true, title: '게시글 삭제', message: '정말로 이 게시글을 삭제하시겠습니까?', type: 'danger', isLoading: false, onConfirm: async () => {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
-          const response = await api.post(`/api/board/list/deleteBoardContent`, { 
-            boardIds: [Number(id)] 
-          }, { 
-            headers: { 'Authorization': `Bearer ${user?.accessToken}` } 
-          });
-          if (response.data.success) { 
-            showToast(response.data.msg || "삭제되었습니다. ✅"); 
-            navigate(`/practice-exams?boardCode=${exam?.boardCode || 'S'}`); 
-          }
-        } catch (error) { console.error("Delete error:", error); } finally { setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false })); }
+          const response = await api.post(`/api/board/list/deleteBoardContent`, { boardIds: [Number(id)] });
+          showToast((response as any).msg || "삭제되었습니다. ✅"); 
+          navigate(`/practice-exams?boardCode=${exam?.boardCode || 'S'}`); 
+        } catch (error) { 
+          console.error("Delete error:", error); 
+        } finally { 
+          setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false })); 
+        }
       }
     });
-  }, [id, user, exam, navigate, showToast]);
+  }, [id, exam, navigate, showToast]);
 
   const handleDownload = useCallback(async (fileId: number, fileName: string) => {
     if (!user) { showToast("로그인이 필요합니다. 🔒", 'warning'); return; }
     try {
-      const response = await api.get(`/api/board/download/${fileId}`, { responseType: 'blob', headers: { 'Authorization': `Bearer ${user.accessToken}` } });
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const blob: any = await api.get(`/api/board/download/${fileId}`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement('a'); link.href = url; link.setAttribute('download', fileName);
       document.body.appendChild(link); link.click(); link.remove(); window.URL.revokeObjectURL(url);
-    } catch (error) { console.error("Download error:", error); }
+    } catch (error) { 
+      console.error("Download error:", error); 
+    }
   }, [user, showToast]);
 
   if (initialLoading) return (<div className="min-h-screen bg-slate-50 dark:bg-[#0d141b] flex items-center justify-center"><div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" /></div>);
@@ -403,7 +405,7 @@ export default function ExamDetailPage() {
                     <div className="flex flex-wrap items-center justify-between gap-6">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-2xl overflow-hidden bg-primary/5 flex items-center justify-center font-black text-xl text-primary border border-primary/10">
-                          {exam.authorImage ? <img src={fixImagePath(exam.authorImage)!} alt="P" className="w-full h-full object-cover" /> : exam.authorName[0]}
+                          {exam.authorImage ? <img src={fixImagePath(exam.authorImage)!} alt="P" className="w-full h-full object-cover" /> : (exam.authorName?.[0] || 'U')}
                         </div>
                         <div>
                           <p className="text-base font-black">{exam.authorName}</p>

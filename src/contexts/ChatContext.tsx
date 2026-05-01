@@ -2,7 +2,6 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { IMessage } from '@stomp/stompjs';
 import { useUser } from './UserContext';
 import { useStomp } from './StompContext';
-import api from '../utils/api';
 
 export interface ChatMessage {
   id?: number | string;
@@ -12,7 +11,7 @@ export interface ChatMessage {
   senderName?: string;
   content: string;
   timestamp?: string;
-  messageId?: string; // [추가] 렌더링 키 충돌 방지용
+  messageId?: string;
 }
 
 interface ChatContextType {
@@ -21,6 +20,8 @@ interface ChatContextType {
   isLoadingHistory: boolean;
   clearMessages: () => void;
   isConnected: boolean;
+  connectedUsers: string[];
+  userCount: number;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -29,54 +30,23 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { user } = useUser();
   const { isConnected, subscribe, publish } = useStomp();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [connectedUsers, setConnectedUsers] = useState<string[]>([]);
+  const [userCount, setUserCount] = useState<number>(0);
+  const [isLoadingHistory] = useState(false);
   const subscribedRef = useRef<string | null>(null);
 
   const clearMessages = useCallback(() => {
-    console.log('🧹 [CHAT] Force clearing state');
     setMessages([]);
+    setConnectedUsers([]);
+    setUserCount(0);
   }, []);
-
-  const fetchChatHistory = useCallback(async () => {
-    if (!user?.memberId) return;
-    setIsLoadingHistory(true);
-    try {
-      const history = await api.get('/api/chat/getChatHistory/OPEN_CHAT');
-      const validHistory = Array.isArray(history) ? history : [];
-      
-      // 히스토리 데이터에도 고유 messageId 부여 (충돌 방지)
-      const mappedHistory = validHistory.map((msg, idx) => ({
-        ...msg,
-        messageId: msg.id ? String(msg.id) : `hist-${idx}-${Date.now()}`
-      }));
-
-      setMessages(prev => {
-        const combined = [...mappedHistory];
-        prev.forEach(rt => {
-          const exists = combined.some(h => 
-            (h.id && rt.id && String(h.id) === String(rt.id)) ||
-            (h.senderId === rt.senderId && h.content === rt.content && h.timestamp === rt.timestamp)
-          );
-          if (!exists) combined.push(rt);
-        });
-        return combined.sort((a, b) => new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime());
-      });
-    } catch (error) {
-      console.error('❌ [CHAT] History failed:', error);
-    } finally {
-      setIsLoadingHistory(false);
-    }
-  }, [user?.memberId]);
 
   useEffect(() => {
     if (!user?.memberId) {
       clearMessages();
       subscribedRef.current = null;
-    } else {
-      // 휘발성 채팅 정책에 따라 이전 채팅 히스토리를 불러오지 않음
-      // fetchChatHistory();
     }
-  }, [user?.memberId, fetchChatHistory, clearMessages]);
+  }, [user?.memberId, clearMessages]);
 
   const sendMessage = useCallback((content: string) => {
     if (!isConnected || !user) return;
@@ -94,14 +64,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     subscribedRef.current = user.memberId;
 
-    const unsubscribe = subscribe('/sub/chat/room/OPEN_CHAT', (message: IMessage) => {
+    // 1. 메시지 구독
+    const unsubscribeChat = subscribe('/sub/chat/room/OPEN_CHAT', (message: IMessage) => {
       try {
         const res = JSON.parse(message.body);
         const data: ChatMessage = res.data; 
-        
         if (!data) return;
 
-        // 실시간 메시지에 고유 식별자 부여 (Key 충돌 방지)
         const newMessage: ChatMessage = {
           ...data,
           messageId: data.id ? String(data.id) : `rt-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
@@ -118,10 +87,31 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return isDup ? prev : [...prev, newMessage];
         });
       } catch (e) {
-        console.error('❌ [CHAT] Receive Error:', e);
+        console.error('❌ [CHAT] Msg Error:', e);
       }
     });
 
+    // 2. 접속자 명단 실시간 구독
+    const unsubscribePresence = subscribe('/sub/chat/room/OPEN_CHAT/presence', (message: IMessage) => {
+      try {
+        const res = JSON.parse(message.body);
+        console.log('👥 [CHAT] Presence Received:', res);
+        
+        // 로그 분석 결과: res.result.data 또는 res.data 구조 대응
+        const presenceData = res.result?.data || res.data;
+
+        if (res.success && presenceData) {
+          const { userList, userCount } = presenceData;
+          console.log(`✅ [CHAT] Sync Presence: ${userCount} users`, userList);
+          setConnectedUsers(Array.isArray(userList) ? userList : []);
+          setUserCount(Number(userCount) || 0);
+        }
+      } catch (e) {
+        console.error('❌ [CHAT] Presence Parse Error:', e);
+      }
+    });
+
+    // 입장 알림 발송 (0.5초 뒤 발송하여 구독 안착 시간 확보)
     const timerId = setTimeout(() => {
       publish('/pub/chat/message', {
         type: 'ENTER',
@@ -129,17 +119,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         senderId: user.memberId,
         content: `${user.userName}님이 입장하셨습니다.`,
       });
-    }, 1000);
+    }, 500);
 
     return () => {
-      unsubscribe();
+      unsubscribeChat();
+      unsubscribePresence();
       subscribedRef.current = null;
       clearTimeout(timerId);
     };
   }, [isConnected, user?.memberId, user?.userName, subscribe, publish]);
 
   return (
-    <ChatContext.Provider value={{ messages, sendMessage, isLoadingHistory, clearMessages, isConnected }}>
+    <ChatContext.Provider value={{ 
+      messages, 
+      sendMessage, 
+      isLoadingHistory, 
+      clearMessages, 
+      isConnected,
+      connectedUsers,
+      userCount
+    }}>
       {children}
     </ChatContext.Provider>
   );

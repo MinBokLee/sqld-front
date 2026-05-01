@@ -18,7 +18,7 @@ interface HeaderProps {
 
 export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPasswordReset, getText }: HeaderProps) {
   const { user, logout } = useUser();
-  const { showAlert } = useAlert(); 
+  const { showAlert, showToast } = useAlert(); 
   const { unreadCount, notifications, markAsRead, markAllAsRead } = useNotification();
   const { getBoardCode, boardConfigs } = useBoard();
   const location = useLocation();
@@ -80,15 +80,10 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
     if (!user) return;
     setIsWithdrawing(true);
     try {
-      const response = await api.delete(`/api/member/deleteMember/${user.memberId}`, {
-        headers: { 'Authorization': `Bearer ${user.accessToken}` }
-      });
-
-      if (response.data.success) {
-        showToast(response.data.msg || "회원 탈퇴가 완료되었습니다. ✨", 'success');
-        setIsWithdrawalModalOpen(false);
-        logout(); 
-      }
+      const response = await api.delete(`/api/member/deleteMember/${user.memberId}`);
+      showToast(response.data.msg || "회원 탈퇴가 완료되었습니다. ✨", 'success');
+      setIsWithdrawalModalOpen(false);
+      logout(); 
     } catch (error) {
       console.error("Withdrawal error:", error);
     } finally {

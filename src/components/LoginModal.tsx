@@ -23,7 +23,7 @@ export default function LoginModal({
   onOpenPasswordReset
 }: LoginModalProps) {
   const { login } = useUser();
-  const { showAlert } = useAlert();
+  const { showToast } = useAlert();
   const [userId, setUserId] = useState('');
   const [userPass, setUserPass] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -47,7 +47,7 @@ export default function LoginModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userId.trim() || !userPass.trim()) {
-      showAlert({ type: 'warning', message: "입력되지 않은 내용이 있습니다. ⚠️ 아이디와 비밀번호를 모두 입력해 주세요." });
+      showToast("입력되지 않은 내용이 있습니다. ⚠️ 아이디와 비밀번호를 모두 입력해 주세요.", 'warning');
       return;
     }
 

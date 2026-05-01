@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, User, Mail, ShieldCheck, Lock, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 import { useAlert } from '../contexts/AlertContext';
@@ -21,6 +21,18 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({ isOpen, onClose
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 배경 스크롤 방지 로직
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

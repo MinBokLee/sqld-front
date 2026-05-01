@@ -29,6 +29,10 @@ A modern, responsive exam preparation portal for SQLD certification, built with 
 - **Notification System:**
     - **Unified Toast Strategy:** Shifted from intrusive modals to smooth toasts for almost all feedback.
     - **Global API Error Interceptor:** Automatically catches server exceptions and displays the detailed `msg` via global toast.
+- **Open Chat Presence System:**
+    - **Real-time User List:** Dedicated `/presence` channel subscription for live user tracking.
+    - **Optimized Performance:** Chat history disabled to prioritize real-time interaction and reduce initial load.
+    - **Interactive UI:** Toggleable presence view with animated transitions and live count badges.
 - **Content Management:**
     - **Admin CMS:** Enhanced group/board settings, including new `sortOrder` and `tagYn` (Hashtag) toggles.
     - **My Activity:** Dynamic filtering of user posts/scraps based on real board configurations.
