@@ -173,6 +173,13 @@ export default function AdminMemberPage() {
   const handleBoardSubmit = async (formData: any) => {
     try {
       const isEdit = boardModal.mode === 'edit';
+      const maxOrder = isEdit ? boards.length : boards.length + 1;
+
+      if (!formData.sortOrder || formData.sortOrder < 1 || formData.sortOrder > maxOrder) {
+        showToast(`정렬 순서는 1부터 ${maxOrder} 사이여야 합니다. ⚠️`, 'warning', 4000);
+        return;
+      }
+
       const url = isEdit ? `/api/boardMaster/updateBoardMaster/${boardModal.data.boardCode}` : '/api/boardMaster/addBoardMaster';
       const method = isEdit ? 'patch' : 'post';
       
@@ -207,6 +214,13 @@ export default function AdminMemberPage() {
   const handleGroupSubmit = async (formData: any) => {
     try {
       const isEdit = groupModal.mode === 'edit';
+      const maxOrder = isEdit ? groups.length : groups.length + 1;
+
+      if (!formData.sortOrder || formData.sortOrder < 1 || formData.sortOrder > maxOrder) {
+        showToast(`정렬 순서는 1부터 ${maxOrder} 사이여야 합니다. ⚠️`, 'warning', 4000);
+        return;
+      }
+
       const url = isEdit ? `/api/common-code-group/updateGroupCode/${groupModal.data.groupCode}` : '/api/common-code-group/addGroupCode';
       const method = isEdit ? 'patch' : 'post';
       
@@ -226,6 +240,13 @@ export default function AdminMemberPage() {
   const handleDetailSubmit = async (formData: any) => {
     try {
       const isEdit = detailModal.mode === 'edit';
+      const currentGroupDetails = details.filter(d => d.groupCode === formData.groupCode);
+      const maxOrder = isEdit ? currentGroupDetails.length : currentGroupDetails.length + 1;
+
+      if (!formData.sortOrder || formData.sortOrder < 1 || formData.sortOrder > maxOrder) {
+        showToast(`정렬 순서는 1부터 ${maxOrder} 사이여야 합니다. ⚠️`, 'warning', 4000);
+        return;
+      }
 
       const isDuplicate = details.some(d => 
         d.groupCode === formData.groupCode && 
@@ -885,9 +906,9 @@ export default function AdminMemberPage() {
         isLoading={confirmModal.isLoading}
       />
 
-      {boardModal.isOpen && <BoardFormModal modal={boardModal} onClose={() => setBoardModal({ ...boardModal, isOpen: false })} onSubmit={handleBoardSubmit} groups={groups} />}
+      {boardModal.isOpen && <BoardFormModal modal={boardModal} onClose={() => setBoardModal({ ...boardModal, isOpen: false })} onSubmit={handleBoardSubmit} boards={boards} />}
       {groupModal.isOpen && <GroupFormModal modal={groupModal} onClose={() => setGroupModal({ ...groupModal, isOpen: false })} onSubmit={handleGroupSubmit} currentCount={groups.length} />}
-      {detailModal.isOpen && <DetailFormModal modal={detailModal} onClose={() => setDetailModal({ ...detailModal, isOpen: false })} onSubmit={handleDetailSubmit} />}
+      {detailModal.isOpen && <DetailFormModal modal={detailModal} onClose={() => setDetailModal({ ...detailModal, isOpen: false })} onSubmit={handleDetailSubmit} details={details} />}
     </div>
   );
 }
@@ -895,9 +916,10 @@ export default function AdminMemberPage() {
 /**
  * [컴포넌트] 게시판 마스터 폼 모달
  */
-function BoardFormModal({ modal, onClose, onSubmit, groups }: any) {
+function BoardFormModal({ modal, onClose, onSubmit, boards }: any) {
   const isEdit = modal.mode === 'edit';
   const [formData, setFormData] = useState(modal.data || { boardName: '', groupCode: '', fileYn: 'Y', replyYn: 'Y', useYn: 'Y', sortOrder: 1 });
+  const maxOrder = isEdit ? boards.length : boards.length + 1;
 
   // 데이터 동기화 로직 추가
   useEffect(() => {
@@ -942,8 +964,11 @@ function BoardFormModal({ modal, onClose, onSubmit, groups }: any) {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">정렬 순서</label>
-            <input required type="number" min="1" className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.sortOrder} onChange={(e) => setFormData({...formData, sortOrder: parseInt(e.target.value) || 1})} />
+            <div className="flex justify-between items-end px-1">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">정렬 순서</label>
+              <span className="text-[9px] text-primary font-black uppercase">Max: {maxOrder}</span>
+            </div>
+            <input required type="number" min="1" max={maxOrder} className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.sortOrder} onChange={(e) => setFormData({...formData, sortOrder: e.target.value === '' ? '' : parseInt(e.target.value)})} />
           </div>
           <div className="grid grid-cols-4 gap-3">
             {['fileYn', 'replyYn', 'tagYn', 'useYn'].map(field => (
@@ -973,6 +998,7 @@ function BoardFormModal({ modal, onClose, onSubmit, groups }: any) {
 function GroupFormModal({ modal, onClose, onSubmit, currentCount }: any) {
   const isEdit = modal.mode === 'edit';
   const [formData, setFormData] = useState(modal.data || { groupCode: '', groupName: '', sortOrder: currentCount + 1, useYn: 'Y' });
+  const maxOrder = isEdit ? currentCount : currentCount + 1;
 
   useEffect(() => {
     if (modal.isOpen) {
@@ -1003,8 +1029,11 @@ function GroupFormModal({ modal, onClose, onSubmit, currentCount }: any) {
             <input required className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" placeholder="예: 게시판 카테고리" value={formData.groupName} onChange={(e) => setFormData({...formData, groupName: e.target.value})} />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">정렬 순서</label>
-            <input required type="number" min="1" className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.sortOrder} onChange={(e) => setFormData({...formData, sortOrder: parseInt(e.target.value) || 1})} />
+            <div className="flex justify-between items-end px-1">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">정렬 순서</label>
+              <span className="text-[9px] text-primary font-black uppercase">Max: {maxOrder}</span>
+            </div>
+            <input required type="number" min="1" max={maxOrder} className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.sortOrder} onChange={(e) => setFormData({...formData, sortOrder: e.target.value === '' ? '' : parseInt(e.target.value)})} />
           </div>
           <div className="space-y-2">
             <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">활성 상태</label>
@@ -1029,9 +1058,17 @@ function GroupFormModal({ modal, onClose, onSubmit, currentCount }: any) {
 /**
  * [컴포넌트] 상세 코드 폼 모달
  */
-function DetailFormModal({ modal, onClose, onSubmit }: any) {
+function DetailFormModal({ modal, onClose, onSubmit, details }: any) {
   const isEdit = modal.mode === 'edit';
   const [formData, setFormData] = useState(modal.data || { groupCode: '', codeId: '', codeName: '', sortOrder: 1, useYn: 'Y' });
+  const currentGroupDetails = details.filter((d: any) => d.groupCode === formData.groupCode);
+  const maxOrder = isEdit ? currentGroupDetails.length : currentGroupDetails.length + 1;
+
+  useEffect(() => {
+    if (modal.data && modal.isOpen) {
+      setFormData(modal.data);
+    }
+  }, [modal.data, modal.isOpen]);
 
   useEffect(() => {
     if (modal.isOpen) {
@@ -1060,8 +1097,11 @@ function DetailFormModal({ modal, onClose, onSubmit }: any) {
               <input required disabled={isEdit} className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white disabled:opacity-50" value={formData.codeId} onChange={(e) => setFormData({...formData, codeId: e.target.value.toUpperCase()})} />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">정렬 순서</label>
-              <input required type="number" min="1" className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.sortOrder} onChange={(e) => setFormData({...formData, sortOrder: parseInt(e.target.value) || 1})} />
+              <div className="flex justify-between items-end px-1">
+                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">순서</label>
+                <span className="text-[9px] text-primary font-black uppercase">Max: {maxOrder}</span>
+              </div>
+              <input required type="number" min="1" max={maxOrder} className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.sortOrder} onChange={(e) => setFormData({...formData, sortOrder: e.target.value === '' ? '' : parseInt(e.target.value)})} />
             </div>
           </div>
           <div className="space-y-2">

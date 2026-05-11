@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback, useRef } from 'react';
+import axios from 'axios';
 import api from '../utils/api'; 
 import { useAlert } from './AlertContext';
 
@@ -7,6 +8,7 @@ interface User {
   userName: string;
   userRole: string;
   accessToken: string;
+  refreshToken: string;
   memberId: string;
   profileImage?: string; 
   postCount?: number;
@@ -22,6 +24,7 @@ interface UserContextType {
   isLoading: boolean;
   clearUser: () => void; 
   updateUser: (data: Partial<User>) => void; 
+  refreshSession: () => Promise<boolean>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -62,23 +65,24 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   const refreshSession = async () => {
+    const storedUserStr = sessionStorage.getItem('user') || localStorage.getItem('user');
+    if (!storedUserStr) return false;
+
     try {
-      const response = await api.post('/api/auth/token-refresh');
-      const data = response.data;
-      const rawData = data.result?.data || data.data || data.result || data;
+      const storedUser = JSON.parse(storedUserStr);
+      // 순환 호출 방지를 위해 순수 axios 사용
+      const response = await axios.post('/api/sign/reissue', {
+        refreshToken: storedUser.refreshToken,
+        memberId: storedUser.memberId
+      }, { withCredentials: true });
+      
+      const rawData = response.data?.data || response.data;
 
       if (rawData && rawData.accessToken) {
         const newUser: User = {
-          userId: rawData.userId,
-          userName: rawData.userName,
-          userRole: rawData.userRole,
+          ...storedUser,
           accessToken: rawData.accessToken,
-          memberId: rawData.memberId,
-          profileImage: rawData.profileImage,
-          postCount: Number(rawData.postCount) || 0,
-          commentCount: Number(rawData.commentCount) || 0,
-          lastLogAt: rawData.lastLogAt,
-          userStatus: rawData.userStatus,
+          refreshToken: rawData.refreshToken || storedUser.refreshToken
         };
         setUser(newUser);
         
@@ -96,6 +100,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       return false;
     } catch (error) {
+      console.error('Session refresh failed:', error);
       return false;
     }
   };
@@ -138,6 +143,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               userName: rawData.userName || prev?.userName || '',
               userRole: rawData.userRole || prev?.userRole || '',
               accessToken: rawData.accessToken,
+              refreshToken: rawData.refreshToken || prev?.refreshToken || '',
               memberId: rawData.memberId || prev?.memberId || '',
               profileImage: rawData.profileImage || prev?.profileImage,
               postCount: rawData.postCount !== undefined ? Number(rawData.postCount) : (prev?.postCount || 0),
@@ -180,6 +186,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           userName: rawData.userName,
           userRole: rawData.userRole,
           accessToken: rawData.accessToken,
+          refreshToken: rawData.refreshToken,
           memberId: rawData.memberId,
           profileImage: rawData.profileImage,
           postCount: Number(rawData.postCount) || 0,
@@ -206,7 +213,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       return false;
     } catch (error: any) {
-      // ❌ 로그인 시도 실패 시 clearUser()를 호출하면 인터셉터의 에러 처리와 충돌할 수 있으므로 제거
       console.error("Login process failed:", error);
       return false;
     } finally {
@@ -232,7 +238,7 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [user?.accessToken, clearUser]);
 
   return (
-    <UserContext.Provider value={{ user, login, logout, isLoading, clearUser, updateUser }}>
+    <UserContext.Provider value={{ user, login, logout, isLoading, clearUser, updateUser, refreshSession }}>
       {children}
     </UserContext.Provider>
   );

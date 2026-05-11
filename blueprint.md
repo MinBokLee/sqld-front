@@ -16,11 +16,13 @@ A modern, responsive exam preparation portal for SQLD certification, built with 
 - **Modern UI:** Clean, responsive interface using Tailwind CSS and `div`-based list layouts for maximum stability.
 - **Security & Authorization:**
     - **Multi-level Roles:** `USER`, `ADMIN`, `SUPER_ADMIN` hierarchy with strict modification guards.
-    - **Pre-emptive Auth Guard:** JWT expiration check before API requests and STOMP reconnections to prevent server error logs.
-    - **Automatic Session Handling:** Dispatches `auth-error` events on expiration, triggering auto-logout and login modal.
+    - **Silent JWT Refresh:** Automatic token reissuance via `/api/sign/reissue` on `401 Unauthorized` responses with seamless request retry.
+    - **Pre-emptive Auth Guard:** JWT expiration check before API requests and STOMP connections to minimize unnecessary server logs.
+    - **Automatic Session Handling:** Ensures local storage and memory synchronization across context providers upon token refresh or session expiration.
 - **Dynamic Board System:**
     - **Board Configuration:** All names, codes, and categories are dynamically synced from the backend.
-    - **Sort Control:** Support for `sortOrder` in groups and detailed codes, manageable via Admin CMS.
+    - **Intelligent Sort Control:** Range-validated `sortOrder` management in Admin CMS with real-time UI feedback (Max-value labels).
+    - **Real-time Media Management:** Live attachment previews and pre-upload deletion support in the write/edit views.
     - **Dynamic Breadcrumbs:** Integrated [Home > Board > Category] pathing across list and detail pages.
 - **Performance & Stability:**
     - **Flicker-Free Transitions:** `div`-based flexbox layouts replace rigid tables.

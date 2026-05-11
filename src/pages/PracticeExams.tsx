@@ -46,7 +46,7 @@ interface PopularPost {
 export default function PracticeExams() {
   const { user } = useUser();
   const navigate = useNavigate();
-  const { showAlert } = useAlert();
+  const { showAlert, showToast } = useAlert();
   const { getBoardConfig, getBoardCode, getBoardCategories, isLoading: isBoardConfigLoading } = useBoard();
   const [searchParams, setSearchParams] = useSearchParams();
   const languageContext = useContext(LanguageContext);
@@ -114,14 +114,14 @@ export default function PracticeExams() {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     const trimmedKeyword = inputKeyword.trim();
     if (!trimmedKeyword) {
-      showAlert({ type: 'warning', message: "키워드를 입력해 주세요. ⚠️" });
+      showToast("키워드를 입력해 주세요. ⚠️", 'warning');
       return;
     }
     const params = new URLSearchParams(searchParams);
     params.set('keyword', trimmedKeyword);
     params.set('page', '1');
     setSearchParams(params);
-  }, [inputKeyword, searchParams, setSearchParams, showAlert]);
+  }, [inputKeyword, searchParams, setSearchParams, showToast]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {

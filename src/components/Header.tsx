@@ -72,7 +72,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
       else if (currentCode === 'S') message = "키워드를 입력해 주세요. ⚠️ 학습 게시판 내에서 검색어를 통해 조회가 가능합니다.";
       else if (currentCode === 'G') message = "찾으시는 회원님이나 인사말 키워드를 입력해 주세요. 😊";
       
-      showAlert({ type: 'warning', message });
+      showToast(message, 'warning');
     }
   };
 

@@ -301,6 +301,15 @@ export default function WritePostPage() {
     setIsRestoreModalOpen(false);
   };
 
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveExistingFile = (fileId: number) => {
+    setDeletedFileIds(prev => [...prev, fileId]);
+    setExistingFiles(prev => prev.filter(f => f.fileId !== fileId));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     let currentEditorContent = editorRef.current ? editorRef.current.getData() : editorData;
@@ -367,7 +376,67 @@ export default function WritePostPage() {
                 <div className="space-y-3"><label className="text-xs font-black uppercase tracking-widest text-slate-400">제목</label><input className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl outline-none text-xl font-black focus:ring-2 focus:ring-primary/20 transition-all dark:text-white" placeholder="제목을 입력하세요" type="text" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
                 {boardConfig?.tagYn === 'Y' && (<div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-500 delay-100"><label className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><Hash size={14} className="text-primary" /> 해시태그 (쉼표로 구분)</label><input className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-800 border-2 border-transparent rounded-2xl outline-none text-sm font-bold focus:border-primary/20 focus:bg-white dark:focus:bg-slate-700 transition-all dark:text-white" placeholder="예: SQLD, 서브쿼리, JOIN" type="text" value={tag} onChange={(e) => setTag(e.target.value)} /></div>)}
                 <div className="space-y-3"><label className="text-xs font-black uppercase tracking-widest text-slate-400">내용</label><div className="ck-editor-container border-none dark:text-slate-900"><style dangerouslySetInnerHTML={{ __html: `.ck-editor__editable { min-height: 500px !important; border-radius: 0 0 1.5rem 1.5rem !important; padding: 1.5rem 2rem !important; border: none !important; background: #f8fafc !important; } .ck-toolbar { border: none !important; background: #f1f5f9 !important; border-radius: 1.5rem 1.5rem 0 0 !important; padding: 0.5rem 1rem !important; } .ck-content figure.table { margin: 1.5rem 0 !important; display: table !important; width: auto !important; max-width: 100% !important; } .ck-content figure.table table { border-collapse: collapse !important; border: 1px solid #cbd5e1 !important; table-layout: fixed !important; width: 100% !important; min-width: 50px !important; } .ck-content figure.table td, .ck-content figure.table th { border: 1px solid #cbd5e1 !important; padding: 0.75rem !important; word-break: break-all !important; overflow-wrap: break-word !important; }`}} /><CKEditor editor={ClassicEditor} config={editorConfig} data={editorData} onReady={handleEditorReady} onChange={(event, editor) => setEditorData(editor.getData())} /></div></div>
-                {boardConfig?.fileYn === 'Y' && (<div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800"><div className="flex items-center justify-between"><label className="text-xs font-black uppercase tracking-widest text-slate-400">미디어 및 첨부파일</label><span className="text-[10px] font-bold text-slate-400">최대 50MB까지 업로드 가능</span></div><div className={`border-2 border-dashed rounded-3xl p-10 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group ${isDragOver ? 'border-primary bg-primary/5' : 'border-slate-200 bg-slate-50 dark:bg-slate-800/30 dark:border-slate-700 hover:border-primary hover:bg-primary/5'}`} onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }} onDragLeave={() => setIsDragOver(false)} onDrop={(e) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files) setSelectedFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }} onClick={() => fileInputRef.current?.click()}><div className="w-14 h-14 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors"><CloudUpload size={32} /></div><div className="text-center"><p className="text-sm font-black text-slate-700 dark:text-slate-200">파일을 여기에 드래그하거나 클릭하여 업로드</p><p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-tighter">PNG, JPG, PDF, ZIP</p></div><input type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => { if (e.target.files) setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]); }} /></div></div>)}
+                {boardConfig?.fileYn === 'Y' && (
+                  <div className="space-y-6 pt-6 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center justify-between"><label className="text-xs font-black uppercase tracking-widest text-slate-400">미디어 및 첨부파일</label><span className="text-[10px] font-bold text-slate-400">최대 50MB까지 업로드 가능</span></div>
+                    <div className={`border-2 border-dashed rounded-3xl p-10 flex flex-col items-center justify-center gap-4 transition-all cursor-pointer group ${isDragOver ? 'border-primary bg-primary/5' : 'border-slate-200 bg-slate-50 dark:bg-slate-800/30 dark:border-slate-700 hover:border-primary hover:bg-primary/5'}`} onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }} onDragLeave={() => setIsDragOver(false)} onDrop={(e) => { e.preventDefault(); setIsDragOver(false); if (e.dataTransfer.files) setSelectedFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]); }} onClick={() => fileInputRef.current?.click()}>
+                      <div className="w-14 h-14 rounded-full bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors"><CloudUpload size={32} /></div>
+                      <div className="text-center"><p className="text-sm font-black text-slate-700 dark:text-slate-200">파일을 여기에 드래그하거나 클릭하여 업로드</p><p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-tighter">PNG, JPG, PDF, ZIP</p></div>
+                      <input type="file" multiple className="hidden" ref={fileInputRef} onChange={(e) => { if (e.target.files) setSelectedFiles(prev => [...prev, ...Array.from(e.target.files!)]); }} />
+                    </div>
+
+                    {/* 첨부파일 리스트 미리보기 영역 */}
+                    {(existingFiles.length > 0 || selectedFiles.length > 0) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in duration-300">
+                        {/* 기존 파일 (수정 시) */}
+                        {existingFiles.map((file) => {
+                          const isImg = isImageFile(file.originName);
+                          return (
+                            <div key={file.fileId} className="flex items-center justify-between p-4 bg-white dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 group transition-all hover:border-primary/20">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="size-10 bg-slate-50 dark:bg-slate-700 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center border border-slate-100 dark:border-slate-600 transition-all">
+                                  {isImg ? (
+                                    <img src={file.displayPath} alt="preview" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <FileText size={18} className="text-slate-400" />
+                                  )}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{file.originName}</span>
+                                  <span className="text-[9px] text-slate-400 font-black uppercase">기존 파일</span>
+                                </div>
+                              </div>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleRemoveExistingFile(file.fileId); }} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"><X size={16} /></button>
+                            </div>
+                          );
+                        })}
+                        {/* 신규 추가 파일 */}
+                        {selectedFiles.map((file, idx) => {
+                          const isImg = isImageFile(file.name);
+                          return (
+                            <div key={`new-${idx}`} className="flex items-center justify-between p-4 bg-white dark:bg-slate-800/50 rounded-2xl border border-primary/20 group transition-all hover:bg-primary/5">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="size-10 bg-primary/5 dark:bg-primary/10 rounded-lg flex-shrink-0 overflow-hidden flex items-center justify-center border border-primary/10 transition-all">
+                                  {isImg ? (
+                                    <img src={URL.createObjectURL(file)} alt="new preview" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <FileText size={18} className="text-primary/40" />
+                                  )}
+                                </div>
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-xs font-bold text-slate-600 dark:text-slate-300 truncate">{file.name}</span>
+                                  <span className="text-[9px] text-primary font-black uppercase tracking-widest">New Upload</span>
+                                </div>
+                              </div>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); handleRemoveFile(idx); }} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"><X size={16} /></button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="pt-10 flex items-center justify-end gap-4 border-t border-slate-50 dark:border-slate-800"><button type="button" onClick={handleCancelClick} className="px-8 py-4 rounded-2xl text-slate-500 font-black hover:bg-slate-100 transition-all uppercase tracking-widest text-xs">{getText('common.cancel')}</button><button onClick={handleSubmit} disabled={isSubmitting} className="px-10 py-4 rounded-2xl bg-primary text-white font-black hover:bg-blue-600 shadow-xl shadow-primary/20 active:scale-95 transition-all uppercase tracking-widest text-xs">{isSubmitting ? '처리 중...' : editingBoardId ? '수정 완료' : '게시하기'}</button></div>
               </div>
             </div>

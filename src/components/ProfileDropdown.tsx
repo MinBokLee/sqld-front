@@ -94,21 +94,22 @@ const ProfileDropdown: React.FC<ProfileDropdownProps> = ({
 
     try {
       // 1. 이미지 서버 업로드
-      const response = await api.post(`/api/board/upload`, formData, {
+      const result: any = await api.post(`/api/board/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const result = response.data;
-      const imageUrl = result.url || result.result?.data?.[0];
+      
+      // 여러 가능한 위치에서 URL 확인
+      const imageUrl = result?.url || (Array.isArray(result) ? result[0] : (result?.result?.data?.[0] || result?.data?.url));
 
       if (imageUrl) {
         // 2. 회원 프로필 정보 패치 (Patch)
-        const saveRes = await api.patch(`/api/member/profile-image`, { 
+        const saveRes: any = await api.patch(`/api/member/profile-image`, { 
           memberId: user.memberId, 
           profileImage: imageUrl 
         });
 
         updateUser({ profileImage: imageUrl });
-        showToast(saveRes.data.msg || "프로필 이미지가 변경되었습니다. ✨", 'success');
+        showToast(saveRes?.msg || "프로필 이미지가 변경되었습니다. ✨", 'success');
       }
     } catch (error) {
       console.error("Upload error:", error);

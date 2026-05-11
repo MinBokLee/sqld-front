@@ -58,12 +58,9 @@ api.interceptors.request.use(async (config) => {
       const token = user.accessToken;
 
       if (token) {
-        // [수정] 사전 검증: 토큰이 만료되었다면 요청을 중단하거나 갱신 시도
+        // 사전 검증: 토큰이 만료되었다면 경고 로그 출력
         if (isTokenExpired(token)) {
           console.warn('⚠️ Access Token expired. Token refresh might be needed.');
-          // 만료되었으나 리프레시 로직은 Response Interceptor의 401 핸들러에 맡기거나, 
-          // 여기서 즉시 차단하여 불필요한 서버 로그 방지 가능.
-          // 일단 헤더 부착은 진행하되, 백엔드 로그 폭주를 막기 위해 명시적으로 경고 로그 남김.
         }
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -98,37 +95,52 @@ api.interceptors.response.use(
     const { config, response } = error;
     
     // 1. 401 Unauthorized 에러 발생 시 (토큰 만료)
-    // 단, 로그인 API(/api/auth/signIn)는 401이 발생해도 갱신 로직을 타지 않아야 함 (잘못된 비밀번호 입력 등)
+    // 단, 로그인 API는 갱신 로직을 타지 않아야 함
     if (response && response.status === 401 && !config._retry && !config.url?.includes('/api/auth/signIn')) {
       config._retry = true; // 무한 루프 방지
       
       try {
-        console.log('🔄 Token expired. Attempting refresh...');
-        // 토큰 갱신 API 호출 (백엔드 가이드: /api/auth/token-refresh)
-        const refreshRes: any = await axios.post('/api/auth/token-refresh', {}, { withCredentials: true });
+        console.log('🔄 Token expired. Attempting refresh via reissue...');
         
-        if (refreshRes.data && refreshRes.data.success) {
-          const newToken = refreshRes.data.data.accessToken;
+        const userStr = sessionStorage.getItem('user') || localStorage.getItem('user');
+        if (!userStr) throw new Error('No user data found in storage');
+        
+        const userData = JSON.parse(userStr);
+        const { refreshToken, memberId } = userData;
+
+        // 기술 가이드 준수: /api/sign/reissue 호출
+        const refreshRes: any = await axios.post('/api/sign/reissue', {
+          refreshToken,
+          memberId
+        }, { withCredentials: true });
+        
+        const rawRefreshData = refreshRes.data?.data || refreshRes.data;
+        
+        if (rawRefreshData && rawRefreshData.accessToken) {
+          const newToken = rawRefreshData.accessToken;
+          const newRefreshToken = rawRefreshData.refreshToken || refreshToken;
           
           // 로컬 저장소 업데이트
-          const userStr = sessionStorage.getItem('user') || localStorage.getItem('user');
-          if (userStr) {
-            const user = JSON.parse(userStr);
-            user.accessToken = newToken;
-            const updatedUser = JSON.stringify(user);
-            sessionStorage.setItem('user', updatedUser);
-            if (localStorage.getItem('user')) localStorage.setItem('user', updatedUser);
-          }
+          const updatedUser = { ...userData, accessToken: newToken, refreshToken: newRefreshToken };
+          const updatedUserStr = JSON.stringify(updatedUser);
           
+          if (sessionStorage.getItem('user')) sessionStorage.setItem('user', updatedUserStr);
+          if (localStorage.getItem('user')) localStorage.setItem('user', updatedUserStr);
+          
+          // UserContext 동기화를 위한 이벤트 발송
+          window.dispatchEvent(new CustomEvent('auth-token-refreshed', { 
+            detail: updatedUser 
+          }));
+
           // 실패했던 원래 요청의 헤더 교체 및 재시도
           config.headers.Authorization = `Bearer ${newToken}`;
           return api(config);
         }
       } catch (refreshError) {
-        // 갱신 실패 시 최종 로그아웃 처리
         console.error('❌ Token refresh failed. Logging out...');
         sessionStorage.clear();
         localStorage.removeItem('user');
+        localStorage.removeItem('rememberMe');
         
         const authError = new Error('보안 세션이 만료되어 자동으로 로그아웃되었습니다.');
         (authError as any).isAuthError = true;
@@ -142,7 +154,6 @@ api.interceptors.response.use(
     }
 
     // 2. 일반 에러 처리
-    // Authentication 에러(401)인 경우 중복 알림 방지를 위해 여기서 중단
     if ((error as any).isAuthError) {
       return Promise.reject(error);
     }
