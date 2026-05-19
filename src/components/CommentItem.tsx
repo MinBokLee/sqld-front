@@ -156,7 +156,7 @@ const CommentItem = memo(({
             /* [읽기 모드] 본문 텍스트와 답글 버튼 */
             <>
               <p className={`text-slate-700 dark:text-slate-300 leading-relaxed font-medium ${isReply ? 'text-xs' : 'text-sm'}`}>{comment.content}</p>
-              {!isReply && (
+              {currentUser && !isReply && (
                 <button 
                   onClick={() => setActiveReplyId(activeReplyId === comment.commentId ? null : comment.commentId)}
                   className="text-[10px] font-black text-primary mt-2 flex items-center gap-1 hover:underline uppercase tracking-tighter"

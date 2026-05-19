@@ -38,16 +38,17 @@ const MainCommentForm = memo(({ user, onSubmit, isSubmitting }: MainCommentFormP
       </div>
       {/* 입력 영역 및 전송 버튼 */}
       <div className="flex-1 relative">
-        <textarea 
-          value={content} 
-          onChange={(e) => setContent(e.target.value)} 
-          className="w-full bg-slate-50 dark:bg-slate-800 border-none rounded-[1.5rem] p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 min-h-[120px] outline-none text-slate-900 dark:text-white shadow-inner resize-none transition-all" 
-          placeholder="따뜻한 댓글로 지식을 나누어 보세요..."
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          disabled={!user || isSubmitting}
+          className={`w-full bg-slate-50 dark:bg-slate-800 border-none rounded-[1.5rem] p-5 text-sm font-medium focus:ring-2 focus:ring-primary/20 min-h-[120px] outline-none text-slate-900 dark:text-white shadow-inner resize-none transition-all ${!user ? 'cursor-not-allowed opacity-60' : ''}`}
+          placeholder={user ? "따뜻한 댓글로 지식을 나누어 보세요..." : "로그인 후 댓글을 작성할 수 있습니다. 😊"}
         />
-        <button 
-          type="submit" 
-          disabled={isSubmitting || !content.trim()} 
-          className="absolute bottom-4 right-4 p-3 bg-primary text-white rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50"
+        <button
+          type="submit"
+          disabled={!user || isSubmitting || !content.trim()}
+          className="absolute bottom-4 right-4 p-3 bg-primary text-white rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

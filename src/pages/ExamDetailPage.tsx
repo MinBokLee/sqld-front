@@ -49,7 +49,14 @@ interface Exam {
 const POST_CONTENT_STYLE = `
   .prose-container pre { background-color: #282c34 !important; color: #abb2bf !important; padding: 1.5rem !important; border-radius: 1rem !important; font-family: 'Fira Code', monospace !important; font-size: 0.875rem !important; margin: 2rem 0 !important; overflow-x: auto !important; border-left: 4px solid #61afef !important; }
   .prose-container :not(pre) > code { background-color: #e2e8f0 !important; color: #e11d48 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.4rem !important; font-size: 0.9em !important; }
-  .dark .prose-container :not(pre) > code { background-color: #1e293b !important; color: #fb7185 !important; }
+  .dark .prose-container :not(pre) > code { background-color: #1e293b; color: #fb7185; }
+  
+  /* 리스트 스타일 복구 */
+  .prose-container ol { list-style-type: decimal !important; padding-left: 1.5rem !important; margin: 1.25rem 0 !important; }
+  .prose-container ul { list-style-type: disc !important; padding-left: 1.5rem !important; margin: 1.25rem 0 !important; }
+  .prose-container li { margin-bottom: 0.5rem !important; line-height: 1.6 !important; }
+  .prose-container li > p { margin: 0 !important; display: inline !important; }
+
   .prose-container .image { margin: 2rem 0; clear: both; display: table; }
   .prose-container .image img { display: block; max-width: 100%; border-radius: 1.5rem; box-shadow: 0 20px 50px -15px rgba(0,0,0,0.15); border: 4px solid white; transition: transform 0.3s ease; }
   .dark .prose-container .image img { border-color: #1e293b; }
