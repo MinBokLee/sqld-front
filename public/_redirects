@@ -1,1 +1,3 @@
-/*    /index.html   200
+/api/*      http://175.197.69.42/api/:splat      200
+/uploads/*  http://175.197.69.42/uploads/:splat  200
+/*          /index.html                         200
