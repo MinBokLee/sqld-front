@@ -21,7 +21,7 @@ export default defineConfig(({mode}) =>{
         '/api': {
           target: target,
           changeOrigin: true,
-          secure: false
+          secure: false           
         },
         '/uploads': {
           target: target,
