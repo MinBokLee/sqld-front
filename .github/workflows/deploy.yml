@@ -1,28 +1,50 @@
-name: Frontend Deploy
+name: Deploy to Production
 
 on:
   push:
-    branches: [ "main" ] # main 브랜치에 push될 때 작동
+    branches: [ main ]
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-    - name: 체크아웃 코드
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: 노드 설치 및 빌드
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
-    - run: npm install
-    - run: npm run build
+      # 1. GitHub 러너에서 도커 이미지 빌드
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: 리눅스 서버로 빌드 파일 전송 (SCP)
-      uses: appleboy/scp-action@master
-      with:
-        host: ${{ secrets.SERVER_IP }}        # 내 공인 IP (175.197.xx.xx)
-        username: minbok                     # 우분투 계정명
-        key: ${{ secrets.SERVER_SSH_KEY }}    # AWS 비밀키(.pem) 내용
-        source: "dist/*"                     # 빌드된 폴더 전체
-        target: "/home/minbok/frontend"      # 리눅스 서버 내 목적지 경로
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_REPO }}:latest
+
+      # 2. 운영 우분투 서버에 접속해서 배포 명령 실행
+      - name: SSH Remote Commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ubuntu
+          key: ${{ secrets.SERVER_KEY }}
+          script: |
+            # 최신 도커 이미지 다운로드
+            sudo docker pull ${{ secrets.DOCKER_REPO }}:latest
+           
+            # 기존 컨테이너 멈추고 삭제 (또는 무중단 스크립트 실행)
+            sudo docker stop sqld-front-app || true
+            sudo docker rm sqld-front-app || true
+           
+            # 새 컨테이너 실행
+            sudo docker run -d --name my-app -p 3000:80 ${{ secrets.DOCKER_REPO }}:latest
+           
+            # 미사용 이미지 정리 (용량 확보)
+            sudo docker image prune -f
