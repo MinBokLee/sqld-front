@@ -2,25 +2,30 @@ name: Deploy to Production
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
+      # 1. 소스 체크아웃
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 1. GitHub 러너에서 도커 이미지 빌드
+      # 2. Docker Buildx 설정
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # 3. Docker Hub 로그인
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      # 4. Docker 이미지 빌드 및 Push
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
@@ -28,23 +33,27 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_REPO }}:latest
 
-      # 2. 운영 우분투 서버에 접속해서 배포 명령 실행
-      - name: SSH Remote Commands
+      # 5. 운영 서버 배포
+      - name: Deploy to Ubuntu Server
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
-          username: ubuntu
-          key: ${{ secrets.SERVER_KEY }}
+          username: minbok
+          key: ${{ secrets.KEY }}
           script: |
-            # 최신 도커 이미지 다운로드
+            # 최신 이미지 다운로드
             sudo docker pull ${{ secrets.DOCKER_REPO }}:latest
-           
-            # 기존 컨테이너 멈추고 삭제 (또는 무중단 스크립트 실행)
+
+            # 기존 컨테이너 중지 및 삭제
             sudo docker stop sqld-front-app || true
             sudo docker rm sqld-front-app || true
-           
+
             # 새 컨테이너 실행
-            sudo docker run -d --name my-app -p 3000:80 ${{ secrets.DOCKER_REPO }}:latest
-           
-            # 미사용 이미지 정리 (용량 확보)
+            sudo docker run -d \
+              --name sqld-front-app \
+              -p 3000:80 \
+              --restart unless-stopped \
+              ${{ secrets.DOCKER_REPO }}:latest
+
+            # 사용하지 않는 이미지 정리
             sudo docker image prune -f
