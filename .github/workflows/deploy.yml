@@ -1,0 +1,28 @@
+name: Frontend Deploy
+
+on:
+  push:
+    branches: [ "main" ] # main 브랜치에 push될 때 작동
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 체크아웃 코드
+      uses: actions/checkout@v4
+
+    - name: 노드 설치 및 빌드
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+    - run: npm install
+    - run: npm run build
+
+    - name: 리눅스 서버로 빌드 파일 전송 (SCP)
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.SERVER_IP }}        # 내 공인 IP (175.197.xx.xx)
+        username: minbok                     # 우분투 계정명
+        key: ${{ secrets.SERVER_SSH_KEY }}    # AWS 비밀키(.pem) 내용
+        source: "dist/*"                     # 빌드된 폴더 전체
+        target: "/home/minbok/frontend"      # 리눅스 서버 내 목적지 경로
