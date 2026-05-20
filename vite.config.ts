@@ -9,7 +9,7 @@ export default defineConfig(({mode}) =>{
   console.log('Target API URL:', env.VITE_API_BASE_URL);
   console.log('-------------------------');
 
-  const target = env.VITE_API_BASE_URL || 'http://175.197.69.42:8881';
+  const target = env.VITE_API_BASE_URL || 'http://175.197.69.42';
 
   return { 
     plugins: [react()],
