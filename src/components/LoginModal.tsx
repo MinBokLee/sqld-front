@@ -64,7 +64,7 @@ export default function LoginModal({
     <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 sm:p-6">
       <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={onClose} />
       
-      <div className="relative w-full max-w-md bg-white dark:bg-[#1a222c] rounded-[2.5rem] shadow-2xl border border-white/20 overflow-hidden animate-in zoom-in-95 duration-300">
+      <div className="relative w-full max-w-md max-h-[90vh] bg-white dark:bg-[#1a222c] rounded-[2.5rem] shadow-2xl border border-white/20 overflow-y-auto animate-in zoom-in-95 duration-300">
         {/* Close Button */}
         <button onClick={onClose} className="absolute right-6 top-6 p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all z-10">
           <X size={20} />

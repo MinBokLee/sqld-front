@@ -252,15 +252,17 @@ export default function SignUpModal({ isOpen, onClose, getText }: SignUpModalPro
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-white/20 animate-in fade-in zoom-in duration-200">
-        <div className="p-8">
-          <div className="flex justify-between items-center mb-8">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-md max-h-[90vh] rounded-3xl shadow-2xl overflow-y-auto border border-white/20 animate-in fade-in zoom-in duration-200">
+        <div className="sticky top-0 z-20 bg-white dark:bg-slate-900 p-8 pb-4 border-b border-slate-50 dark:border-slate-800">
+          <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">회원가입</h2>
               <p className="text-sm text-slate-500 font-bold mt-1">새로운 시작을 함께하세요.</p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={24} className="text-slate-400" /></button>
           </div>
+        </div>
+        <div className="p-8 pt-4">
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-4">

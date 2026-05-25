@@ -82,9 +82,9 @@ export default function ExamScheduleModal({ isOpen, onClose }: ExamScheduleModal
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[100] p-4" onClick={onClose}>
-      <div className="bg-white dark:bg-[#1a222c] w-full max-w-5xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-white/10" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+      <div className="bg-white dark:bg-[#1a222c] w-full max-w-5xl max-h-[90vh] rounded-[2.5rem] shadow-2xl overflow-y-auto border border-white/10" onClick={e => e.stopPropagation()}>
+        {/* Header - Sticky */}
+        <div className="sticky top-0 z-20 p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-white/80 dark:bg-[#1a222c]/80 backdrop-blur-md">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20">
               <Calendar size={28} />

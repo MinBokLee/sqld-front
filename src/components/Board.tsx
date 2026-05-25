@@ -67,7 +67,7 @@ export default function Board({
 
   return (
     <div className="flex flex-col bg-white dark:bg-slate-900 rounded-xl border border-[#cfdbe7] dark:border-slate-800 shadow-sm overflow-hidden h-full">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#e7edf3] dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/30">
+      <div className="flex items-center justify-between px-4 md:px-5 py-4 border-b border-[#e7edf3] dark:border-slate-800 bg-slate-50/30 dark:bg-slate-800/30">
         <Link to={boardUrl} className="flex items-center gap-2 group">
           <Icon className="text-primary w-6 h-6" />
           <h3 className="text-lg font-bold text-[#0d141b] dark:text-white group-hover:text-primary transition-colors">{title}</h3>
@@ -78,7 +78,7 @@ export default function Board({
       </div>
 
       {isTable && items.length > 0 && (
-        <div className="flex items-center px-5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-[#e7edf3] dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+        <div className="flex items-center px-4 md:px-5 py-2 text-[10px] font-black text-slate-400 uppercase tracking-wider border-b border-[#e7edf3] dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
           <span className="w-10 shrink-0 text-center">No</span>
           <span className="flex-1 ml-4">게시글 제목</span>
           <span className="w-24 shrink-0 text-center">작성자</span>
@@ -95,7 +95,7 @@ export default function Board({
             <Link
               key={index}
               to={`/exam/${item.id}?boardCode=${boardCode}`}
-              className="flex flex-col px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+              className="flex flex-col px-4 md:px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
             >
               {isTable ? (
                 <div className="flex items-center w-full gap-2">
