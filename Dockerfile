@@ -17,6 +17,9 @@ FROM nginx:alpine
 # (Vite/Vue는 dist, CRA/React는 build, Next.js export는 out 등 본인 빌드 폴더명에 맞게 수정)
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+
 # 도커 컨테이너의 80번 포트를 열어줌
 EXPOSE 80
 
