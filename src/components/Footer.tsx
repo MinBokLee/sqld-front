@@ -37,11 +37,6 @@ export default function Footer({ getText }: FooterProps) {
                   {getText('board.join_greetings')}
                 </Link>
               </li>
-              <li>
-                <Link to="/practice-exams?boardCode=S&categoryId=faq" className="hover:text-primary transition-colors">
-                  {getText('footer.faq')}
-                </Link>
-              </li>
             </ul>
           </div>
           <div>
