@@ -59,3 +59,11 @@ body {
   background-color: #0f172a !important;
   color: #f1f5f9 !important;
 }
+
+/* --- Mobile Modal Scroll Lock Fix --- */
+/* iOS Safari 등에서 모달 오픈 시 배경 스크롤을 완벽히 차단하기 위한 전역 방어 로직 */
+html:has(body[style*="overflow: hidden"]),
+body[style*="overflow: hidden"] {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}

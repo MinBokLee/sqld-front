@@ -408,7 +408,9 @@ export default function ExamDetailPage() {
                         {exam.categoryName || boardConfig?.boardName || '게시글'}
                       </span>
                     </div>
-                    <h1 className="text-2xl sm:text-4xl font-black leading-tight mb-8">{exam.title}</h1>
+                    <h1 className="text-lg sm:text-xl lg:text-2xl font-black leading-tight mb-6">
+                      {exam.title}
+                    </h1>
                     <div className="flex flex-wrap items-center justify-between gap-6">
                       <div className="flex items-center gap-4">
                         <div className="w-14 h-14 rounded-2xl overflow-hidden bg-primary/5 flex items-center justify-center font-black text-xl text-primary border border-primary/10">
