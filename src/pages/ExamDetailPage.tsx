@@ -244,10 +244,10 @@ export default function ExamDetailPage() {
 
   const fetchTrendingTags = useCallback(async () => {
     try {
-      const data: any = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 20, boardCode: 'S' } });
+      const data: any = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 20 } });
       const list = data?.list || [];
       if (list.length > 0) {
-        const allTags = list.flatMap((p: any) => p.tags || (p.tagName ? p.tagName.split(',').map((t: string) => t.trim()) : []));
+        const allTags = list.flatMap((p: any) => (p.tags && p.tags.length > 0) ? p.tags : (p.tagName ? p.tagName.split(',').map((t: string) => t.trim()) : []));
         const tagCounts: { [key: string]: number } = {};
         allTags.filter((t: string) => t).forEach((t: string) => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
         setTrendingTags(Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 12));
@@ -465,6 +465,16 @@ export default function ExamDetailPage() {
                   </div>
 
                   <PostContent content={exam.content} onImageClick={(url) => setLightboxSrc(url)} />
+
+                  {exam.tags && exam.tags.length > 0 && (
+                    <div className="px-6 sm:px-10 py-6 border-t border-slate-50 dark:border-slate-800">
+                      <div className="flex flex-wrap gap-2">
+                        {exam.tags.map((tag: string, index: number) => (
+                          <span key={index} className="px-2.5 py-1 bg-primary/5 text-primary text-xs font-bold rounded-lg border border-primary/10">#{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <AttachmentSection files={exam.files || []} onImageClick={(url) => setLightboxSrc(url)} onDownload={handleDownload} />
                 </>

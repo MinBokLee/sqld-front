@@ -145,9 +145,9 @@ export default function PracticeExams() {
 
   const fetchTrendingTags = useCallback(async () => {
     try {
-      const data = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 30, boardCode: 'S' } });
+      const data = await api.get(`/api/board/list/paging`, { params: { page: 1, size: 30 } });
       const list = data?.list || [];
-      const allTags = list.flatMap((p: any) => p.tags || (p.tagName ? p.tagName.split(',').map((t: string) => t.trim()) : []));
+      const allTags = list.flatMap((p: any) => (p.tags && p.tags.length > 0) ? p.tags : (p.tagName ? p.tagName.split(',').map((t: string) => t.trim()) : []));
       const tagCounts: { [key: string]: number } = {};
       allTags.filter((t: string) => t).forEach((t: string) => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
       setTrendingTags(Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a]).slice(0, 12));
