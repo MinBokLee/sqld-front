@@ -49,38 +49,42 @@ export default function MyPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   
   const activeTab = searchParams.get('tab') || 'profile';
+  const page = parseInt(searchParams.get('page') || '1');
   const [scraps, setScraps] = useState<Scrap[]>([]);
   const [myPosts, setMyPosts] = useState<MyPost[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
-  const fetchScraps = useCallback(async () => {
+  const fetchScraps = useCallback(async (pageNum: number) => {
     if (!user) return;
     setLoading(true);
     try {
-      /**
-       * [보정] 500 에러 방지를 위해 빈 객체 파라미터라도 전달하여 
-       * 서버의 파라미터 파싱 예외 상황을 원천 차단 시도
-       */
-      const data: any = await api.get('/api/board/searchScrapMyPage', { params: {} });
-      
-      const list = Array.isArray(data) ? data : (data?.list || data?.data || []);
+      const res: any = await api.get('/api/board/searchScrapMyPage', { params: { page: pageNum, size: 10 } });
+      const actualData = res?.data || res;
+      const list = actualData?.list || (Array.isArray(actualData) ? actualData : []);
       setScraps(list);
+      setTotalCount(actualData?.totalCount || actualData?.totalElements || list.length);
+      setTotalPages(actualData?.totalPages || actualData?.totalPage || 1);
     } catch (error) { 
       console.error("Scrap load error:", error); 
       setScraps([]);
     } finally { setLoading(false); }
   }, [user]);
 
-  const fetchMyPosts = useCallback(async () => {
+  const fetchMyPosts = useCallback(async (pageNum: number) => {
     if (!user) return;
     setLoading(true);
     try {
-      const data: any = await api.get('/api/board/my-list', { params: {} });
-      const list = data?.list || (Array.isArray(data) ? data : []);
+      const res: any = await api.get('/api/board/my-list', { params: { page: pageNum, size: 10 } });
+      const actualData = res?.data || res;
+      const list = actualData?.list || (Array.isArray(actualData) ? actualData : []);
       setMyPosts(list);
+      setTotalCount(actualData?.totalCount || actualData?.totalElements || list.length);
+      setTotalPages(actualData?.totalPages || actualData?.totalPage || 1);
     } catch (error) { 
       console.error("Posts load error:", error); 
       setMyPosts([]);
@@ -89,9 +93,26 @@ export default function MyPage() {
 
   useEffect(() => {
     if (!user) { navigate('/'); return; }
-    if (activeTab === 'scraps') fetchScraps();
-    else if (activeTab === 'posts') fetchMyPosts();
-  }, [activeTab, fetchScraps, fetchMyPosts, user, navigate]);
+    if (activeTab === 'scraps') fetchScraps(page);
+    else if (activeTab === 'posts') fetchMyPosts(page);
+  }, [activeTab, page, fetchScraps, fetchMyPosts, user, navigate]);
+
+  const handlePageChange = (newPage: number) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('page', newPage.toString());
+    setSearchParams(params);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, page - Math.floor(maxVisible / 2));
+    let end = Math.min(totalPages, start + maxVisible - 1);
+    if (end - start + 1 < maxVisible) start = Math.max(1, end - maxVisible + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    return pages;
+  };
 
   const handleDeleteSelected = async () => {
     if (selectedItems.length === 0) return;
@@ -188,7 +209,7 @@ export default function MyPage() {
                 <h3 className="text-xl font-black text-slate-900 dark:text-white flex items-center gap-2">
                   {activeTab === 'scraps' ? <Bookmark className="text-primary" /> : <FileText className="text-primary" />}
                   {activeTab === 'scraps' ? '나의 스크랩 내역' : '내가 쓴 게시글'}
-                  <span className="text-xs font-bold text-slate-400 ml-2">Total {activeTab === 'scraps' ? scraps.length : myPosts.length}</span>
+                  <span className="text-xs font-bold text-slate-400 ml-2">Total {totalCount}</span>
                 </h3>
                 {selectedItems.length > 0 && (
                   <button onClick={handleDeleteSelected} className="flex items-center gap-2 px-6 py-3 bg-red-500 text-white text-sm font-black rounded-2xl hover:bg-red-600 transition-all shadow-lg active:scale-95 text-xs uppercase tracking-widest"><Trash2 size={16} /> 선택 삭제 ({selectedItems.length})</button>
@@ -234,6 +255,19 @@ export default function MyPage() {
                 )}
               </div>
             </div>
+
+            {/* Pagination UI 추가 */}
+            {!loading && totalPages > 1 && (
+              <div className="flex items-center justify-center gap-1 py-10">
+                <button onClick={() => handlePageChange(1)} disabled={page === 1} className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-50 disabled:opacity-50 transition-all"><ChevronsLeftIcon size={18} /></button>
+                <button onClick={() => handlePageChange(page - 1)} disabled={page === 1} className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-50 disabled:opacity-50 transition-all"><ChevronLeftIcon size={18} /></button>
+                {getPageNumbers().map((p) => (
+                  <button key={p} onClick={() => handlePageChange(p)} className={`w-10 h-10 flex items-center justify-center rounded-lg font-bold transition-all ${p === page ? 'bg-primary text-white shadow-lg shadow-primary/25 scale-105' : 'border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-50'}`}>{p}</button>
+                ))}
+                <button onClick={() => handlePageChange(page + 1)} disabled={page === totalPages} className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-50 disabled:opacity-50 transition-all"><ChevronRightIcon size={18} /></button>
+                <button onClick={() => handlePageChange(totalPages)} disabled={page === totalPages} className="w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 hover:bg-slate-50 disabled:opacity-50 transition-all"><ChevronsRightIcon size={18} /></button>
+              </div>
+            )}
           </section>
         )}
 
