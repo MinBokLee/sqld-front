@@ -331,8 +331,8 @@ export default function WritePostPage() {
       if (boardCode === getBoardCode('G_BRD_GREETING') && !editingBoardId) updateUser({ userStatus: 'Y' });
       
       const targetId = editingBoardId || res?.boardId;
-      if (targetId) navigate(`/exam/${targetId}?boardCode=${boardCode}`, { replace: true });
-      else navigate(`/practice-exams?boardCode=${boardCode}`, { replace: true });
+      if (targetId) navigate(`/exam/${targetId}?boardCode=${encodeURIComponent(boardCode)}`, { replace: true });
+      else navigate(`/practice-exams?boardCode=${encodeURIComponent(boardCode)}`, { replace: true });
     } catch (error) { console.error(error); } finally { setIsSubmitting(false); }
   };
 

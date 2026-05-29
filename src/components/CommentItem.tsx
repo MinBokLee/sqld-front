@@ -159,9 +159,9 @@ const CommentItem = memo(({
               {currentUser && !isReply && (
                 <button 
                   onClick={() => setActiveReplyId(activeReplyId === comment.commentId ? null : comment.commentId)}
-                  className="text-[10px] font-black text-primary mt-2 flex items-center gap-1 hover:underline uppercase tracking-tighter"
+                  className="text-[10px] font-black text-primary mt-2 flex items-center gap-1 hover:text-blue-600 transition-colors uppercase tracking-tighter"
                 >
-                  <MessageSquare size={10} /> Reply
+                  <MessageSquare size={10} className="fill-primary/10" /> 답글
                 </button>
               )}
             </>
@@ -181,9 +181,14 @@ const CommentItem = memo(({
               autoFocus
             />
             <div className="flex justify-end gap-2 mt-2">
-              <button type="button" onClick={() => setActiveReplyId(null)} className="px-4 py-1.5 text-xs font-bold text-slate-400">Cancel</button>
-              <button type="submit" disabled={isProcessing || !localReplyContent.trim()} className="px-6 py-1.5 bg-primary text-white text-xs font-black rounded-lg disabled:opacity-50 shadow-md shadow-primary/20">
-                {isProcessing ? 'Saving...' : 'Submit'}
+              <button type="button" onClick={() => setActiveReplyId(null)} className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all">취소</button>
+              <button type="submit" disabled={isProcessing || !localReplyContent.trim()} className="px-6 py-2 bg-primary text-white text-xs font-black rounded-xl disabled:opacity-50 shadow-lg shadow-primary/20 hover:bg-blue-600 active:scale-95 transition-all">
+                {isProcessing ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    저장 중...
+                  </div>
+                ) : '답글 등록'}
               </button>
             </div>
           </form>

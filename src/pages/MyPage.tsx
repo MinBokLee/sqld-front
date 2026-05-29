@@ -215,7 +215,7 @@ export default function MyPage() {
                         <input type="checkbox" className="size-5 rounded-md border-2 border-slate-200 text-primary focus:ring-primary/20 cursor-pointer" checked={selectedItems.includes(itemId)} onChange={() => toggleSelect(itemId)} />
                       </div>
                       <div className="flex-1 px-0 md:px-4 min-w-0">
-                        <Link to={`/exam/${item.boardId}?boardCode=${item.boardCode}`} className="group/link block">
+                        <Link to={`/exam/${item.boardId}?boardCode=${encodeURIComponent(item.boardCode)}`} className="group/link block">
                           <p className="text-base font-black text-slate-900 dark:text-white group-hover/link:text-primary transition-colors line-clamp-1">{item.title}</p>
                           <div className="flex items-center gap-2 mt-1.5">
                             <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-black text-slate-500 uppercase tracking-tighter border border-slate-200/50">{getBoardName(item.boardCode)}</span>
@@ -224,8 +224,8 @@ export default function MyPage() {
                         </Link>
                       </div>
                       <div className="w-full md:w-32 text-center text-xs font-bold text-slate-400 mt-4 md:mt-0">{new Date(item.createAt).toLocaleDateString()}</div>
-                      <div className="w-full md:w-20 flex justify-center mt-4 md:mt-0">
-                        <Link to={`/exam/${item.boardId}?boardCode=${item.boardCode}`} className="p-2.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-primary hover:border-primary/30 rounded-xl transition-all shadow-sm active:scale-90"><ArrowUpRight size={18} /></Link>
+                      <div className="w-full md:w-20 flex justify-center mt-4 md:md:mt-0">
+                        <Link to={`/exam/${item.boardId}?boardCode=${encodeURIComponent(item.boardCode)}`} className="p-2.5 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-400 hover:text-primary hover:border-primary/30 rounded-xl transition-all shadow-sm active:scale-90"><ArrowUpRight size={18} /></Link>
                       </div>
                     </div>
                   );

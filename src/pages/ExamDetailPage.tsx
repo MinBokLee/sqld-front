@@ -352,7 +352,7 @@ export default function ExamDetailPage() {
         try {
           const response = await api.post(`/api/board/list/deleteBoardContent`, { boardIds: [Number(id)] });
           showToast((response as any).msg || "삭제되었습니다. ✅"); 
-          navigate(`/practice-exams?boardCode=${exam?.boardCode || 'S'}`); 
+          navigate(`/practice-exams?boardCode=${encodeURIComponent(exam?.boardCode || 'S')}`); 
         } catch (error) { 
           console.error("Delete error:", error); 
         } finally { 
@@ -383,7 +383,7 @@ export default function ExamDetailPage() {
           <Link to="/" className="hover:text-primary transition-colors font-medium">홈</Link>
           <ChevronsRight size={14} />
           <Link 
-            to={`/practice-exams?boardCode=${exam?.boardCode}`} 
+            to={`/practice-exams?boardCode=${encodeURIComponent(exam?.boardCode || '')}`} 
             className={`hover:text-primary transition-colors ${!exam?.categoryName ? 'text-slate-900 dark:text-white' : 'font-medium'}`}
           >
             {boardConfig?.boardName || '게시판'}
@@ -442,7 +442,7 @@ export default function ExamDetailPage() {
                         {/* [수정 권한] 오직 작성자 본인만 가능 (관리자도 타인의 글 수정 불가) */}
                         {String(user.memberId) === String(exam.authorId) && (
                           <button 
-                            onClick={() => navigate(`/write-post?boardId=${exam.id}&boardCode=${exam.boardCode}`)} 
+                            onClick={() => navigate(`/write-post?boardId=${exam.id}&boardCode=${encodeURIComponent(exam.boardCode)}`)} 
                             className="p-3 rounded-xl text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"
                             title="게시글 수정"
                           >

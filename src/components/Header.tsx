@@ -130,7 +130,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
               {boardConfigs.filter(config => config.useYn === 'Y').map((config) => (
                 <Link 
                   key={config.boardCode}
-                  to={`/practice-exams?boardCode=${config.boardCode}`} 
+                  to={`/practice-exams?boardCode=${encodeURIComponent(config.boardCode)}`} 
                   className={`${getMenuClass(config.boardCode)} text-sm font-semibold transition-colors`}
                 >
                   {config.boardName}
@@ -347,7 +347,7 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
               {boardConfigs.filter(config => config.useYn === 'Y').map((config) => (
                 <Link 
                   key={config.boardCode}
-                  to={`/practice-exams?boardCode=${config.boardCode}`} 
+                  to={`/practice-exams?boardCode=${encodeURIComponent(config.boardCode)}`} 
                   className={`flex items-center gap-3 p-3 rounded-xl transition-colors font-bold ${
                     currentCode === config.boardCode
                     ? 'bg-primary/10 text-primary' 

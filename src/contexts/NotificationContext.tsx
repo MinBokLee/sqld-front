@@ -40,27 +40,25 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     try {
       const resData: any = await api.get(`/api/notification/list/${user.memberId}`);
       let rawList: any[] = [];
-      let unread = 0;
 
+      // 가이드 적용: 서버는 이제 안 읽음(IS_READ = 'N') 상태인 알림만 리턴함
       if (Array.isArray(resData)) {
         rawList = resData;
       } else if (resData && typeof resData === 'object') {
         rawList = resData.list || resData.data || resData.result || [];
-        unread = resData.unreadCount || resData.unread_count || 0;
       }
 
       const mappedList = rawList.map((item: any) => ({
         ...item,
         id: String(item.notiId || item.id || `hist_${Date.now()}`),
-        // Map content flexibly
         content: item.content || item.message || item.notiContent || '새로운 알림이 있습니다.',
-        // Map timestamp flexibly
         timestamp: item.timestamp || item.createAt || item.createdAt || new Date().toLocaleString(),
-        isRead: item.isRead === true || item.readStatus === 'Y'
+        isRead: false // 서버에서 안 읽은 것만 오므로 기본 false
       }));
 
       setNotifications(mappedList);
-      setUnreadCount(unread);
+      // 가이드 적용: 응답 데이터의 길이를 그대로 배지 숫자로 사용
+      setUnreadCount(mappedList.length);
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
     }
@@ -68,7 +66,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   // 알림 읽음 처리
   const markAsRead = async (id: string) => {
+    if (!user || !user.memberId) return;
     try {
+      // 가이드 적용: PUT /api/notification/read/{notiId}
       await api.put(`/api/notification/read/${id}`);
       setNotifications(prev => 
         prev.map(n => n.id === id ? { ...n, isRead: true } : n)
@@ -79,10 +79,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   };
 
-  // 모두 읽음 처리
+  // 모두 읽음 처리 (가이드: 사용자가 알림 목록 창을 열었을 때 호출)
   const markAllAsRead = async () => {
+    if (!user || !user.memberId) return;
     try {
-      await api.put('/api/notification/read-all');
+      // 가이드 적용: PUT /api/notification/readAll/{receiverId}
+      await api.put(`/api/notification/readAll/${user.memberId}`);
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (error) {

@@ -37,7 +37,7 @@ export default function Board({
   isTable = false,
   showCategory = false // 기본값은 false (홈 화면 등에서 숨김)
 }: BoardProps) {
-  const boardUrl = `/practice-exams?boardCode=${boardCode}`;
+  const boardUrl = `/practice-exams?boardCode=${encodeURIComponent(boardCode)}`;
   const languageContext = useContext(LanguageContext);
   const getText = languageContext ? languageContext.getText : (key: string) => key;
 
@@ -94,7 +94,7 @@ export default function Board({
           return (
             <Link
               key={index}
-              to={`/exam/${item.id}?boardCode=${boardCode}`}
+              to={`/exam/${item.id}?boardCode=${encodeURIComponent(boardCode)}`}
               className="flex flex-col px-4 md:px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
             >
               {isTable ? (

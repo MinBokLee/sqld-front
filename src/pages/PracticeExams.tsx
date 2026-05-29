@@ -185,10 +185,21 @@ export default function PracticeExams() {
         id: item.boardId, title: item.title, author: item.userName, authorImage: item.profileImage,
         date: item.createAt, views: item.viewCount, likes: item.likeCount, comments: item.commentCount,
         boardCode: item.boardCode, categoryId: item.categoryId, categoryName: item.categoryName,
-        tags: item.tags || (item.tagName ? item.tagName.split(',').map((t: string) => t.trim()) : []),
+        tags: (item.tags && item.tags.length > 0) ? item.tags : (item.tagName ? item.tagName.split(',').map((t: string) => t.trim()) : []),
         seqNumber: item.seqNumber
       })));
-      setTotalPages(data?.totalPage || 1);
+
+      // [핵심] totalPage 정보 보정 로직
+      const serverTotalPage = data?.totalPage || data?.totalPages || 0;
+      if (serverTotalPage > 0) {
+        setTotalPages(serverTotalPage);
+      } else {
+        // 서버에서 총 페이지 정보를 주지 않는 경우 (예: my-list)
+        // 현재 불러온 데이터가 요청한 size(10개)와 같다면 다음 페이지가 더 있을 것으로 판단하여 UI를 활성화합니다.
+        const hasNextPage = list.length === size;
+        setTotalPages(hasNextPage ? page + 1 : page);
+      }
+
       lastFetchedParamsRef.current = { boardCode, categoryId, page, mode };
     } catch (error) { console.error(error); } finally { setIsLoading(false); }
   }, [boardCode, categoryId, page, size, searchQuery, tagNameFilter, mode, isBoardConfigLoading]); 
@@ -220,7 +231,7 @@ export default function PracticeExams() {
   };
 
   const handleTagClick = (tag: string) => {
-    navigate(`/practice-exams?boardCode=${getBoardCode('G_BRD_LICENSE') || 'S'}&tagName=${encodeURIComponent(tag)}&page=1`);
+    navigate(`/practice-exams?boardCode=${encodeURIComponent(getBoardCode('G_BRD_LICENSE') || 'S')}&tagName=${encodeURIComponent(tag)}&page=1`);
   };
 
   const clearTagFilter = () => {
@@ -273,7 +284,7 @@ export default function PracticeExams() {
                 <span className="text-slate-900 dark:text-white">내 활동 관리</span>
               ) : (
                 <>
-                  <Link to={`/practice-exams?boardCode=${boardCode}`} className={`${!categoryId ? 'text-slate-900 dark:text-white' : 'hover:text-primary transition-colors'}`}>{boardConfig?.boardName || '게시판'}</Link>
+                  <Link to={`/practice-exams?boardCode=${encodeURIComponent(boardCode)}`} className={`${!categoryId ? 'text-slate-900 dark:text-white' : 'hover:text-primary transition-colors'}`}>{boardConfig?.boardName || '게시판'}</Link>
                   {categoryId && <><ChevronRight size={14} /><span className="text-slate-900 dark:text-white">{categories.find(c => c.categoryId === categoryId)?.categoryName || categoryId}</span></>}
                 </>
               )}
@@ -308,7 +319,7 @@ export default function PracticeExams() {
                     </div>
                   )}
                   {user && (boardCode !== 'N' || user.userRole == 'ADMIN') && (
-                    <Link to={`/write-post?boardCode=${boardCode}${categoryId ? `&categoryId=${categoryId}` : ''}`} className="inline-flex items-center gap-2 px-5 py-3 bg-primary text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95 text-sm flex-shrink-0"><PenSquare size={18} />새 글 작성</Link>
+                    <Link to={`/write-post?boardCode=${encodeURIComponent(boardCode)}${categoryId ? `&categoryId=${categoryId}` : ''}`} className="inline-flex items-center gap-2 px-5 py-3 bg-primary text-white font-black rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95 text-sm flex-shrink-0"><PenSquare size={18} />새 글 작성</Link>
                   )}
                 </div>
                 <div className="bg-white dark:bg-[#1a222c] p-1.5 rounded-[2rem] border border-slate-200/60 dark:border-slate-800 shadow-lg shadow-slate-200/40 dark:shadow-none flex items-center group focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary/40 transition-all duration-300">
@@ -352,14 +363,14 @@ export default function PracticeExams() {
                       const isNew = (new Date().getTime() - new Date(post.date).getTime()) < 24 * 60 * 60 * 1000;
                       const displayNo = post.seqNumber || (page - 1) * size + idx + 1;
                       return (
-                        <div key={post.id} onClick={() => { handlePostClick(post.id); navigate(`/exam/${post.id}?boardCode=${post.boardCode}`); }} className="flex flex-col md:flex-row md:items-center px-8 py-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer h-auto md:h-[84px]">
+                        <div key={post.id} onClick={() => { handlePostClick(post.id); navigate(`/exam/${post.id}?boardCode=${encodeURIComponent(post.boardCode)}`); }} className="flex flex-col md:flex-row md:items-center px-8 py-5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group cursor-pointer h-auto md:h-[84px]">
                           <div className="hidden md:block w-20 text-sm text-[#4c739a] text-center font-bold flex-shrink-0">{String(displayNo).padStart(2, '0')}</div>
                           <div className="flex-1 px-4 min-w-0">
                             <div className="flex flex-col gap-1.5">
                               <div className="flex items-center gap-2">
                                 {isMyMode && getBoardBadge(post.boardCode)}
                                 <h3 className={`text-sm font-bold transition-colors truncate ${isRead ? 'text-slate-400' : 'text-[#0d141b] dark:text-white group-hover:text-primary'}`}>{post.title}</h3>
-                                {post.comments > 0 && <span className="text-primary font-black text-[11px] shrink-0">[{post.comments}]</span>}
+                                {(getBoardConfig(post.boardCode)?.replyYn === 'Y' && post.comments > 0) && <span className="text-primary font-black text-[11px] shrink-0">[{post.comments}]</span>}
                                 {isNew && <span className="flex-shrink-0 px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 text-[9px] font-black">NEW</span>}
                               </div>
                               {post.tags && post.tags.length > 0 && (

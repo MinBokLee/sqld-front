@@ -48,12 +48,15 @@ const MainCommentForm = memo(({ user, onSubmit, isSubmitting }: MainCommentFormP
         <button
           type="submit"
           disabled={!user || isSubmitting || !content.trim()}
-          className="absolute bottom-4 right-4 p-3 bg-primary text-white rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="absolute bottom-4 right-4 px-6 py-2.5 bg-primary text-white rounded-xl hover:bg-blue-600 transition-all shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-black"
         >
           {isSubmitting ? (
             <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
-            <Send size={20} />
+            <>
+              <Send size={18} />
+              댓글 등록
+            </>
           )}
         </button>
       </div>

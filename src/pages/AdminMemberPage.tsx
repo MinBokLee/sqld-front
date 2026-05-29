@@ -531,15 +531,17 @@ export default function AdminMemberPage() {
               )}
             </section>
 
-            {/* Members List */}
+            {/* Member List Table */}
             <div className="bg-white dark:bg-[#1a222c] rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden mb-10">
               <div className="hidden lg:flex items-center px-8 py-6 bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-[11px] font-black text-slate-400 uppercase tracking-widest">
                 <div className="w-12 flex justify-center">선택</div>
-                <div className="flex-1 px-8">사용자 정보</div>
-                <div className="w-32 text-center">권한</div>
-                <div className="w-24 text-center">상태</div>
-                <div className="w-48 text-center">최근 접속</div>
-                <div className="w-48 text-center">작업</div>
+                <div className="w-40 px-4">사용자 이름</div>
+                <div className="w-32 px-4">아이디</div>
+                <div className="flex-1 px-4">이메일 주소</div>
+                <div className="w-24 text-center">권한</div>
+                <div className="w-20 text-center">상태</div>
+                <div className="w-32 text-center">최근 접속</div>
+                <div className="w-24 text-center">작업</div>
               </div>
 
               <div className="divide-y divide-slate-50 dark:divide-slate-800">
@@ -553,9 +555,19 @@ export default function AdminMemberPage() {
                   filteredMembers.map((member) => {
                     const isSelf = member.memberId === user?.memberId;
                     const isSelfAdmin = isSelf && ['ADMIN', 'SUPER_ADMIN'].includes(member.userRole);
+                    
+                    // 날짜 포맷팅 (YYYY.MM.DD)
+                    const formatDate = (dateStr: string) => {
+                      if (!dateStr) return '-';
+                      try {
+                        const d = new Date(dateStr);
+                        return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+                      } catch (e) { return dateStr; }
+                    };
 
                     return (
-                      <div key={member.memberId} className={`flex flex-col lg:flex-row lg:items-center px-8 py-6 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${selectedUsers.includes(member.memberId) ? 'bg-primary/5' : ''}`}>
+                      <div key={member.memberId} className={`flex flex-col lg:flex-row lg:items-center px-8 py-5 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${selectedUsers.includes(member.memberId) ? 'bg-primary/5' : ''}`}>
+                        {/* 선택 체크박스 */}
                         <div className="flex items-center justify-between lg:justify-center lg:w-12 mb-4 lg:mb-0">
                           <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">선택</span>
                           <div className="relative group/tooltip">
@@ -575,95 +587,94 @@ export default function AdminMemberPage() {
                           </div>
                         </div>
 
-                        <div className="flex-1 lg:px-8 mb-4 lg:mb-0">
-                          <div className="flex items-center gap-4">
-                            <div className="size-12 rounded-2xl overflow-hidden bg-primary/10 flex items-center justify-center font-black text-primary border border-primary/5 shadow-inner uppercase flex-shrink-0">
-                              {(() => {
-                                const fullUrl = getFullImageUrl(member.profileImage);
-                                if (fullUrl) {
-                                  return (
-                                    <img 
-                                      src={fullUrl} 
-                                      alt="P" 
-                                      className="w-full h-full object-cover"
-                                      onError={(e) => {
-                                        (e.target as HTMLImageElement).style.display = 'none';
-                                        const parent = (e.target as HTMLImageElement).parentElement;
-                                        if (parent && !parent.querySelector('span')) {
-                                          const span = document.createElement('span');
-                                          span.innerText = member.userName?.[0] || 'U';
-                                          parent.appendChild(span);
-                                        }
-                                      }}
-                                    />
-                                  );
-                                }
-                                return <span>{member.userName?.[0] || 'U'}</span>;
-                              })()}
-                            </div>
-                            <div>
-                              <p className="text-base font-black text-slate-900 dark:text-white leading-none mb-1.5">{member.userName}</p>
-                              <p className="text-xs text-slate-400 font-bold tracking-tight">{member.userId} • {member.userEmail}</p>
-                            </div>
+                        {/* 사용자 이름 & 아바타 */}
+                        <div className="w-full lg:w-40 lg:px-4 mb-4 lg:mb-0 flex items-center gap-3">
+                          <div className="size-9 rounded-xl overflow-hidden bg-primary/10 flex items-center justify-center font-black text-primary border border-primary/5 shadow-inner uppercase flex-shrink-0">
+                            {(() => {
+                              const fullUrl = getFullImageUrl(member.profileImage);
+                              if (fullUrl) {
+                                return (
+                                  <img 
+                                    src={fullUrl} 
+                                    alt="P" 
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                  />
+                                );
+                              }
+                              return <span className="text-xs">{member.userName?.[0] || 'U'}</span>;
+                            })()}
                           </div>
+                          <p className="text-sm font-black text-slate-900 dark:text-white truncate">{member.userName}</p>
                         </div>
 
-                        <div className="flex items-center justify-between lg:justify-center lg:w-32 mb-4 lg:mb-0">
+                        {/* 아이디 */}
+                        <div className="w-full lg:w-32 lg:px-4 mb-4 lg:mb-0">
+                          <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">아이디</span>
+                          <p className="text-xs text-slate-400 font-bold font-mono">{member.userId}</p>
+                        </div>
+
+                        {/* 이메일 */}
+                        <div className="flex-1 lg:px-4 mb-4 lg:mb-0 min-w-0 lg:text-center">
+                          <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">이메일</span>
+                          <p className="text-xs text-slate-400 font-medium truncate">{member.userEmail}</p>
+                        </div>
+
+                        {/* 권한 */}
+                        <div className="flex items-center justify-between lg:justify-center lg:w-24 mb-4 lg:mb-0">
                           <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">권한</span>
                           {member.userRole === 'SUPER_ADMIN' ? (
-                            <span className="px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter bg-indigo-600 text-white border border-indigo-700 shadow-sm flex items-center gap-1">
-                              <Crown size={10} /> SUPER ADMIN
+                            <span className="px-2 py-0.5 rounded-lg text-[9px] font-black bg-indigo-600 text-white flex items-center gap-1 shadow-sm">
+                              <Crown size={8} /> SUPER
                             </span>
                           ) : (
-                            <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${
-                              member.userRole === 'ADMIN' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-primary text-white'
+                            <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase ${
+                              member.userRole === 'ADMIN' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-slate-100 text-slate-500 border border-slate-200'
                             }`}>
                               {member.userRole}
                             </span>
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between lg:justify-center lg:w-24 mb-4 lg:mb-0">
+                        {/* 상태 */}
+                        <div className="flex items-center justify-between lg:justify-center lg:w-20 mb-4 lg:mb-0">
                           <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">상태</span>
-                          <span className={`px-3 py-1 rounded-lg text-[10px] font-black ${
+                          <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black ${
                             member.userStatus === 'Y' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
                           }`}>
                             {member.userStatus === 'Y' ? '승인' : '미승인'}
                           </span>
                         </div>
 
-                        <div className="flex items-center justify-between lg:justify-center lg:w-48 mb-4 lg:mb-0">
+                        {/* 최근 접속 */}
+                        <div className="flex items-center justify-between lg:justify-center lg:w-32 mb-4 lg:mb-0">
                           <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">최근 접속</span>
-                          <div className="flex flex-col lg:items-center gap-1 text-slate-500 dark:text-slate-400 font-bold">
-                            <span className="text-xs">{member.lastLoginAt || member.lastLogAt || '-'}</span>
-                            <span className="text-[10px] opacity-50 font-medium italic lg:hidden">Joined: {member.createAt ? new Date(member.createAt).toLocaleDateString() : '-'}</span>
-                          </div>
+                          <span className="text-[11px] text-slate-500 font-bold font-mono">{formatDate(member.lastLoginAt || member.lastLogAt)}</span>
                         </div>
 
-                        <div className="flex items-center justify-between lg:justify-center lg:w-48">
+                        {/* 작업 버튼 */}
+                        <div className="flex items-center justify-between lg:justify-center lg:w-24">
                           <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">작업</span>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleRoleToggle(member)}
                               disabled={!canModifyRole(member)}
-                              className={`flex items-center gap-1.5 px-3 py-2 text-[11px] font-black rounded-xl transition-all border shadow-sm disabled:opacity-0 ${
+                              className={`p-1.5 rounded-lg transition-all border shadow-sm disabled:opacity-0 ${
                                 member.userRole === 'USER' 
                                   ? 'text-emerald-600 bg-emerald-50 border-emerald-100/50 hover:bg-emerald-100' 
                                   : 'text-amber-600 bg-amber-50 border-amber-100/50 hover:bg-amber-100'
                               }`}
                             >
                               {member.userRole === 'USER' ? <ShieldAlert size={16} /> : <UserCheck size={16} />}
-                              <span>{member.userRole === 'USER' ? '승격' : '강등'}</span>
                             </button>
 
                             {user?.userRole === 'SUPER_ADMIN' && (
                               <button 
                                 onClick={() => handleKick(member)}
                                 disabled={!canKick(member)}
-                                className="flex items-center gap-1.5 px-3 py-2 text-[11px] font-black text-red-600 bg-red-50 border border-red-100/50 rounded-xl transition-all shadow-sm disabled:opacity-0 hover:bg-red-100"
+                                className="p-1.5 text-red-600 bg-red-50 border border-red-100/50 rounded-lg transition-all shadow-sm disabled:opacity-0 hover:bg-red-100"
                               >
                                 <Trash2 size={16} />
-                                <span>강퇴</span>
                               </button>
                             )}
                           </div>
@@ -880,7 +891,27 @@ export default function AdminMemberPage() {
                         </div>
                       ))}
                       {details.length === 0 && !isCodeLoading && (
-                        <div className="py-20 text-center text-slate-400 text-sm font-medium">상세 코드가 없습니다.</div>
+                        <div className="py-24 text-center px-6">
+                          <div className="size-16 bg-slate-50 dark:bg-slate-800/50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-slate-300">
+                            <Code size={32} />
+                          </div>
+                          <p className="text-slate-500 dark:text-slate-400 font-bold mb-2">등록된 상세코드가 없습니다.</p>
+                          <p className="text-slate-400 text-xs mb-8">해당 그룹의 첫 번째 상세 코드를 등록해 보세요!</p>
+                          <button 
+                            onClick={() => setDetailModal({ 
+                              isOpen: true, 
+                              mode: 'add', 
+                              data: { 
+                                groupCode: selectedGroup, 
+                                useYn: 'Y', 
+                                sortOrder: 1 
+                              } 
+                            })}
+                            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white text-sm font-black rounded-xl hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all active:scale-95"
+                          >
+                            <Plus size={18} /> 첫 번째 코드 등록하기
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -918,15 +949,26 @@ export default function AdminMemberPage() {
  */
 function BoardFormModal({ modal, onClose, onSubmit, boards }: any) {
   const isEdit = modal.mode === 'edit';
-  const [formData, setFormData] = useState(modal.data || { boardName: '', groupCode: '', fileYn: 'Y', replyYn: 'Y', useYn: 'Y', sortOrder: 1 });
+  
+  const initialData = {
+    boardName: '',
+    groupCode: '',
+    fileYn: 'Y',
+    replyYn: 'Y',
+    tagYn: 'Y',
+    useYn: 'Y',
+    sortOrder: boards.length + 1
+  };
+
+  // [수정] 초기 상태 생성 시 누락된 필드가 없도록 initialData와 병합 (uncontrolled 경고 해결)
+  const [formData, setFormData] = useState({ ...initialData, ...(modal.data || {}) });
   const maxOrder = isEdit ? boards.length : boards.length + 1;
 
-  // 데이터 동기화 로직 추가
   useEffect(() => {
-    if (modal.data && modal.isOpen) {
-      setFormData(modal.data);
+    if (modal.isOpen) {
+      setFormData({ ...initialData, ...(modal.data || {}) });
     }
-  }, [modal.data, modal.isOpen]);
+  }, [modal.isOpen, modal.data]);
 
   useEffect(() => {
     if (modal.isOpen) {
@@ -953,15 +995,16 @@ function BoardFormModal({ modal, onClose, onSubmit, boards }: any) {
             <input required className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.boardName} onChange={(e) => setFormData({...formData, boardName: e.target.value})} />
           </div>
           <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">그룹코드</label>
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">그룹코드 (카테고리 연결)</label>
             <input 
               required 
               disabled={isEdit}
               className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white disabled:opacity-50" 
-              placeholder="예: G_BRD_NOTICE"
+              placeholder="예: G_BRD_QA (공통 코드 그룹 ID)"
               value={formData.groupCode} 
               onChange={(e) => setFormData({...formData, groupCode: e.target.value})} 
             />
+            <p className="text-[9px] text-primary/60 font-medium ml-1">공통 코드 관리에서 등록한 그룹 ID를 입력하면 해당 카테고리가 연결됩니다.</p>
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-end px-1">
@@ -997,8 +1040,17 @@ function BoardFormModal({ modal, onClose, onSubmit, boards }: any) {
  */
 function GroupFormModal({ modal, onClose, onSubmit, currentCount }: any) {
   const isEdit = modal.mode === 'edit';
-  const [formData, setFormData] = useState(modal.data || { groupCode: '', groupName: '', sortOrder: currentCount + 1, useYn: 'Y' });
+  const initialData = { groupCode: '', groupName: '', sortOrder: currentCount + 1, useYn: 'Y' };
+  
+  // [수정] 초기 상태 생성 시 누락된 필드가 없도록 initialData와 병합
+  const [formData, setFormData] = useState({ ...initialData, ...(modal.data || {}) });
   const maxOrder = isEdit ? currentCount : currentCount + 1;
+
+  useEffect(() => {
+    if (modal.isOpen) {
+      setFormData({ ...initialData, ...(modal.data || {}) });
+    }
+  }, [modal.isOpen, modal.data]);
 
   useEffect(() => {
     if (modal.isOpen) {
@@ -1060,15 +1112,18 @@ function GroupFormModal({ modal, onClose, onSubmit, currentCount }: any) {
  */
 function DetailFormModal({ modal, onClose, onSubmit, details }: any) {
   const isEdit = modal.mode === 'edit';
-  const [formData, setFormData] = useState(modal.data || { groupCode: '', codeId: '', codeName: '', sortOrder: 1, useYn: 'Y' });
-  const currentGroupDetails = details.filter((d: any) => d.groupCode === formData.groupCode);
+  const currentGroupDetails = details.filter((d: any) => d.groupCode === (modal.data?.groupCode || ''));
+  const initialData = { groupCode: '', codeId: '', codeName: '', sortOrder: currentGroupDetails.length + 1, useYn: 'Y' };
+  
+  // [수정] 초기 상태 생성 시 누락된 필드가 없도록 initialData와 병합
+  const [formData, setFormData] = useState({ ...initialData, ...(modal.data || {}) });
   const maxOrder = isEdit ? currentGroupDetails.length : currentGroupDetails.length + 1;
 
   useEffect(() => {
-    if (modal.data && modal.isOpen) {
-      setFormData(modal.data);
+    if (modal.isOpen) {
+      setFormData({ ...initialData, ...(modal.data || {}) });
     }
-  }, [modal.data, modal.isOpen]);
+  }, [modal.isOpen, modal.data, currentGroupDetails.length]);
 
   useEffect(() => {
     if (modal.isOpen) {
@@ -1090,37 +1145,40 @@ function DetailFormModal({ modal, onClose, onSubmit, details }: any) {
           </h3>
           <p className="text-[10px] text-slate-400 font-bold mt-1 tracking-widest uppercase">Group: {formData.groupCode}</p>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); onSubmit(formData); }} className="p-8 space-y-6">
+        <form onSubmit={(e) => { e.preventDefault(); onSubmit(formData); }} className="p-8 space-y-5">
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase text-slate-400 tracking-wider ml-1">상세 코드 (ID)</label>
+            <input required disabled={isEdit} className="w-full h-12 px-5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white disabled:opacity-50" value={formData.codeId} onChange={(e) => setFormData({...formData, codeId: e.target.value.toUpperCase()})} />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-black uppercase text-slate-400 tracking-wider ml-1">상세 명칭</label>
+            <input required className="w-full h-12 px-5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.codeName} onChange={(e) => setFormData({...formData, codeName: e.target.value})} />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">상세 코드 (ID)</label>
-              <input required disabled={isEdit} className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white disabled:opacity-50" value={formData.codeId} onChange={(e) => setFormData({...formData, codeId: e.target.value.toUpperCase()})} />
+              <div className="flex justify-between items-end px-1">
+                <label className="text-xs font-black uppercase text-slate-400 tracking-wider">정렬 순서</label>
+                <span className="text-[10px] text-primary font-black uppercase opacity-70">Max: {maxOrder}</span>
+              </div>
+              <input required type="number" min="1" max={maxOrder} className="w-full h-12 px-5 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.sortOrder} onChange={(e) => setFormData({...formData, sortOrder: e.target.value === '' ? '' : parseInt(e.target.value)})} />
             </div>
             <div className="space-y-2">
-              <div className="flex justify-between items-end px-1">
-                <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest">순서</label>
-                <span className="text-[9px] text-primary font-black uppercase">Max: {maxOrder}</span>
+              <label className="text-xs font-black uppercase text-slate-400 tracking-wider ml-1">사용 여부</label>
+              <div className="flex gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl h-12">
+                {['Y', 'N'].map(v => (
+                  <button key={v} type="button" onClick={() => setFormData({...formData, useYn: v})} className={`flex-1 rounded-lg text-[10px] font-black transition-all ${formData.useYn === v ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-400 hover:text-slate-500'}`}>
+                    {v === 'Y' ? '사용' : '미사용'}
+                  </button>
+                ))}
               </div>
-              <input required type="number" min="1" max={maxOrder} className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.sortOrder} onChange={(e) => setFormData({...formData, sortOrder: e.target.value === '' ? '' : parseInt(e.target.value)})} />
             </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">상세 명칭</label>
-            <input required className="w-full h-14 px-6 bg-slate-50 dark:bg-slate-800 border-none rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20 dark:text-white" value={formData.codeName} onChange={(e) => setFormData({...formData, codeName: e.target.value})} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">사용 여부</label>
-            <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-800 rounded-2xl">
-              {['Y', 'N'].map(v => (
-                <button key={v} type="button" onClick={() => setFormData({...formData, useYn: v})} className={`flex-1 h-12 rounded-xl text-xs font-black transition-all ${formData.useYn === v ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' : 'text-slate-400'}`}>
-                  {v === 'Y' ? '사용함 (Y)' : '사용안함 (N)'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-3 pt-4">
-            <button type="button" onClick={onClose} className="flex-1 h-14 rounded-2xl bg-slate-100 text-slate-500 text-sm font-black hover:bg-slate-200 transition-all">취소</button>
-            <button type="submit" className="flex-1 h-14 rounded-2xl bg-primary text-white text-sm font-black hover:bg-blue-600 shadow-xl shadow-primary/20 transition-all">{isEdit ? '저장하기' : '등록하기'}</button>
+
+          <div className="flex gap-3 pt-6">
+            <button type="button" onClick={onClose} className="flex-1 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-sm font-black hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">취소</button>
+            <button type="submit" className="flex-1 h-12 rounded-xl bg-primary text-white text-sm font-black hover:bg-blue-600 shadow-lg shadow-primary/20 transition-all">{isEdit ? '수정 완료' : '등록 완료'}</button>
           </div>
         </form>
       </div>
