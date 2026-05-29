@@ -179,7 +179,10 @@ export default function PracticeExams() {
       }
       
       const data = await api.get(endpoint, { params });
-      const list = data?.list || [];
+      
+      // [수정] 백엔드 응답의 이중 중첩 구조(result.data.data) 대응
+      const actualData = data?.data || data;
+      const list = actualData?.list || [];
       
       setPosts(list.map((item: any) => ({
         id: item.boardId, title: item.title, author: item.userName, authorImage: item.profileImage,
@@ -190,7 +193,7 @@ export default function PracticeExams() {
       })));
 
       // [핵심] totalPage 정보 보정 로직
-      const serverTotalPage = data?.totalPage || data?.totalPages || 0;
+      const serverTotalPage = actualData?.totalPage || actualData?.totalPages || 0;
       if (serverTotalPage > 0) {
         setTotalPages(serverTotalPage);
       } else {
