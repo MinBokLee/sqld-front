@@ -656,26 +656,40 @@ export default function AdminMemberPage() {
                         <div className="flex items-center justify-between lg:justify-center lg:w-24">
                           <span className="lg:hidden text-[10px] font-black text-slate-400 uppercase tracking-widest">작업</span>
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleRoleToggle(member)}
-                              disabled={!canModifyRole(member)}
-                              className={`p-1.5 rounded-lg transition-all border shadow-sm disabled:opacity-0 ${
-                                member.userRole === 'USER' 
-                                  ? 'text-emerald-600 bg-emerald-50 border-emerald-100/50 hover:bg-emerald-100' 
-                                  : 'text-amber-600 bg-amber-50 border-amber-100/50 hover:bg-amber-100'
-                              }`}
-                            >
-                              {member.userRole === 'USER' ? <ShieldAlert size={16} /> : <UserCheck size={16} />}
-                            </button>
-
-                            {user?.userRole === 'SUPER_ADMIN' && (
-                              <button 
-                                onClick={() => handleKick(member)}
-                                disabled={!canKick(member)}
-                                className="p-1.5 text-red-600 bg-red-50 border border-red-100/50 rounded-lg transition-all shadow-sm disabled:opacity-0 hover:bg-red-100"
+                            {/* 권한 변경 버튼 + 툴팁 */}
+                            <div className="relative group/btn-tooltip">
+                              <button
+                                onClick={() => handleRoleToggle(member)}
+                                disabled={!canModifyRole(member)}
+                                className={`p-1.5 rounded-lg transition-all border shadow-sm disabled:opacity-0 ${
+                                  member.userRole === 'USER' 
+                                    ? 'text-emerald-600 bg-emerald-50 border-emerald-100/50 hover:bg-emerald-100' 
+                                    : 'text-amber-600 bg-amber-50 border-amber-100/50 hover:bg-amber-100'
+                                }`}
                               >
-                                <Trash2 size={16} />
+                                {member.userRole === 'USER' ? <ShieldAlert size={16} /> : <UserCheck size={16} />}
                               </button>
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-900 text-white text-[10px] font-black rounded-lg opacity-0 group-hover/btn-tooltip:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl z-30 scale-90 group-hover/btn-tooltip:scale-100 origin-bottom">
+                                {member.userRole === 'USER' ? '관리자로 승격' : '일반 유저로 강등'}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-slate-900" />
+                              </div>
+                            </div>
+
+                            {/* 강퇴 버튼 + 툴팁 */}
+                            {user?.userRole === 'SUPER_ADMIN' && (
+                              <div className="relative group/btn-tooltip">
+                                <button 
+                                  onClick={() => handleKick(member)}
+                                  disabled={!canKick(member)}
+                                  className="p-1.5 text-red-600 bg-red-50 border border-red-100/50 rounded-lg transition-all shadow-sm disabled:opacity-0 hover:bg-red-100"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-red-600 text-white text-[10px] font-black rounded-lg opacity-0 group-hover/btn-tooltip:opacity-100 transition-all pointer-events-none whitespace-nowrap shadow-xl z-30 scale-90 group-hover/btn-tooltip:scale-100 origin-bottom">
+                                  회원 강퇴하기
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-[5px] border-transparent border-t-red-600" />
+                                </div>
+                              </div>
                             )}
                           </div>
                         </div>
