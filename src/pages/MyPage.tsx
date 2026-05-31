@@ -64,11 +64,25 @@ export default function MyPage() {
     setLoading(true);
     try {
       const res: any = await api.get('/api/board/searchScrapMyPage', { params: { page: pageNum, size: 10 } });
-      const actualData = res?.data || res;
-      const list = actualData?.list || (Array.isArray(actualData) ? actualData : []);
+      
+      let actualData = res;
+      if (res && res.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
+         actualData = res.data;
+         if (actualData.data && typeof actualData.data === 'object' && !Array.isArray(actualData.data)) {
+            actualData = actualData.data;
+         }
+      }
+
+      const list = actualData?.list || (Array.isArray(actualData) ? actualData : []) || [];
       setScraps(list);
       setTotalCount(actualData?.totalCount || actualData?.totalElements || list.length);
-      setTotalPages(actualData?.totalPages || actualData?.totalPage || 1);
+      
+      const serverTotalPage = actualData?.totalPages || actualData?.totalPage || actualData?.total_pages || 0;
+      if (serverTotalPage > 0) {
+        setTotalPages(serverTotalPage);
+      } else {
+        setTotalPages(list.length === 10 ? pageNum + 1 : pageNum);
+      }
     } catch (error) { 
       console.error("Scrap load error:", error); 
       setScraps([]);
@@ -80,11 +94,25 @@ export default function MyPage() {
     setLoading(true);
     try {
       const res: any = await api.get('/api/board/my-list', { params: { page: pageNum, size: 10 } });
-      const actualData = res?.data || res;
-      const list = actualData?.list || (Array.isArray(actualData) ? actualData : []);
+      
+      let actualData = res;
+      if (res && res.data && typeof res.data === 'object' && !Array.isArray(res.data)) {
+         actualData = res.data;
+         if (actualData.data && typeof actualData.data === 'object' && !Array.isArray(actualData.data)) {
+            actualData = actualData.data;
+         }
+      }
+
+      const list = actualData?.list || (Array.isArray(actualData) ? actualData : []) || [];
       setMyPosts(list);
       setTotalCount(actualData?.totalCount || actualData?.totalElements || list.length);
-      setTotalPages(actualData?.totalPages || actualData?.totalPage || 1);
+      
+      const serverTotalPage = actualData?.totalPages || actualData?.totalPage || actualData?.total_pages || 0;
+      if (serverTotalPage > 0) {
+        setTotalPages(serverTotalPage);
+      } else {
+        setTotalPages(list.length === 10 ? pageNum + 1 : pageNum);
+      }
     } catch (error) { 
       console.error("Posts load error:", error); 
       setMyPosts([]);

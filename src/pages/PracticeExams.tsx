@@ -180,9 +180,17 @@ export default function PracticeExams() {
       
       const data = await api.get(endpoint, { params });
       
-      // [수정] 백엔드 응답의 이중 중첩 구조(result.data.data) 대응
-      const actualData = data?.data || data;
-      const list = actualData?.list || [];
+      // [수정] 백엔드 응답의 이중 중첩 구조(result.data.data 등) 정밀 대응
+      // 최상위 객체부터 시작하여 실제 리스트와 페이징 정보가 있는 객체를 찾습니다.
+      let actualData = data;
+      if (data && data.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
+         actualData = data.data;
+         if (actualData.data && typeof actualData.data === 'object' && !Array.isArray(actualData.data)) {
+            actualData = actualData.data;
+         }
+      }
+
+      const list = actualData?.list || (Array.isArray(actualData) ? actualData : []) || [];
       
       setPosts(list.map((item: any) => ({
         id: item.boardId, title: item.title, author: item.userName, authorImage: item.profileImage,
@@ -192,13 +200,13 @@ export default function PracticeExams() {
         seqNumber: item.seqNumber
       })));
 
-      // [핵심] totalPage 정보 보정 로직
-      const serverTotalPage = actualData?.totalPage || actualData?.totalPages || 0;
+      // [핵심] totalPage 정보 보정 로직 (모든 가능한 키명 검사)
+      const serverTotalPage = actualData?.totalPages || actualData?.totalPage || actualData?.total_pages || 0;
       if (serverTotalPage > 0) {
         setTotalPages(serverTotalPage);
       } else {
         // 서버에서 총 페이지 정보를 주지 않는 경우 (예: my-list)
-        // 현재 불러온 데이터가 요청한 size(10개)와 같다면 다음 페이지가 더 있을 것으로 판단하여 UI를 활성화합니다.
+        // 현재 불러온 데이터가 요청한 size와 같다면 다음 페이지가 더 있을 것으로 판단하여 UI를 활성화합니다.
         const hasNextPage = list.length === size;
         setTotalPages(hasNextPage ? page + 1 : page);
       }
