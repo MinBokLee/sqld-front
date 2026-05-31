@@ -8,6 +8,7 @@ import ProfileDropdown from './ProfileDropdown';
 import WithdrawalModal from './WithdrawalModal';
 import api from '../utils/api';  
 import { useBoard } from '../contexts/BoardContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface HeaderProps {
   onOpenSignUpModal: () => void;
@@ -29,6 +30,15 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
   const [headerKeyword, setHeaderKeyword] = useState(''); 
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false); 
   const [isWithdrawing, setIsWithdrawing] = useState(false); 
+
+  const [hoveredBoard, setHoveredBoard] = useState<string | null>(null);
+  const [expandedMobileBoards, setExpandedMobileBoards] = useState<string[]>([]);
+
+  const toggleMobileBoard = (code: string) => {
+    setExpandedMobileBoards(prev => 
+      prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]
+    );
+  };
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notiRef = useRef<HTMLDivElement>(null);
@@ -128,13 +138,44 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
             </Link>
             <nav className="hidden lg:flex items-center gap-6">
               {boardConfigs.filter(config => config.useYn === 'Y').map((config) => (
-                <Link 
+                <div 
                   key={config.boardCode}
-                  to={`/practice-exams?boardCode=${encodeURIComponent(config.boardCode)}`} 
-                  className={`${getMenuClass(config.boardCode)} text-sm font-semibold transition-colors`}
+                  className="relative group py-2"
+                  onMouseEnter={() => setHoveredBoard(config.boardCode)}
+                  onMouseLeave={() => setHoveredBoard(null)}
                 >
-                  {config.boardName}
-                </Link>
+                  <Link 
+                    to={`/practice-exams?boardCode=${encodeURIComponent(config.boardCode)}`} 
+                    className={`${getMenuClass(config.boardCode)} text-sm font-semibold transition-colors flex items-center gap-1`}
+                  >
+                    {config.boardName}
+                    {config.categories && config.categories.length > 0 && (
+                      <ChevronDown size={14} className={`transition-transform duration-200 ${hoveredBoard === config.boardCode ? 'rotate-180' : ''}`} />
+                    )}
+                  </Link>
+
+                  <AnimatePresence>
+                    {hoveredBoard === config.boardCode && config.categories && config.categories.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        transition={{ duration: 0.2 }}
+                        className="absolute left-0 mt-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-100 dark:border-slate-800 py-2 z-[60]"
+                      >
+                        {config.categories.map((cat) => (
+                          <Link
+                            key={cat.categoryId}
+                            to={`/practice-exams?boardCode=${encodeURIComponent(config.boardCode)}&categoryId=${encodeURIComponent(cat.categoryId)}`}
+                            className="block px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-primary dark:hover:text-primary hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            {cat.categoryName}
+                          </Link>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               ))}
               {['ADMIN', 'SUPER_ADMIN'].includes(user?.userRole || '') && (
                 <Link to="/admin/members" className="text-red-500 hover:text-red-600 text-sm font-black transition-colors flex items-center gap-1">
@@ -342,25 +383,65 @@ export default function Header({ onOpenSignUpModal, onOpenLoginModal, onOpenPass
               />
             </form>
 
-            <nav className="flex-1 space-y-2">
+            <nav className="flex-1 space-y-2 overflow-y-auto">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 mb-2">Navigation</p>
-              {boardConfigs.filter(config => config.useYn === 'Y').map((config) => (
-                <Link 
-                  key={config.boardCode}
-                  to={`/practice-exams?boardCode=${encodeURIComponent(config.boardCode)}`} 
-                  className={`flex items-center gap-3 p-3 rounded-xl transition-colors font-bold ${
-                    currentCode === config.boardCode
-                    ? 'bg-primary/10 text-primary' 
-                    : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {config.groupCode === 'G_BRD_NOTICE' ? <Megaphone size={18} className={currentCode === config.boardCode ? 'text-primary' : 'text-slate-400'} /> : 
-                   config.groupCode === 'G_BRD_GREETING' ? <Smile size={18} className={currentCode === config.boardCode ? 'text-primary' : 'text-slate-400'} /> : 
-                   <FileText size={18} className={(currentCode === config.boardCode || (!currentCode && config.groupCode === 'G_BRD_LICENSE' && location.pathname === '/practice-exams')) ? 'text-primary' : 'text-slate-400'} />}
-                  {config.boardName}
-                </Link>
-              ))}
+              {boardConfigs.filter(config => config.useYn === 'Y').map((config) => {
+                const isExpanded = expandedMobileBoards.includes(config.boardCode);
+                const hasCategories = config.categories && config.categories.length > 0;
+                
+                return (
+                  <div key={config.boardCode} className="space-y-1">
+                    <div className="flex items-center gap-1">
+                      <Link 
+                        to={`/practice-exams?boardCode=${encodeURIComponent(config.boardCode)}`} 
+                        className={`flex-1 flex items-center gap-3 p-3 rounded-xl transition-colors font-bold ${
+                          currentCode === config.boardCode
+                          ? 'bg-primary/10 text-primary' 
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300'
+                        }`}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        {config.groupCode === 'G_BRD_NOTICE' ? <Megaphone size={18} className={currentCode === config.boardCode ? 'text-primary' : 'text-slate-400'} /> : 
+                         config.groupCode === 'G_BRD_GREETING' ? <Smile size={18} className={currentCode === config.boardCode ? 'text-primary' : 'text-slate-400'} /> : 
+                         <FileText size={18} className={(currentCode === config.boardCode || (!currentCode && config.groupCode === 'G_BRD_LICENSE' && location.pathname === '/practice-exams')) ? 'text-primary' : 'text-slate-400'} />}
+                        {config.boardName}
+                      </Link>
+                      
+                      {hasCategories && (
+                        <button
+                          onClick={() => toggleMobileBoard(config.boardCode)}
+                          className={`p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+                        >
+                          <ChevronDown size={18} />
+                        </button>
+                      )}
+                    </div>
+
+                    <AnimatePresence>
+                      {isExpanded && hasCategories && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden pl-11 space-y-1"
+                        >
+                          {config.categories!.map((cat) => (
+                            <Link
+                              key={cat.categoryId}
+                              to={`/practice-exams?boardCode=${encodeURIComponent(config.boardCode)}&categoryId=${encodeURIComponent(cat.categoryId)}`}
+                              onClick={() => setIsMobileMenuOpen(false)}
+                              className="block p-2 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors"
+                            >
+                              • {cat.categoryName}
+                            </Link>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
               
               {['ADMIN', 'SUPER_ADMIN'].includes(user?.userRole || '') && (
                 <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">

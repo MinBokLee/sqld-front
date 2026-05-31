@@ -5,7 +5,7 @@ import {
   Search, Filter, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   MessageSquare, Eye, ThumbsUp, Clock, BookOpen,
   ArrowUpRight, PenSquare, Hash, Tag, X, TrendingUp, Heart,
-  Layers, MessageCircle, Lightbulb, HelpCircle, User, ArrowUpDown
+  Layers, MessageCircle, Lightbulb, Info, User, ArrowUpDown
 } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { LanguageContext } from '../contexts/LanguageContext';
@@ -437,7 +437,18 @@ export default function PracticeExams() {
                 </div>
               </div>
               <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-[#cfdbe7] dark:border-slate-800 shadow-sm">
-                <h3 className="text-sm font-bold text-[#0d141b] dark:text-white mb-4 flex items-center gap-2"><Hash className="text-primary" size={18} />실시간 급상승 태그</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-[#0d141b] dark:text-white flex items-center gap-2">
+                    <Hash className="text-primary" size={18} />실시간 급상승 태그
+                  </h3>
+                  <div className="relative group/tag-info">
+                    <Info size={14} className="text-slate-300 hover:text-primary transition-colors cursor-help" />
+                    <div className="absolute bottom-full right-0 mb-2 w-64 p-3 bg-slate-900 text-white text-[11px] font-black rounded-xl opacity-0 group-hover/tag-info:opacity-100 transition-all pointer-events-none shadow-2xl z-50 scale-95 group-hover/tag-info:scale-100 origin-bottom-right leading-relaxed">
+                      가장 최근에 작성된 30개의 게시글을 실시간으로 분석하여, 지금 커뮤니티에서 가장 주목받는 키워드를 보여줍니다.
+                      <div className="absolute top-full right-1 border-[5px] border-transparent border-t-slate-900" />
+                    </div>
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {trendingTags.length > 0 ? trendingTags.map((tag, i) => (
                     <button key={i} onClick={() => handleTagClick(tag)} className="px-3 py-1.5 rounded-lg bg-[#f6f7f8] dark:bg-slate-800 text-xs font-medium text-[#4c739a] dark:text-slate-400 hover:bg-primary/10 hover:text-primary transition-all">#{tag}</button>
