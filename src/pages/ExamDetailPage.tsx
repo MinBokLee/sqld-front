@@ -47,6 +47,10 @@ interface Exam {
 }
 
 const POST_CONTENT_STYLE = `
+  /* 텍스트 드래그(선택) 시 가독성 보장 (스포일러 텍스트 대응) */
+  .prose-container ::selection { background-color: #137fec !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+  .prose-container *::selection { background-color: #137fec !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
+
   .prose-container pre { background-color: #282c34 !important; color: #abb2bf !important; padding: 1.5rem !important; border-radius: 1rem !important; font-family: 'Fira Code', monospace !important; font-size: 0.875rem !important; margin: 2rem 0 !important; overflow-x: auto !important; border-left: 4px solid #61afef !important; }
   .prose-container :not(pre) > code { background-color: #e2e8f0 !important; color: #e11d48 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.4rem !important; font-size: 0.9em !important; }
   .dark .prose-container :not(pre) > code { background-color: #1e293b; color: #fb7185; }
@@ -63,12 +67,26 @@ const POST_CONTENT_STYLE = `
   .prose-container .image-style-align-left { float: left; margin-right: 1.5rem; margin-left: 0; max-width: 50%; }
   .prose-container .image-style-align-right { float: right; margin-left: 1.5rem; margin-right: 0; max-width: 50%; }
   .prose-container .image-style-align-center { margin-left: auto !important; margin-right: auto !important; float: none !important; display: table !important; }
-  .prose-container figure.table { margin: 2rem 0 !important; border-radius: 1rem !important; overflow: hidden !important; border: 1px solid #e2e8f0 !important; width: auto !important; max-width: 100% !important; display: block !important; }
-  .prose-container figure.table table { border-collapse: collapse !important; margin: 0 !important; table-layout: fixed !important; width: 100% !important; min-width: 50px !important; }
-  .prose-container figure.table th, .prose-container figure.table td { border: 1px solid #cbd5e1; padding: 0.75rem 1rem !important; word-break: break-all; }
+  
+  /* 표(Table) 모바일 대응: 가로 스크롤 활성화 */
+  .prose-container figure.table { 
+    margin: 2rem 0 !important; 
+    border-radius: 1rem !important; 
+    overflow-x: auto !important; 
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #e2e8f0 !important; 
+    width: 100% !important;
+    display: block !important; 
+  }
+  .prose-container figure.table table { border-collapse: collapse !important; margin: 0 !important; table-layout: auto !important; width: 100% !important; min-width: 600px !important; }
+  .prose-container figure.table th, .prose-container figure.table td { border: 1px solid #cbd5e1; padding: 0.75rem 1rem !important; word-break: keep-all; }
   .prose-container figure.table th { background-color: #f1f5f9; font-weight: 900 !important; }
   .dark .prose-container figure.table th { background-color: #0f172a; color: #f1f5f9 !important; }
-  @media (max-width: 640px) { .prose-container .image { max-width: 100% !important; float: none !important; } .prose-container figure.table table { min-width: 500px !important; } }
+  @media (max-width: 640px) { 
+    .prose-container .image { max-width: 100% !important; float: none !important; } 
+    .prose-container figure.table { margin: 1.5rem 0 !important; }
+    .prose-container figure.table table { min-width: 500px !important; } 
+  }
 `;
 
 const PostContent = React.memo(({ content, onImageClick }: { content: string, onImageClick: (url: string) => void }) => {
