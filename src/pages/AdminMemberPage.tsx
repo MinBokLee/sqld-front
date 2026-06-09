@@ -10,6 +10,7 @@ import { useUser } from "../contexts/UserContext";
 import { useAlert } from "../contexts/AlertContext";
 import { LanguageContext } from "../contexts/LanguageContext";
 import { useBoard } from "../contexts/BoardContext";
+import { formatDate } from "../utils/dateUtils";
 import api from "../utils/api";
 import ConfirmModal from "../components/ConfirmModal";
 
@@ -555,15 +556,6 @@ export default function AdminMemberPage() {
                   filteredMembers.map((member) => {
                     const isSelf = member.memberId === user?.memberId;
                     const isSelfAdmin = isSelf && ['ADMIN', 'SUPER_ADMIN'].includes(member.userRole);
-                    
-                    // 날짜 포맷팅 (YYYY.MM.DD)
-                    const formatDate = (dateStr: string) => {
-                      if (!dateStr) return '-';
-                      try {
-                        const d = new Date(dateStr);
-                        return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-                      } catch (e) { return dateStr; }
-                    };
 
                     return (
                       <div key={member.memberId} className={`flex flex-col lg:flex-row lg:items-center px-8 py-5 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors group ${selectedUsers.includes(member.memberId) ? 'bg-primary/5' : ''}`}>
