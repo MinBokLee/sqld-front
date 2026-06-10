@@ -341,6 +341,20 @@ export default function WritePostPage() {
     toolbar: [ 'heading', '|', 'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor', '|', 'bold', 'bulletedList', 'numberedList', 'alignment', 'highlight', '|', 'uploadImage', 'insertTable', 'codeBlock', '|', 'undo', 'redo' ],
     image: { toolbar: ['imageStyle:inline', 'imageStyle:block', 'imageStyle:side', '|', 'imageTextAlternative'], resizeUnit: '%' },
     table: { contentToolbar: ['tableColumn', 'tableRow', 'mergeTableCells', '|', 'tableProperties', 'tableCellProperties', '|', 'alignment', 'tableColumnWidthEqualizer'] },
+    fontSize: {
+      options: [
+        '10px',
+        '12px',
+        '14px',
+        'default',
+        '18px',
+        '20px',
+        '24px',
+        '30px',
+        '36px'
+      ],
+      supportAllValues: true
+    },
     codeBlock: { languages: [{ language: 'sql', label: 'SQL (SQLD)' }, { language: 'javascript', label: 'JavaScript' }, { language: 'python', label: 'Python' }, { language: 'plaintext', label: 'Plain text' }] },
     htmlSupport: { allow: [{ name: /.*/, attributes: true, classes: true, styles: true }] },
     placeholder: '내용을 입력하세요...', licenseKey: 'GPL',
