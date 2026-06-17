@@ -51,7 +51,7 @@ const POST_CONTENT_STYLE = `
   .prose-container ::selection { background-color: #137fec !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
   .prose-container *::selection { background-color: #137fec !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
 
-  .prose-container pre { background-color: #282c34 !important; color: #abb2bf !important; padding: 1.5rem !important; border-radius: 1rem !important; font-family: 'Fira Code', monospace !important; font-size: 0.875rem !important; margin: 2rem 0 !important; overflow-x: auto !important; border-left: 4px solid #61afef !important; }
+  .prose-container pre { background-color: #282c34 !important; color: #abb2bf !important; padding: 1.5rem !important; border-radius: 1rem !important; font-family: 'Fira Code', monospace !important; font-size: 0.875rem !important; margin: 2rem 0 !important; overflow-x: auto !important; border-left: 4px solid #61afef !important; clear: both; }
   .prose-container :not(pre) > code { background-color: #e2e8f0 !important; color: #e11d48 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.4rem !important; font-size: 0.9em !important; }
   .dark .prose-container :not(pre) > code { background-color: #1e293b; color: #fb7185; }
   
@@ -61,11 +61,10 @@ const POST_CONTENT_STYLE = `
   .prose-container li { margin-bottom: 0.5rem !important; line-height: 1.6 !important; }
   .prose-container li > p { margin: 0 !important; display: inline !important; }
 
-  /* 이미지 정렬 (CKEditor 규격 지원) */
+  /* 이미지 기본 컨테이너 */
   .prose-container .image { 
     margin: 1.5rem 0; 
-    /* clear: both를 제거하여 좌우 배치를 허용합니다 */
-    display: block; 
+    /* display: block이나 clear: both를 강제하지 않음으로써 텍스트 어울림 유지 */
   }
   .prose-container .image img { 
     display: block; 
@@ -91,13 +90,16 @@ const POST_CONTENT_STYLE = `
     float: left; 
     margin-right: 1.5rem; 
     margin-left: 0; 
+    margin-bottom: 1rem;
     max-width: calc(50% - 1.5rem); 
   }
   .prose-container .image.image-style-align-right,
+  .prose-container .image.image-style-side,
   .prose-container .image-inline.image-style-align-right { 
     float: right; 
     margin-left: 1.5rem; 
     margin-right: 0; 
+    margin-bottom: 1rem;
     max-width: calc(50% - 1.5rem); 
   }
   .prose-container .image.image-style-align-center { 
@@ -106,17 +108,21 @@ const POST_CONTENT_STYLE = `
     float: none !important; 
     display: flex !important;
     justify-content: center;
-  }
-  .prose-container .image.image-style-side { 
-    float: right; 
-    margin-left: 1.5rem; 
-    max-width: 50%; 
+    clear: both; /* 가운데 정렬은 앞선 플로팅을 무시하고 새 줄에서 시작 */
   }
 
-  /* 플로팅 해제용 (본문 레이아웃 꼬임 방지) */
+  /* 플로팅된 이미지 다음 요소들이 겹치지 않게 보호 */
+  .prose-container > h1,
+  .prose-container > h2,
+  .prose-container > h3,
+  .prose-container > h4 {
+    clear: both; /* 제목 요소는 무조건 새 줄에서 시작 */
+  }
+
+  /* 전체 컨테이너 높이 유지용 (마지막 플로팅 요소 포함) */
   .prose-container::after {
     content: "";
-    display: table;
+    display: block;
     clear: both;
   }
   
