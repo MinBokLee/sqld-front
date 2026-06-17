@@ -61,12 +61,64 @@ const POST_CONTENT_STYLE = `
   .prose-container li { margin-bottom: 0.5rem !important; line-height: 1.6 !important; }
   .prose-container li > p { margin: 0 !important; display: inline !important; }
 
-  .prose-container .image { margin: 2rem 0; clear: both; display: table; }
-  .prose-container .image img { display: block; max-width: 100%; border-radius: 1.5rem; box-shadow: 0 20px 50px -15px rgba(0,0,0,0.15); border: 4px solid white; transition: transform 0.3s ease; }
+  /* 이미지 정렬 (CKEditor 규격 지원) */
+  .prose-container .image { 
+    margin: 1.5rem 0; 
+    /* clear: both를 제거하여 좌우 배치를 허용합니다 */
+    display: block; 
+  }
+  .prose-container .image img { 
+    display: block; 
+    max-width: 100%; 
+    border-radius: 1.5rem; 
+    box-shadow: 0 20px 50px -15px rgba(0,0,0,0.15); 
+    border: 4px solid white; 
+    transition: transform 0.3s ease; 
+  }
   .dark .prose-container .image img { border-color: #1e293b; }
-  .prose-container .image-style-align-left { float: left; margin-right: 1.5rem; margin-left: 0; max-width: 50%; }
-  .prose-container .image-style-align-right { float: right; margin-left: 1.5rem; margin-right: 0; max-width: 50%; }
-  .prose-container .image-style-align-center { margin-left: auto !important; margin-right: auto !important; float: none !important; display: table !important; }
+  
+  /* 인라인 이미지 지원 */
+  .prose-container .image-inline {
+    display: inline-flex;
+    margin: 0 0.5rem;
+    max-width: 100%;
+    align-items: flex-start;
+  }
+  
+  /* 이미지 스타일 플로팅 (좌/우/가운데/사이드) */
+  .prose-container .image.image-style-align-left,
+  .prose-container .image-inline.image-style-align-left { 
+    float: left; 
+    margin-right: 1.5rem; 
+    margin-left: 0; 
+    max-width: calc(50% - 1.5rem); 
+  }
+  .prose-container .image.image-style-align-right,
+  .prose-container .image-inline.image-style-align-right { 
+    float: right; 
+    margin-left: 1.5rem; 
+    margin-right: 0; 
+    max-width: calc(50% - 1.5rem); 
+  }
+  .prose-container .image.image-style-align-center { 
+    margin-left: auto !important; 
+    margin-right: auto !important; 
+    float: none !important; 
+    display: flex !important;
+    justify-content: center;
+  }
+  .prose-container .image.image-style-side { 
+    float: right; 
+    margin-left: 1.5rem; 
+    max-width: 50%; 
+  }
+
+  /* 플로팅 해제용 (본문 레이아웃 꼬임 방지) */
+  .prose-container::after {
+    content: "";
+    display: table;
+    clear: both;
+  }
   
   /* 표(Table) 모바일 대응: 가로 스크롤 활성화 */
   .prose-container figure.table { 
@@ -77,13 +129,30 @@ const POST_CONTENT_STYLE = `
     border: 1px solid #e2e8f0 !important; 
     width: 100% !important;
     display: block !important; 
+    clear: both; /* 표는 플로팅 요소 밑으로 떨어지게 강제 */
   }
   .prose-container figure.table table { border-collapse: collapse !important; margin: 0 !important; table-layout: auto !important; width: 100% !important; min-width: 600px !important; }
   .prose-container figure.table th, .prose-container figure.table td { border: 1px solid #cbd5e1; padding: 0.75rem 1rem !important; word-break: keep-all; }
   .prose-container figure.table th { background-color: #f1f5f9; font-weight: 900 !important; }
   .dark .prose-container figure.table th { background-color: #0f172a; color: #f1f5f9 !important; }
+  
+  /* 모바일 반응형: 화면이 좁을 때는 플로팅을 해제하고 무조건 100% 세로 정렬 */
   @media (max-width: 640px) { 
-    .prose-container .image { max-width: 100% !important; float: none !important; } 
+    .prose-container .image,
+    .prose-container .image-inline,
+    .prose-container .image.image-style-align-left,
+    .prose-container .image.image-style-align-right,
+    .prose-container .image.image-style-side,
+    .prose-container .image-inline.image-style-align-left,
+    .prose-container .image-inline.image-style-align-right { 
+      max-width: 100% !important; 
+      width: 100% !important;
+      float: none !important; 
+      margin-left: 0 !important;
+      margin-right: 0 !important;
+      display: flex !important;
+      justify-content: center;
+    } 
     .prose-container figure.table { margin: 1.5rem 0 !important; }
     .prose-container figure.table table { min-width: 500px !important; } 
   }
