@@ -63,8 +63,10 @@ const POST_CONTENT_STYLE = `
 
   /* 이미지 기본 컨테이너 */
   .prose-container .image { 
-    margin: 1.5rem 0; 
-    /* display: block이나 clear: both를 강제하지 않음으로써 텍스트 어울림 유지 */
+    margin: 1.5rem auto; 
+    display: block;
+    clear: both;
+    text-align: center;
   }
   .prose-container .image img { 
     display: block; 
@@ -92,6 +94,8 @@ const POST_CONTENT_STYLE = `
     margin-left: 0; 
     margin-bottom: 1rem;
     max-width: calc(50% - 1.5rem); 
+    display: block;
+    clear: none !important;
   }
   .prose-container .image.image-style-align-right,
   .prose-container .image.image-style-side,
@@ -101,6 +105,8 @@ const POST_CONTENT_STYLE = `
     margin-right: 0; 
     margin-bottom: 1rem;
     max-width: calc(50% - 1.5rem); 
+    display: block;
+    clear: none !important;
   }
   .prose-container .image.image-style-align-center { 
     margin-left: auto !important; 
@@ -172,7 +178,7 @@ const PostContent = React.memo(({ content, onImageClick }: { content: string, on
   return (
     <div className="prose-container p-6 sm:p-10 prose dark:prose-invert max-w-none min-h-[300px]" onClick={handleClick}>
       <style dangerouslySetInnerHTML={{ __html: POST_CONTENT_STYLE }} />
-      <div dangerouslySetInnerHTML={{ __html: content }} />
+      <div className="ck-content content-area" dangerouslySetInnerHTML={{ __html: content }} />
     </div>
   );
 });
