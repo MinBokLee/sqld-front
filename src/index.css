@@ -26,6 +26,16 @@ body {
   text-align: center;
 }
 
+.ck-content figure.image.image-style-align-left,
+.ck-content figure.image.image-style-align-right,
+.ck-content figure.image.image-style-side,
+.content-area figure.image.image-style-align-left,
+.content-area figure.image.image-style-align-right,
+.content-area figure.image.image-style-side {
+  clear: none;
+  display: block;
+}
+
 .ck-content figure.image img, 
 .content-area figure.image img,
 .ck-content img,
