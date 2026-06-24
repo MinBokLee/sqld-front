@@ -46,144 +46,14 @@ interface Exam {
   tags?: string[];
 }
 
-const POST_CONTENT_STYLE = `
-  /* 텍스트 드래그(선택) 시 가독성 보장 (스포일러 텍스트 대응) */
-  .prose-container ::selection { background-color: #137fec !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
-  .prose-container *::selection { background-color: #137fec !important; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; }
-
-  .prose-container pre { background-color: #282c34 !important; color: #abb2bf !important; padding: 1.5rem !important; border-radius: 1rem !important; font-family: 'Fira Code', monospace !important; font-size: 0.875rem !important; margin: 2rem 0 !important; overflow-x: auto !important; border-left: 4px solid #61afef !important; clear: both; }
-  .prose-container :not(pre) > code { background-color: #e2e8f0 !important; color: #e11d48 !important; padding: 0.2rem 0.4rem !important; border-radius: 0.4rem !important; font-size: 0.9em !important; }
-  .dark .prose-container :not(pre) > code { background-color: #1e293b; color: #fb7185; }
-  
-  /* 리스트 스타일 복구 */
-  .prose-container ol { list-style-type: decimal !important; padding-left: 1.5rem !important; margin: 1.25rem 0 !important; }
-  .prose-container ul { list-style-type: disc !important; padding-left: 1.5rem !important; margin: 1.25rem 0 !important; }
-  .prose-container li { margin-bottom: 0.5rem !important; line-height: 1.6 !important; }
-  .prose-container li > p { margin: 0 !important; display: inline !important; }
-
-  /* 이미지 기본 컨테이너 */
-  .prose-container .image { 
-    margin: 1.5rem auto; 
-    display: block;
-    clear: both;
-    text-align: center;
-  }
-  .prose-container .image img { 
-    display: block; 
-    max-width: 100%; 
-    border-radius: 1.5rem; 
-    box-shadow: 0 20px 50px -15px rgba(0,0,0,0.15); 
-    border: 4px solid white; 
-    transition: transform 0.3s ease; 
-  }
-  .dark .prose-container .image img { border-color: #1e293b; }
-  
-  /* 인라인 이미지 지원 */
-  .prose-container .image-inline {
-    display: inline-flex;
-    margin: 0 0.5rem;
-    max-width: 100%;
-    align-items: flex-start;
-  }
-  
-  /* 이미지 스타일 플로팅 (좌/우/가운데/사이드) */
-  .prose-container .image.image-style-align-left,
-  .prose-container .image-inline.image-style-align-left { 
-    float: left; 
-    margin-right: 1.5rem; 
-    margin-left: 0; 
-    margin-bottom: 1rem;
-    max-width: calc(50% - 1.5rem); 
-    display: block;
-    clear: none !important;
-  }
-  .prose-container .image.image-style-align-right,
-  .prose-container .image.image-style-side,
-  .prose-container .image-inline.image-style-align-right { 
-    float: right; 
-    margin-left: 1.5rem; 
-    margin-right: 0; 
-    margin-bottom: 1rem;
-    max-width: calc(50% - 1.5rem); 
-    display: block;
-    clear: none !important;
-  }
-  .prose-container .image.image-style-align-center { 
-    margin-left: auto !important; 
-    margin-right: auto !important; 
-    float: none !important; 
-    display: flex !important;
-    justify-content: center;
-    clear: both; /* 가운데 정렬은 앞선 플로팅을 무시하고 새 줄에서 시작 */
-  }
-
-  /* 플로팅된 이미지 다음 요소들이 겹치지 않게 보호 */
-  .prose-container > h1,
-  .prose-container > h2,
-  .prose-container > h3,
-  .prose-container > h4 {
-    clear: both; /* 제목 요소는 무조건 새 줄에서 시작 */
-  }
-
-  /* 코드 블록(pre)은 float 이미지 아래로 겹치지 않고 무조건 개행되도록 처리 */
-  .prose-container pre {
-    clear: both !important;
-  }
-
-  /* 전체 컨테이너 높이 유지용 (마지막 플로팅 요소 포함) */
-  .prose-container::after {
-    content: "";
-    display: block;
-    clear: both;
-  }
-  
-  /* 표(Table) 모바일 대응: 가로 스크롤 활성화 */
-  .prose-container figure.table { 
-    margin: 2rem 0 !important; 
-    border-radius: 1rem !important; 
-    overflow-x: auto !important; 
-    -webkit-overflow-scrolling: touch;
-    border: 1px solid #e2e8f0 !important; 
-    width: 100% !important;
-    display: block !important; 
-    clear: both; /* 표는 플로팅 요소 밑으로 떨어지게 강제 */
-  }
-  .prose-container figure.table table { border-collapse: collapse !important; margin: 0 !important; table-layout: auto !important; width: 100% !important; min-width: 600px !important; }
-  .prose-container figure.table th, .prose-container figure.table td { border: 1px solid #cbd5e1; padding: 0.75rem 1rem !important; word-break: keep-all; }
-  .prose-container figure.table th { background-color: #f1f5f9; font-weight: 900 !important; }
-  .dark .prose-container figure.table th { background-color: #0f172a; color: #f1f5f9 !important; }
-  
-  /* 모바일 반응형: 화면이 좁을 때는 플로팅을 해제하고 무조건 100% 세로 정렬 */
-  @media (max-width: 640px) { 
-    .prose-container .image,
-    .prose-container .image-inline,
-    .prose-container .image.image-style-align-left,
-    .prose-container .image.image-style-align-right,
-    .prose-container .image.image-style-side,
-    .prose-container .image-inline.image-style-align-left,
-    .prose-container .image-inline.image-style-align-right { 
-      max-width: 100% !important; 
-      width: 100% !important;
-      float: none !important; 
-      margin-left: 0 !important;
-      margin-right: 0 !important;
-      display: flex !important;
-      justify-content: center;
-    } 
-    .prose-container figure.table { margin: 1.5rem 0 !important; }
-    .prose-container figure.table table { min-width: 500px !important; } 
-  }
-`;
-
 const PostContent = React.memo(({ content, onImageClick }: { content: string, onImageClick: (url: string) => void }) => {
   const handleClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (target.tagName === 'IMG') onImageClick((target as HTMLImageElement).src);
   };
   return (
-    <div className="prose-container p-6 sm:p-10 prose dark:prose-invert max-w-none min-h-[300px]" onClick={handleClick}>
-      <style dangerouslySetInnerHTML={{ __html: POST_CONTENT_STYLE }} />
-      <div className="ck-content content-area" dangerouslySetInnerHTML={{ __html: content }} />
+    <div className="prose-container px-6 sm:px-10 py-6 sm:py-10 max-w-none min-h-[300px]" onClick={handleClick}>
+      <div className="ck-content content-area px-8 text-base" dangerouslySetInnerHTML={{ __html: content }} />
     </div>
   );
 });
@@ -280,6 +150,9 @@ export default function ExamDetailPage() {
 
     // [핵심] 중복된 /uploads/uploads 패턴 통합
     correctedHtml = correctedHtml.replace(/\/uploads\/+uploads\/*/g, '/uploads/');
+
+    // 이미지(figure) 태그 사이에 낀 불필요한 빈 문단(<p>&nbsp;</p> 등) 제거하여 가로 정렬 높이 어긋남 방지
+    correctedHtml = correctedHtml.replace(/(<\/figure>)\s*(<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)\s*(<figure)/gi, '$1$3');
     
     return correctedHtml;
   };

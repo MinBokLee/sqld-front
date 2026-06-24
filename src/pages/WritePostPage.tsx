@@ -211,6 +211,8 @@ export default function WritePostPage() {
     correctedHtml = correctedHtml.replace(/src="https?:\/\/[^/]+\/uploads\/*([^"]+)"/g, 'src="/uploads/$1"');
     correctedHtml = correctedHtml.replace(/src="\/+uploads\/*([^"]+)"/g, 'src="/uploads/$1"');
     correctedHtml = correctedHtml.replace(/\/uploads\/+uploads\/*/g, '/uploads/');
+    // 이미지(figure) 태그 사이에 낀 불필요한 빈 문단(<p>&nbsp;</p> 등) 제거하여 가로 정렬 높이 어긋남 방지
+    correctedHtml = correctedHtml.replace(/(<\/figure>)\s*(<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>)\s*(<figure)/gi, '$1$3');
     return correctedHtml;
   };
 
