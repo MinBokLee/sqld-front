@@ -125,6 +125,11 @@ const POST_CONTENT_STYLE = `
     clear: both; /* 제목 요소는 무조건 새 줄에서 시작 */
   }
 
+  /* 코드 블록(pre)은 float 이미지 아래로 겹치지 않고 무조건 개행되도록 처리 */
+  .prose-container pre {
+    clear: both !important;
+  }
+
   /* 전체 컨테이너 높이 유지용 (마지막 플로팅 요소 포함) */
   .prose-container::after {
     content: "";

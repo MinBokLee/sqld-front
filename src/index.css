@@ -80,6 +80,12 @@ body {
   margin: 0 auto;
 }
 
+/* 코드 블록(pre)은 float 이미지 아래로 겹치지 않고 무조건 개행되도록 처리 */
+.ck-content pre,
+.content-area pre {
+  clear: both !important;
+}
+
 .ck-content figure.image figcaption,
 .content-area figure.image figcaption {
   display: table-caption;
